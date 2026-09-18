@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="登記分數系統：建立自己的 Google Sheet 副本並部署專屬 GAS 網頁，用語音或拍照登記全班成績。">
+  <title>登記分數系統｜建立副本與部署說明</title>
+  <style>
+    :root{--ink:#1f2a44;--muted:#5b6b8c;--paper:#ffffff;--line:#dde3f0;--blue:#3f6fd1;--blue2:#25459c;--green:#4f9b72;--gold:#c98a2b;--gold-bg:#fdf3e3}
+    *{box-sizing:border-box}
+    body{margin:0;background:#eef2fb;color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif;line-height:1.7}
+    a{color:inherit}.wrap{width:min(920px,calc(100% - 32px));margin:auto;padding:36px 0 56px}
+    .hero,.card{background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(31,42,68,.07)}
+    .hero{padding:clamp(28px,6vw,58px);text-align:center;position:relative;overflow:hidden}
+    .hero:before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#4f9b72,#c98a2b,#3f6fd1)}
+    .badge{display:inline-block;padding:5px 13px;border-radius:999px;background:#e8f3ec;color:#35664a;font-size:14px;font-weight:700}
+    h1{font-size:clamp(30px,6vw,48px);line-height:1.2;margin:20px 0 14px}h2{margin:0 0 14px;font-size:25px}h3{margin:22px 0 8px;font-size:18px}
+    .lead{max-width:650px;margin:0 auto 27px;color:var(--muted);font-size:17px}
+    .cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;text-decoration:none;font-weight:800;padding:14px 23px;border-radius:12px;box-shadow:0 8px 18px rgba(37,69,156,.25)}
+    .cta:hover{filter:brightness(1.04);transform:translateY(-1px)}.safe{margin:15px 0 0;color:var(--muted);font-size:13px}
+    .todo{display:inline-block;margin-left:8px;padding:3px 9px;border:1px dashed var(--gold);border-radius:999px;color:#8a5b12;font-size:12px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;vertical-align:middle}
+    .card{padding:clamp(22px,5vw,38px);margin-top:22px}.steps{list-style:none;padding:0;margin:20px 0 0;counter-reset:step}.steps>li{counter-increment:step;position:relative;padding:0 0 25px 54px}.steps>li:before{content:counter(step);position:absolute;left:0;top:0;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#e8effc;color:var(--blue2);font-weight:900}.steps>li:not(:last-child):after{content:"";position:absolute;left:17px;top:40px;bottom:4px;border-left:2px dashed #c9d4ee}
+    .steps strong{display:block;font-size:17px}.steps p{margin:3px 0;color:var(--muted)}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#eef1f8;padding:2px 6px;border-radius:5px;overflow-wrap:anywhere}
+    .optional{border-color:#f0d9a8;background:var(--gold-bg)}.optional h2{color:#8a5b12}.notice{border-left:4px solid var(--gold);padding:9px 14px;background:white;border-radius:8px;color:#6b4c14}
+    .tip{padding:14px 16px;border-radius:11px;background:#edf5ee;color:#376048}.privacy{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.privacy div{background:#f5f7fc;border:1px solid var(--line);padding:15px;border-radius:12px;text-align:center}.privacy b{display:block}
+    .section-intro{color:var(--muted);margin:-6px 0 18px}.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.feature{display:flex;align-items:flex-start;gap:12px;padding:17px;margin:0;border:1px solid var(--line);border-radius:14px;background:#f7f9fd}.feature-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:#e8effc;font-size:22px}.feature-copy{min-width:0;flex:1}.feature h3{margin:0 0 4px;font-size:17px}.feature p{margin:0;color:var(--muted);font-size:14px}
+    footer{text-align:center;color:#7c88a6;font-size:13px;margin-top:20px}.footer-note a{color:#4b5b7c}.footer-note a:hover{text-decoration:none}
+    @media(max-width:650px){.privacy,.feature-grid{grid-template-columns:1fr}.wrap{width:min(100% - 20px,920px);padding-top:15px}.steps>li{padding-left:48px}.feature{padding:14px}}
+    .highlights-panel{margin-top:30px;padding-top:25px;border-top:1px solid var(--line);text-align:left}.highlights-panel h2,.highlights-panel .section-intro{text-align:center}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <span class="badge">🏫 教師專用・免安裝</span>
+      <h1>登記分數系統</h1>
+      <p class="lead">念一句「座號、分數」，成績就寫進 Google 試算表；掃一張考卷，OCR 幫您把分數一次帶入，資料留在您自己的 Sheet 裡。</p>
+      <a class="cta" href="https://docs.google.com/spreadsheets/d/1hmZkPWtQcXGuz6TSY8d7pv2J_RscmW8LQA9Y8_LLwus/copy" target="_blank" rel="noopener noreferrer">📄 建立我的範本副本</a>
+      <p class="safe">您會建立自己的副本；不會共用範本原作者的班級與學生資料。</p>
+
+      <div class="highlights-panel" aria-labelledby="highlights-title">
+        <h2 id="highlights-title">✨ 本系統亮點</h2>
+        <p class="section-intro">從語音登記、拍照辨識到手動輸入，電腦與手機都能快速完成全班成績登記。</p>
+        <div class="feature-grid">
+          <article class="feature"><span class="feature-icon">🎤</span><div class="feature-copy"><h3>念分數就自動存檔</h3><p>對著麥克風說「姓名 分數」或「座號 分數」，念完稍停就自動寫入試算表，不用手動一格一格輸入。</p></div></article>
+          <article class="feature"><span class="feature-icon">📷</span><div class="feature-copy"><h3>掃考卷、OCR 自動帶入</h3><p>拍一張手寫成績單或考卷，系統自動辨識文字，比對座號姓名後把分數填進成績表。</p></div></article>
+          <article class="feature"><span class="feature-icon">📚</span><div class="feature-copy"><h3>科目、類別、項目彈性管理</h3><p>依科目分頁登記，項目可依類別分組、批次產生一整串（例如作業1～作業12），順序也能調整。</p></div></article>
+          <article class="feature"><span class="feature-icon">🔤</span><div class="feature-copy"><h3>常聽錯的字，自己教它</h3><p>語音辨識把「88」聽成「爸爸」這類同音誤判，可自訂修正對照表，越用越準確。</p></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>🚀 第一次設定與部署</h2>
+      <ol class="steps">
+        <li><strong>建立試算表副本</strong><p>點上方按鈕，把範本複製到您自己的 Google 雲端硬碟。</p></li>
+        <li><strong>開啟 Apps Script</strong><p>在新副本中點選「擴充功能」→「Apps Script」。程式碼已隨範本複製，不需要自己貼上。</p></li>
+        <li><strong>啟用 Drive API 進階服務</strong><p>左側「服務」→按「＋」→找到 <code>Drive API</code> → 新增。這是拍照辨識（OCR）需要用到的內建服務，免費。</p></li>
+        <li><strong>新增網頁應用程式部署</strong><p>按右上角「部署」→「新增部署作業」，點齒輪並選「網頁應用程式」。</p></li>
+        <li><strong>設定執行與存取權限</strong><p>「執行身分」選「我」；「誰可以存取」選「所有人」（語音輸入的獨立頁面需要透過這個網址跟試算表溝通）。</p></li>
+        <li><strong>下載語音輸入專用頁面</strong><p>按「部署」完成 Google 授權後，回到試算表選單開啟登記分數面板，進入「系統設定 → 語音輸入專用頁面」按下載，會自動產生已經填好您專屬網址的頁面。</p></li>
+        <li><strong>開啟頁面並輸入一次密碼</strong><p>把下載的檔案雙擊開啟（或上傳到 GitHub Pages 等網站空間，見下方說明），第一次要存檔時會跳出視窗要求輸入密碼——回到面板同一張卡片按「顯示」查看、「複製」貼上即可，之後同一台裝置、同一個瀏覽器都不用再輸入。</p></li>
+      </ol>
+      <p class="tip">💡 這一頁只提供範本與說明；真正的成績資料請在您自己部署後，從試算表面板或下載的語音輸入頁面使用。</p>
+    </section>
+
+    <section class="card optional">
+      <h2>🎙️ 語音輸入為什麼要另外下載頁面？</h2>
+      <p class="notice"><strong>這是 Google 的平台限制，不是設定錯了。</strong>試算表選單開的面板、甚至直接打開網頁應用程式網址，內容都還是被包在 Google 自己的一層 iframe 裡，瀏覽器規定這種情況下麥克風權限不會往下傳遞。</p>
+      <p>問題出在「被包在 iframe 裡」，跟檔案實際放在哪裡無關——只要是「頂層網頁」就能正常使用麥克風。所以下載出來的頁面，存在自己電腦上雙擊開啟可以用；上傳到 <strong>GitHub Pages、Cloudflare Pages、Netlify</strong> 等免費靜態網站空間也一樣可以用，甚至更方便：任何裝置打開網址就能用，瀏覽器通常也只需要允許一次麥克風權限。密碼不會寫進這份檔案裡（就算放在公開網站上也不會外洩），而是輸入一次後存在瀏覽器裡。拍照辨識與手動輸入則不受此限制，可直接在試算表面板中使用。</p>
+    </section>
+
+    <section class="card">
+      <h2>🔒 您的資料彼此獨立</h2>
+      <div class="privacy">
+        <div><b>自己的 Sheet</b>學生與成績資料儲存在您的副本</div>
+        <div><b>自己的部署</b>每位使用者有自己的 <code>/exec</code> 網址，也會自動產生一組專屬密碼</div>
+        <div><b>自己的權限</b>由副本擁有者管理授權與分享範圍</div>
+      </div>
+    </section>
+
+    <footer>
+      <div>登記分數系統・老師的語音成績小幫手</div>
+      <div class="footer-note"><a href="mailto:ymt11112@ymps.kh.edu.tw">ymt11112@ymps.kh.edu.tw</a> ・ 歡迎回報錯誤，也歡迎推廣使用</div>
+    </footer>
+  </main>
+</body>
+</html>
