@@ -1,88 +1,1975 @@
-<!doctype html>
-<html lang="zh-Hant-TW">
+<!DOCTYPE html>
+<html>
 <head>
+  <base target="_top">
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="登記分數系統：建立自己的 Google Sheet 副本並部署專屬 GAS 網頁，用語音或拍照登記全班成績。">
-  <title>登記分數系統｜建立副本與部署說明</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>登記分數系統</title>
   <style>
-    :root{--ink:#1f2a44;--muted:#5b6b8c;--paper:#ffffff;--line:#dde3f0;--blue:#3f6fd1;--blue2:#25459c;--green:#4f9b72;--gold:#c98a2b;--gold-bg:#fdf3e3}
-    *{box-sizing:border-box}
-    body{margin:0;background:#eef2fb;color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif;line-height:1.7}
-    a{color:inherit}.wrap{width:min(920px,calc(100% - 32px));margin:auto;padding:36px 0 56px}
-    .hero,.card{background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(31,42,68,.07)}
-    .hero{padding:clamp(28px,6vw,58px);text-align:center;position:relative;overflow:hidden}
-    .hero:before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#4f9b72,#c98a2b,#3f6fd1)}
-    .badge{display:inline-block;padding:5px 13px;border-radius:999px;background:#e8f3ec;color:#35664a;font-size:14px;font-weight:700}
-    h1{font-size:clamp(30px,6vw,48px);line-height:1.2;margin:20px 0 14px}h2{margin:0 0 14px;font-size:25px}h3{margin:22px 0 8px;font-size:18px}
-    .lead{max-width:650px;margin:0 auto 27px;color:var(--muted);font-size:17px}
-    .cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;text-decoration:none;font-weight:800;padding:14px 23px;border-radius:12px;box-shadow:0 8px 18px rgba(37,69,156,.25)}
-    .cta:hover{filter:brightness(1.04);transform:translateY(-1px)}.safe{margin:15px 0 0;color:var(--muted);font-size:13px}
-    .todo{display:inline-block;margin-left:8px;padding:3px 9px;border:1px dashed var(--gold);border-radius:999px;color:#8a5b12;font-size:12px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;vertical-align:middle}
-    .card{padding:clamp(22px,5vw,38px);margin-top:22px}.steps{list-style:none;padding:0;margin:20px 0 0;counter-reset:step}.steps>li{counter-increment:step;position:relative;padding:0 0 25px 54px}.steps>li:before{content:counter(step);position:absolute;left:0;top:0;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#e8effc;color:var(--blue2);font-weight:900}.steps>li:not(:last-child):after{content:"";position:absolute;left:17px;top:40px;bottom:4px;border-left:2px dashed #c9d4ee}
-    .steps strong{display:block;font-size:17px}.steps p{margin:3px 0;color:var(--muted)}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#eef1f8;padding:2px 6px;border-radius:5px;overflow-wrap:anywhere}
-    .optional{border-color:#f0d9a8;background:var(--gold-bg)}.optional h2{color:#8a5b12}.notice{border-left:4px solid var(--gold);padding:9px 14px;background:white;border-radius:8px;color:#6b4c14}
-    .tip{padding:14px 16px;border-radius:11px;background:#edf5ee;color:#376048}.privacy{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.privacy div{background:#f5f7fc;border:1px solid var(--line);padding:15px;border-radius:12px;text-align:center}.privacy b{display:block}
-    .section-intro{color:var(--muted);margin:-6px 0 18px}.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.feature{display:flex;align-items:flex-start;gap:12px;padding:17px;margin:0;border:1px solid var(--line);border-radius:14px;background:#f7f9fd}.feature-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:#e8effc;font-size:22px}.feature-copy{min-width:0;flex:1}.feature h3{margin:0 0 4px;font-size:17px}.feature p{margin:0;color:var(--muted);font-size:14px}
-    footer{text-align:center;color:#7c88a6;font-size:13px;margin-top:20px}.footer-note a{color:#4b5b7c}.footer-note a:hover{text-decoration:none}
-    @media(max-width:650px){.privacy,.feature-grid{grid-template-columns:1fr}.wrap{width:min(100% - 20px,920px);padding-top:15px}.steps>li{padding-left:48px}.feature{padding:14px}}
-    .highlights-panel{margin-top:30px;padding-top:25px;border-top:1px solid var(--line);text-align:left}.highlights-panel h2,.highlights-panel .section-intro{text-align:center}
+    :root {
+      --ink: #1a2e27;
+      --forest: #1f3d33;
+      --forest-light: #2c5346;
+      --mint-bg: #eef5f0;
+      --card-bg: #ffffff;
+      --line: #dde8e1;
+      --muted: #6b8079;
+      --gold: #f0b429;
+      --gold-ink: #7a5405;
+      --gold-tint: #fdf1d9;
+      --teal: #2f9e8f;
+      --teal-tint: #e3f5f2;
+      --purple: #7c5cbf;
+      --purple-tint: #efe9fb;
+      --blue: #3f7dd1;
+      --blue-tint: #e8f0fc;
+      --danger: #d64545;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+      margin: 0;
+      background: var(--mint-bg);
+      color: var(--ink);
+      font-size: 14px;
+    }
+    #app { padding: 12px 16px 20px; }
+
+    .appHeader { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+    .appTitle { font-size: 18px; font-weight: 700; color: var(--forest); }
+    .appVersion { font-size: 12px; color: var(--muted); font-family: monospace; background: var(--card-bg); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+
+    /* 頁籤跟「目前科目」併成同一列，節省畫面高度 */
+    .topBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tab {
+      border: 1px solid var(--line); background: var(--card-bg); color: var(--forest);
+      padding: 9px 18px; border-radius: 999px;
+      cursor: pointer; font-size: 14px; font-weight: 600;
+    }
+    .tab.active { background: var(--forest); color: #fff; border-color: var(--forest); }
+
+    .subjectBar {
+      display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;
+      background: var(--card-bg); padding: 10px 14px; border-radius: 14px;
+      border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(31,61,51,.06);
+    }
+    .subjectBar select { font-size: 14px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); }
+
+    .panel {
+      background: var(--card-bg); border-radius: 16px; border: 1px solid var(--line);
+      padding: 16px; box-shadow: 0 1px 3px rgba(31,61,51,.06);
+      min-height: 480px;
+    }
+    .panel[hidden] { display: none; }
+
+    h3 { margin: 0 0 10px; font-size: 15px; color: var(--forest); }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    input[type=text], input[type=number], select, textarea {
+      font-size: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+    }
+    textarea { width: 100%; font-family: inherit; }
+    button {
+      font-size: 13.5px; padding: 7px 16px; border-radius: 999px; border: none;
+      background: var(--forest); color: #fff; cursor: pointer; font-weight: 600;
+    }
+    button.secondary { background: var(--mint-bg); color: var(--forest); border: 1px solid var(--line); }
+    button.danger { background: var(--danger); }
+    button.gold { background: var(--gold); color: var(--gold-ink); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: center; font-size: 13.5px; }
+    th { background: var(--mint-bg); color: var(--forest); }
+    td input[type=number] { width: 70px; text-align: center; }
+    tr.flash td { animation: flash 1s ease; }
+    td.flash { animation: flash 1s ease; }
+    @keyframes flash { from { background: var(--gold-tint); } to { background: transparent; } }
+
+    .list-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 7px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px;
+      background: #fbfdfb;
+    }
+    .muted { color: var(--muted); font-size: 12.5px; }
+    .toast {
+      position: fixed; top: 10px; right: 16px; padding: 10px 16px; border-radius: 10px;
+      color: #fff; font-weight: 600; z-index: 999; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+      display: none;
+    }
+    .toast.ok { background: var(--forest); }
+    .toast.err { background: var(--danger); }
+
+    /* 獨立頁面密碼輸入畫面：不用瀏覽器原生 prompt()，避免手機的精簡 WebView 不支援 */
+    .tokenGate {
+      display: none; position: fixed; inset: 0; z-index: 2000;
+      background: rgba(20, 24, 35, .55); align-items: center; justify-content: center; padding: 16px;
+    }
+    .tokenGate .box {
+      background: var(--card-bg); border-radius: 16px; padding: 22px; max-width: 360px; width: 100%;
+      box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    }
+    .tokenGate .box h3 { margin-top: 0; }
+    .tokenGate .box input { width: 100%; margin-bottom: 12px; }
+    .tokenGate .box button { width: 100%; }
+
+    .subpanel {
+      border: 1px dashed var(--line); border-radius: 12px; padding: 12px; margin-top: 12px;
+    }
+    .log { height: 160px; min-height: 70px; resize: vertical; overflow-y: auto; overflow-x: hidden; font-size: 13px; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; }
+    .log div { padding: 3px 6px; border-bottom: 1px dotted var(--line); }
+    .log .ok { color: var(--forest); }
+    .log .warn { color: var(--gold-ink); }
+    #photoPreview { max-width: 160px; max-height: 160px; margin-top: 8px; border-radius: 6px; display: none; }
+    .pill { display:inline-block; padding:2px 10px; border-radius:999px; background:var(--mint-bg); color: var(--forest); font-size:12px; margin-left:6px;}
+
+    /* 科目／類別／項目設定：合併一個頁籤，用可收合卡片區分，節省頁籤數量 */
+    .card { border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+    .card:last-child { margin-bottom: 0; }
+    .cardHeader {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 14px; background: var(--mint-bg); cursor: pointer; user-select: none;
+    }
+    .cardHeader b { font-size: 15px; color: var(--forest); display: flex; align-items: center; }
+    .cardToggle { font-size: 12px; color: var(--muted); transition: transform .15s; }
+    .card.collapsed .cardToggle { transform: rotate(-90deg); }
+    .cardBody { padding: 14px; }
+    .cardBody[hidden] { display: none; }
+    #studentScoreTable td.seqNum { cursor: pointer; font-weight: 700; color: var(--forest); }
+    #studentScoreTable td.seqNum:hover { background: var(--mint-bg); }
+
+    .cardIcon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 8px; margin-right: 8px; font-size: 15px;
+    }
+    .cardIcon.tint-gold { background: var(--gold-tint); }
+    .cardIcon.tint-purple { background: var(--purple-tint); }
+    .cardIcon.tint-blue { background: var(--blue-tint); }
+    .cardIcon.tint-teal { background: var(--teal-tint); }
+
+    .subjectBtn { background: var(--card-bg); color: var(--forest); border: 1px solid var(--line); padding: 6px 14px; }
+    .subjectBtn.active { background: var(--forest); color: #fff; border-color: var(--forest); }
+
+    /* 目前科目：電腦版用按鈕列，手機版改用下拉選單（比較不佔版面） */
+    .subjectSelectMobile { display: none; }
+    @media (max-width: 640px) {
+      .subjectButtonsDesktop { display: none; }
+      .subjectSelectMobile { display: block; width: 100%; }
+    }
+
+    /* 電腦網頁：語音輸入區跟成績表並排雙欄，方便邊念邊對照 */
+    .voiceTableSplit { display: flex; gap: 0; align-items: flex-start; margin-top: 12px; }
+    .voiceTableSplit > .voiceCol { flex: 1; min-width: 220px; margin-top: 0; }
+    .voiceTableSplit > .tableCol { flex: 1; min-width: 220px; margin-top: 0; }
+    .colResizer {
+      flex: 0 0 auto; width: 12px; align-self: stretch; cursor: col-resize;
+      position: relative; margin: 0 2px;
+    }
+    .colResizer::after {
+      content: ''; position: absolute; left: 50%; top: 8px; bottom: 8px;
+      width: 4px; margin-left: -2px; border-radius: 2px; background: var(--line);
+    }
+    .colResizer:hover::after, .colResizer.dragging::after { background: var(--forest-light); }
+    .tableScroll { height: 480px; min-height: 200px; resize: vertical; overflow-y: auto; overflow-x: auto; border-radius: 10px; }
+
+    /* 手機（窄螢幕）友善調整 */
+    @media (max-width: 640px) {
+      #app { padding: 8px 8px 16px; }
+      .topBar { flex-direction: column; align-items: stretch; gap: 6px; }
+      .tabs { gap: 4px; }
+      .tab { flex: 1 1 30%; padding: 10px 6px; font-size: 13px; min-height: 40px; }
+      .subjectBar { flex-wrap: wrap; min-width: 0; }
+      .subjectBar select { flex: 1; min-width: 0; }
+      .panel { padding: 10px; }
+      .row { flex-direction: column; align-items: stretch; }
+      .row > * { width: 100%; }
+      /* 輸入框字體至少 16px，避免 iPhone 點下去自動放大整頁 */
+      input[type=text], input[type=number], select, textarea {
+        font-size: 16px; padding: 10px;
+      }
+      button { font-size: 15px; padding: 12px 14px; min-height: 44px; }
+      .list-item { flex-wrap: wrap; gap: 6px; }
+      .list-item button { width: auto; }
+      table { font-size: 13px; }
+      td input[type=number] { width: 100%; font-size: 16px; }
+      #photoPreview { max-width: 100%; height: auto; }
+      /* 手機版：語音輸入區跟成績表改回上下排列，拖曳分隔線跟調整高度都用不到 */
+      .voiceTableSplit { flex-direction: column; }
+      .colResizer { display: none; }
+      .voiceTableSplit > .voiceCol { width: auto !important; }
+      .tableScroll { height: auto; max-height: none; resize: none; overflow-y: visible; }
+    }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <span class="badge">🏫 教師專用・免安裝</span>
-      <h1>登記分數系統</h1>
-      <p class="lead">念一句「座號、分數」，成績就寫進 Google 試算表；掃一張考卷，OCR 幫您把分數一次帶入，資料留在您自己的 Sheet 裡。</p>
-      <a class="cta" href="https://docs.google.com/spreadsheets/d/1hmZkPWtQcXGuz6TSY8d7pv2J_RscmW8LQA9Y8_LLwus/copy" target="_blank" rel="noopener noreferrer">📄 建立我的範本副本</a>
-      <p class="safe">您會建立自己的副本；不會共用範本原作者的班級與學生資料。</p>
+<div id="app">
 
-      <div class="highlights-panel" aria-labelledby="highlights-title">
-        <h2 id="highlights-title">✨ 本系統亮點</h2>
-        <p class="section-intro">從語音登記、拍照辨識到手動輸入，電腦與手機都能快速完成全班成績登記。</p>
-        <div class="feature-grid">
-          <article class="feature"><span class="feature-icon">🎤</span><div class="feature-copy"><h3>念分數就自動存檔</h3><p>對著麥克風說「姓名 分數」或「座號 分數」，念完稍停就自動寫入試算表，不用手動一格一格輸入。</p></div></article>
-          <article class="feature"><span class="feature-icon">📷</span><div class="feature-copy"><h3>掃考卷、OCR 自動帶入</h3><p>拍一張手寫成績單或考卷，系統自動辨識文字，比對座號姓名後把分數填進成績表。</p></div></article>
-          <article class="feature"><span class="feature-icon">📚</span><div class="feature-copy"><h3>科目、類別、項目彈性管理</h3><p>依科目分頁登記，項目可依類別分組、批次產生一整串（例如作業1～作業12），順序也能調整。</p></div></article>
-          <article class="feature"><span class="feature-icon">🔤</span><div class="feature-copy"><h3>常聽錯的字，自己教它</h3><p>語音辨識把「88」聽成「爸爸」這類同音誤判，可自訂修正對照表，越用越準確。</p></div></article>
+  <div class="appHeader">
+    <span class="appTitle">📊 登記分數系統</span>
+    <span class="appVersion">v1.0.0</span>
+  </div>
+
+  <div class="topBar">
+    <div class="tabs">
+      <button class="tab active" data-tab="students">名單管理</button>
+      <button class="tab" data-tab="setup">科目設定</button>
+      <button class="tab" data-tab="system">系統設定</button>
+      <button class="tab" data-tab="scores">登記成績</button>
+    </div>
+
+    <div class="subjectBar">
+      目前科目：
+      <span id="subjectButtons" class="row subjectButtonsDesktop" style="margin:0;"></span>
+      <select id="subjectSelectMobile" class="subjectSelectMobile" onchange="selectSubject(this.value)"></select>
+      <span class="muted" id="subjectHint"></span>
+      <span style="flex:1"></span>
+      <button class="gold" onclick="downloadStandaloneIndex()">⬇️ 下載語音輸入用的網頁</button>
+      <span id="loadingIndicator" class="pill" style="display:none;">⏳ 載入中...</span>
+    </div>
+  </div>
+
+  <!-- 科目設定（科目／類別／項目，合併頁籤，用可收合卡片區分） -->
+  <div class="panel" id="panel-setup" hidden>
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-subjects')">
+        <b><span class="cardIcon tint-purple">📚</span> 科目管理</b>
+        <span class="cardToggle" id="cardToggle-card-subjects">▾</span>
+      </div>
+      <div class="cardBody" id="card-subjects">
+        <h3>新增科目</h3>
+        <div class="row">
+          <input type="text" id="newSubjectName" placeholder="例如：數學、英文、自然">
+          <button onclick="onAddSubject()">新增科目</button>
+        </div>
+        <h3>科目清單</h3>
+        <div id="subjectList"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-categories')">
+        <b><span class="cardIcon tint-gold">🏷️</span> 類別管理</b>
+        <span class="cardToggle" id="cardToggle-card-categories">▾</span>
+      </div>
+      <div class="cardBody" id="card-categories">
+        <h3>新增成績類別</h3>
+        <div class="row">
+          <input type="text" id="newCategoryName" placeholder="例如：考卷、作業、期中考試卷">
+          <button onclick="onAddCategory()">新增類別</button>
+        </div>
+        <p class="muted">類別是共用的，會出現在所有科目「新增項目」的下拉選單中。</p>
+        <h3>類別清單</h3>
+        <div id="categoryList"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-items')">
+        <b><span class="cardIcon tint-blue">📝</span> 項目管理</b>
+        <span class="cardToggle" id="cardToggle-card-items">▾</span>
+      </div>
+      <div class="cardBody" id="card-items">
+        <h3>新增登記項目（例如：第一次段考、第3次作業）</h3>
+        <div class="row">
+          <select id="newItemCategory"></select>
+          <input type="text" id="newItemName" placeholder="項目名稱，例如：第一次段考">
+          <input type="number" id="newItemMax" placeholder="滿分(選填)" style="width:90px">
+          <button onclick="onAddItem()">新增項目</button>
+        </div>
+
+        <div class="subpanel">
+          <b>⚡ 批次產生一系列項目</b>
+          <p class="muted">例如類別選「作業」、前綴輸入「作業」、起始編號 1、數量輸入 6，會一次產生「作業1」～「作業6」；之後要接著產生「作業7」～「作業12」，起始編號改成 7 即可。</p>
+          <div class="row">
+            <select id="seriesCategory"></select>
+            <input type="text" id="seriesBaseName" placeholder="名稱前綴，例如：作業">
+            <input type="number" id="seriesStart" placeholder="起始編號" value="1" style="width:90px">
+            <input type="number" id="seriesCount" placeholder="數量" style="width:80px">
+            <input type="number" id="seriesMax" placeholder="滿分(選填)" style="width:90px">
+            <button onclick="onAddItemSeries()">批次產生</button>
+          </div>
+        </div>
+
+        <h3>目前科目的項目清單</h3>
+        <div id="itemList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 名單管理 -->
+  <div class="panel" id="panel-students">
+    <h3>新增單一學生</h3>
+    <div class="row">
+      <input type="text" id="newSeat" placeholder="座號(選填)" style="width:80px">
+      <input type="text" id="newStuName" placeholder="姓名">
+      <button onclick="onAddStudent()">新增</button>
+    </div>
+    <h3>批次貼上名單</h3>
+    <div class="row" style="align-items:flex-start">
+      <textarea id="bulkStudents" rows="4" style="flex:1" placeholder="每行一位學生，可用「座號 姓名」或只有「姓名」，例如：&#10;1 王小明&#10;2 陳小華"></textarea>
+      <button onclick="onBulkAddStudents()">批次匯入</button>
+    </div>
+
+    <div class="subpanel">
+      <b>📥 從其他科目複製名單</b>
+      <p class="muted">同一班通常各科名單相同，可直接從已經建好名單的科目複製過來，不用重新輸入一次。</p>
+      <div class="row">
+        <select id="copySourceSubject"></select>
+        <button class="secondary" onclick="onCopyStudentsFrom()">複製名單過來</button>
+      </div>
+    </div>
+
+    <h3>目前科目的學生名單</h3>
+    <div id="studentList"></div>
+  </div>
+
+  <!-- 系統設定：資料庫、語音修正設定 -->
+  <div class="panel" id="panel-system" hidden>
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-download')">
+        <b><span class="cardIcon tint-teal">🎙️</span> 語音輸入專用頁面</b>
+        <span class="cardToggle" id="cardToggle-card-download">▾</span>
+      </div>
+      <div class="cardBody" id="card-download">
+        <p class="muted">語音輸入因為麥克風權限限制，不能在這個面板或網頁應用程式網址裡使用，必須開啟成「頂層網頁」——可以是存到自己電腦雙擊開啟，也可以上傳到 GitHub Pages 等網站空間，任何裝置用瀏覽器打開都能用。下載按鈕在最上方「目前科目」那一列的右邊（⬇️ 下載語音輸入用的網頁），需要先完成「部署 → 新增部署作業 → 網頁應用程式」，這個按鈕才抓得到你的專屬網址；還沒部署的話按下去會提示你先部署。</p>
+
+        <div class="row" style="margin-top:14px; align-items:center;">
+          <span class="muted">你的密碼：</span>
+          <code id="myTokenDisplay">••••••••</code>
+          <button class="secondary" onclick="revealMyToken()">顯示</button>
+          <button class="secondary" onclick="copyMyToken()">複製</button>
+        </div>
+        <p class="muted">下載的檔案不會寫死密碼（避免萬一放到公開網站外流），語音輸入頁面第一次要存檔時會跳出畫面要你輸入密碼，把這裡的密碼複製貼上即可，之後同一台裝置就不用再輸入。</p>
+
+        <div style="margin-top:14px; border-top:1px dashed var(--line); padding-top:12px;">
+          <p class="muted">大多數情況不需要用到下面這個。只有下載出來的網址一直不對（例如連線一直失敗）時，才需要手動指定一次正確的 <code>/exec</code> 網址。這個設定只存在你自己這份試算表裡，<b>不會被複製到別人建立的副本</b>，可以放心分享範本。</p>
+          <div class="row">
+            <input type="text" id="manualUrlInput" placeholder="正確的 /exec 網址（通常不需要填）" style="flex:1; min-width:220px;">
+            <button class="secondary" onclick="onSetManualUrl()">設定</button>
+          </div>
+          <p class="muted" id="manualUrlCurrent"></p>
         </div>
       </div>
-    </section>
+    </div>
 
-    <section class="card">
-      <h2>🚀 第一次設定與部署</h2>
-      <ol class="steps">
-        <li><strong>建立試算表副本</strong><p>點上方按鈕，把範本複製到您自己的 Google 雲端硬碟。</p></li>
-        <li><strong>開啟 Apps Script</strong><p>在新副本中點選「擴充功能」→「Apps Script」。程式碼已隨範本複製，不需要自己貼上。</p></li>
-        <li><strong>啟用 Drive API 進階服務</strong><p>左側「服務」→按「＋」→找到 <code>Drive API</code> → 新增。這是拍照辨識（OCR）需要用到的內建服務，免費。</p></li>
-        <li><strong>新增網頁應用程式部署</strong><p>按右上角「部署」→「新增部署作業」，點齒輪並選「網頁應用程式」。</p></li>
-        <li><strong>設定執行與存取權限</strong><p>「執行身分」選「我」；「誰可以存取」選「所有人」（語音輸入的獨立頁面需要透過這個網址跟試算表溝通）。</p></li>
-        <li><strong>下載語音輸入專用頁面</strong><p>按「部署」完成 Google 授權後，回到試算表選單開啟登記分數面板，進入「系統設定 → 語音輸入專用頁面」按下載，會自動產生已經填好您專屬網址的頁面。</p></li>
-        <li><strong>開啟頁面並輸入一次密碼</strong><p>把下載的檔案雙擊開啟（或上傳到 GitHub Pages 等網站空間，見下方說明），第一次要存檔時會跳出視窗要求輸入密碼——回到面板同一張卡片按「顯示」查看、「複製」貼上即可，之後同一台裝置、同一個瀏覽器都不用再輸入。</p></li>
-      </ol>
-      <p class="tip">💡 這一頁只提供範本與說明；真正的成績資料請在您自己部署後，從試算表面板或下載的語音輸入頁面使用。</p>
-    </section>
-
-    <section class="card optional">
-      <h2>🎙️ 語音輸入為什麼要另外下載頁面？</h2>
-      <p class="notice"><strong>這是 Google 的平台限制，不是設定錯了。</strong>試算表選單開的面板、甚至直接打開網頁應用程式網址，內容都還是被包在 Google 自己的一層 iframe 裡，瀏覽器規定這種情況下麥克風權限不會往下傳遞。</p>
-      <p>問題出在「被包在 iframe 裡」，跟檔案實際放在哪裡無關——只要是「頂層網頁」就能正常使用麥克風。所以下載出來的頁面，存在自己電腦上雙擊開啟可以用；上傳到 <strong>GitHub Pages、Cloudflare Pages、Netlify</strong> 等免費靜態網站空間也一樣可以用，甚至更方便：任何裝置打開網址就能用，瀏覽器通常也只需要允許一次麥克風權限。密碼不會寫進這份檔案裡（就算放在公開網站上也不會外洩），而是輸入一次後存在瀏覽器裡。拍照辨識與手動輸入則不受此限制，可直接在試算表面板中使用。</p>
-    </section>
-
-    <section class="card">
-      <h2>🔒 您的資料彼此獨立</h2>
-      <div class="privacy">
-        <div><b>自己的 Sheet</b>學生與成績資料儲存在您的副本</div>
-        <div><b>自己的部署</b>每位使用者有自己的 <code>/exec</code> 網址，也會自動產生一組專屬密碼</div>
-        <div><b>自己的權限</b>由副本擁有者管理授權與分享範圍</div>
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-database')">
+        <b><span class="cardIcon tint-blue">📊</span> 資料庫</b>
+        <span class="cardToggle" id="cardToggle-card-database">▾</span>
       </div>
-    </section>
+      <div class="cardBody" id="card-database">
+        <div class="row">
+          <button onclick="openSpreadsheet()">📊 開啟整份試算表</button>
+          <button class="secondary" onclick="openCurrentSubjectSheet()">開啟目前科目工作表</button>
+          <button class="secondary" onclick="refreshAllData()">🔄 重新整理資料</button>
+        </div>
+        <p class="muted">「重新整理資料」會重新從試算表讀取科目、類別、學生、語音修正等所有設定，如果懷疑畫面跟試算表不同步，可以按這個。</p>
+      </div>
+    </div>
 
-    <footer>
-      <div>登記分數系統・老師的語音成績小幫手</div>
-      <div class="footer-note"><a href="mailto:ymt11112@ymps.kh.edu.tw">ymt11112@ymps.kh.edu.tw</a> ・ 歡迎回報錯誤，也歡迎推廣使用</div>
-    </footer>
-  </main>
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-corrections')">
+        <b><span class="cardIcon tint-purple">🔤</span> 語音修正設定</b>
+        <span class="cardToggle" id="cardToggle-card-corrections">▾</span>
+      </div>
+      <div class="cardBody" id="card-corrections">
+        <h3>新增修正對照</h3>
+        <p class="muted">語音辨識常會把某些字詞聽成同音的別的字，例如把「98」聽成「酒吧」、把「88」聽成「爸爸」。在這裡新增後，之後語音輸入（含手機聽寫）辨識到的文字，只要含有「原本聽到的文字」都會自動先換成「要修正成的文字」再解析分數，不用每次手動改。</p>
+        <div class="row">
+          <input type="text" id="newCorrectionFrom" placeholder="原本聽到的文字，例如：爸爸">
+          <input type="text" id="newCorrectionTo" placeholder="要修正成的文字/數字，例如：88">
+          <button onclick="onAddTextCorrection()">新增</button>
+        </div>
+        <h3>目前的修正對照表</h3>
+        <div id="correctionList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 登記成績 -->
+  <div class="panel" id="panel-scores" hidden>
+    <div class="row" style="background:var(--mint-bg); padding:8px 10px; border-radius:10px;">
+      <label><input type="radio" name="scoreMode" value="byItem" checked onchange="switchScoreMode('byItem')"> 依項目登記（全班一項一項）</label>
+      <label><input type="radio" name="scoreMode" value="byStudent" onchange="switchScoreMode('byStudent')"> 依學生登記（單一學生全部項目）</label>
+    </div>
+
+  <div id="scoreModeItem">
+    <h3>選擇登記項目</h3>
+    <div class="row">
+      <select id="scoreCategoryFilter" onchange="renderScoreItemOptions()" style="min-width:140px"></select>
+      <select id="scoreItemSelect" style="min-width:260px" onchange="loadScoreTable()"></select>
+      <button class="secondary" onclick="loadScoreTable()">載入成績表</button>
+      <button onclick="onSaveScores()">💾 儲存成績</button>
+      <button class="danger" onclick="onClearScores()">🗑 清空此項目成績</button>
+      <span id="scoreMaxHint" class="pill"></span>
+    </div>
+
+    <div class="voiceTableSplit" id="itemSplit">
+      <div class="voiceCol subpanel">
+        <div class="row" style="justify-content:space-between">
+          <b>🎤 語音輸入</b>
+          <div>
+            <button id="voiceStartBtn" class="secondary" onclick="toggleVoice()">開始語音輸入</button>
+          </div>
+        </div>
+        <p class="muted" id="voicePanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請按上方「目前科目」那一列右邊的「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入；密碼可以在「系統設定」頁籤查看並複製。</p>
+        <p class="muted">建議唸法：「姓名 分數」，例如：「王小明 85」；分數固定念兩位數，10分以下請念成兩位數（例如5分念「05」），連續念多筆不用特別停頓也能正確分辨。僅支援電腦版／Android 版 Chrome 瀏覽器，需允許麥克風權限。</p>
+        <div id="voiceInterim" style="min-height:22px; font-weight:600; color:var(--forest);"></div>
+        <div class="log" id="voiceLog"></div>
+
+        <div style="margin-top:10px; border-top:1px dashed var(--line); padding-top:10px;">
+          <p class="muted">📱 手機請改用這個：iPhone 完全不支援本頁語音辨識；Android 也可能因權限限制無法使用。點下面欄位、再點手機鍵盤上的🎤聽寫圖示口述（例如：「3號 85 4號 90 5號 78」），說完按「解析並套用」，不受瀏覽器語音辨識限制影響。</p>
+          <textarea id="dictationText" rows="2" style="width:100%" placeholder="點這裡，再點手機鍵盤的麥克風圖示口述..."></textarea>
+          <button class="secondary" style="margin-top:6px" onclick="applyDictationText()">解析並套用</button>
+        </div>
+      </div>
+
+      <div class="colResizer" title="拖曳調整左右寬度"></div>
+
+      <div class="tableCol subpanel">
+        <h3 style="margin-top:0">成績表（手動輸入，或由語音/拍照自動帶入後再確認）</h3>
+        <div class="tableScroll">
+          <table id="scoreTable">
+            <thead><tr><th>座號</th><th>姓名</th><th>成績</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead>
+            <tbody id="scoreTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="subpanel">
+      <b>📷 拍照辨識</b>
+      <div class="row" style="margin-top:8px">
+        <input type="file" id="photoInput" accept="image/*" capture="environment">
+        <button class="secondary" onclick="onRunOcr()">開始辨識</button>
+      </div>
+      <img id="photoPreview">
+      <div id="ocrTextWrap" style="display:none; margin-top:8px;">
+        <div class="muted">辨識出的原始文字（可自行修改後重新解析）：</div>
+        <textarea id="ocrRawText" rows="4" style="width:100%"></textarea>
+        <button class="secondary" style="margin-top:6px" onclick="reparseOcr()">重新解析</button>
+      </div>
+      <div class="log" id="ocrLog"></div>
+    </div>
+  </div>
+
+  <div id="scoreModeStudent" hidden>
+    <h3>選擇學生</h3>
+    <div class="row">
+      <button class="secondary" onclick="stepStudent(-1)">◀ 上一位</button>
+      <select id="studentSelectForEntry" style="min-width:200px" onchange="loadStudentScoreTable()"></select>
+      <button class="secondary" onclick="stepStudent(1)">下一位 ▶</button>
+      <button class="secondary" onclick="loadStudentScoreTable()">🔄 重新載入</button>
+      <button onclick="onSaveStudentScores()">💾 儲存這位學生的所有成績</button>
+      <button class="danger" onclick="onClearStudentScores()">🗑 清空這位學生的成績</button>
+    </div>
+
+    <div class="voiceTableSplit" id="studentSplit">
+      <div class="voiceCol subpanel">
+        <div class="row" style="justify-content:space-between">
+          <b>🎤 語音輸入</b>
+          <button id="voiceStudentStartBtn" class="secondary" onclick="toggleVoice()">開始語音輸入</button>
+        </div>
+        <p class="muted" id="voiceStudentPanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請按上方「目前科目」那一列右邊的「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入；密碼可以在「系統設定」頁籤查看並複製。</p>
+        <p class="muted">不用念項目名稱也不用念序號，照勾選順序直接念分數，每個分數固定兩位數字，100 請念「一百」，例如念「九八」代表 98、念「八七」代表 87：「九八，八七，七六...」念完稍停即可接著念下一個，念錯可按「回上一項」重念。僅支援電腦版／Android 版 Chrome 瀏覽器。</p>
+        <div class="row">
+          <button class="secondary" onclick="stepDigitPairBack()">↩ 回上一項（重念一次）</button>
+        </div>
+        <div id="sequentialProgress" class="pill" style="margin-bottom:6px;"></div>
+        <div id="voiceStudentInterim" style="min-height:22px; font-weight:600; color:var(--forest);"></div>
+        <div class="log" id="voiceStudentLog"></div>
+
+        <div style="margin-top:10px; border-top:1px dashed var(--line); padding-top:10px;">
+          <p class="muted">📱 手機請改用這個：iPhone 完全不支援本頁語音辨識；Android 也可能因權限限制無法使用。點下面欄位、用手機鍵盤🎤聽寫圖示口述，說完按「解析並套用」，不受瀏覽器語音辨識限制影響。</p>
+          <textarea id="dictationStudentText" rows="2" style="width:100%" placeholder="點這裡，再點手機鍵盤的麥克風圖示口述..."></textarea>
+          <button class="secondary" style="margin-top:6px" onclick="applyDictationStudentText()">解析並套用</button>
+        </div>
+      </div>
+
+      <div class="colResizer" title="拖曳調整左右寬度"></div>
+
+      <div class="tableCol subpanel">
+        <h3 style="margin-top:0">該生所有項目成績</h3>
+        <div class="row">
+          <button class="secondary" onclick="setAllItemChecks(true)">全選</button>
+          <button class="secondary" onclick="setAllItemChecks(false)">全不選</button>
+          <span class="muted">勾選＋順序決定「序」欄位編號；發現念到一半跟表格對不上了，直接點「序」欄位那個數字，就能把下一筆語音手動指到那一項繼續念，不用整個重來</span>
+        </div>
+        <div class="tableScroll">
+          <table id="studentScoreTable">
+            <thead><tr><th>序</th><th>念</th><th>類別</th><th>項目</th><th>滿分</th><th>成績</th></tr></thead>
+            <tbody id="studentScoreTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="tokenGate" id="tokenGate">
+  <div class="box">
+    <h3>請輸入密碼</h3>
+    <p class="muted">在試算表面板「系統設定 → 語音輸入專用頁面」可以查看並複製你的專屬密碼，貼在下面即可，之後這台裝置、這個瀏覽器都不用再輸入。</p>
+    <input type="text" id="tokenGateInput" placeholder="貼上密碼" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <button onclick="submitTokenGate()">確定</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 共用工具
+// ============================================================
+// 這份檔案有兩種執行方式：
+// 1. 貼在 Apps Script 裡（試算表選單開的面板）：用 google.script.run 呼叫後端，直接可用。
+// 2. 另存成獨立頁面（語音輸入用）：可以只是本機檔案雙擊開啟，也可以上傳到 GitHub Pages、
+//    Cloudflare Pages、Netlify 等任何 HTTPS 靜態網站空間——重點是「不是被包在 Apps Script
+//    的 iframe 裡的頂層頁面」，麥克風權限才拿得到，跟檔案實際放在哪裡無關。
+//    此時沒有 google.script.run，會改用下面的 WEBAPP_URL 透過網路呼叫已部署的網頁應用程式。
+//    WEBAPP_URL 不用自己手動填！部署好網頁應用程式後，回到面板最上方「目前科目」那一列，
+//    按右邊的「⬇️ 下載語音輸入用的網頁」，系統會自動產生一份已經填好網址的 Index.html 給你下載。
+//    密碼（WEBAPP_TOKEN）故意不會寫進下載的檔案裡——因為這份檔案有可能被放到公開的網站上，
+//    寫死密碼等於任何人看原始碼都能拿到。改成頁面第一次要跟試算表溝通時才詢問密碼，
+//    存進瀏覽器的 localStorage，之後同一台裝置、同一個瀏覽器就不用再輸入。
+//    密碼可以在面板「系統設定 → 語音輸入專用頁面」查看並複製。
+//    注意：密碼輸入畫面故意不用瀏覽器原生的 window.prompt()——手機用「檔案」App
+//    或下載清單打開本機 HTML 時，常常是用精簡版 WebView 顯示，不一定有實作
+//    window.prompt()，呼叫了也可能完全不顯示、直接回傳空值。改成頁面自己畫的
+//    輸入框（見下面 #tokenGate），只要畫得出網頁畫面就一定能用。
+var WEBAPP_URL = '<?!= WEBAPP_URL_INJECT ?>';
+var WEBAPP_TOKEN = (function () {
+  try { return localStorage.getItem('WEBAPP_TOKEN') || ''; } catch (e) { return ''; }
+})();
+var tokenGateResolve_ = null;
+function ensureTokenAsync_() {
+  if (WEBAPP_TOKEN) return Promise.resolve(WEBAPP_TOKEN);
+  return new Promise(function (resolve) {
+    tokenGateResolve_ = resolve;
+    var input = document.getElementById('tokenGateInput');
+    input.value = '';
+    document.getElementById('tokenGate').style.display = 'flex';
+    setTimeout(function () { input.focus(); }, 50);
+  });
+}
+function submitTokenGate() {
+  var input = document.getElementById('tokenGateInput');
+  var v = (input.value || '').trim();
+  if (!v) { input.focus(); return; }
+  WEBAPP_TOKEN = v;
+  try { localStorage.setItem('WEBAPP_TOKEN', WEBAPP_TOKEN); } catch (e) { /* 無痕視窗等情況可能無法存取，忽略 */ }
+  document.getElementById('tokenGate').style.display = 'none';
+  if (tokenGateResolve_) { var r = tokenGateResolve_; tokenGateResolve_ = null; r(WEBAPP_TOKEN); }
+}
+function clearStoredToken_() {
+  WEBAPP_TOKEN = '';
+  try { localStorage.removeItem('WEBAPP_TOKEN'); } catch (e) { /* 忽略 */ }
+}
+document.getElementById('tokenGateInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') submitTokenGate();
+});
+
+// 顯示「載入中」小提示，避免完全沒反應讓人以為沒連線；用計數器處理多個請求同時進行的情況
+var pendingCallCount = 0;
+function showLoading() {
+  pendingCallCount++;
+  var el = document.getElementById('loadingIndicator');
+  if (el) el.style.display = 'inline-block';
+}
+function hideLoading() {
+  pendingCallCount = Math.max(0, pendingCallCount - 1);
+  if (pendingCallCount === 0) {
+    var el = document.getElementById('loadingIndicator');
+    if (el) el.style.display = 'none';
+  }
+}
+
+function call(fnName) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  showLoading();
+  var promise;
+
+  if (window.google && google.script && google.script.run) {
+    promise = new Promise(function (resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) { reject(err); });
+      runner[fnName].apply(runner, args);
+    });
+  } else if (!WEBAPP_URL || WEBAPP_URL.indexOf('http') !== 0) {
+    // 獨立頁面模式：透過已部署的網頁應用程式 API 呼叫
+    promise = Promise.reject(new Error('尚未設定 WEBAPP_URL，請先在檔案開頭貼上你部署後的網頁應用程式網址'));
+  } else {
+    // 密碼輸入畫面是非同步的（等使用者在 #tokenGate 畫面按下確定），
+    // 所以整段 fetch 都串在 ensureTokenAsync_() 的 then 裡面。
+    var doFetch = function (tokenToUse, retriesLeft) {
+      return fetch(WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ fn: fnName, args: args, token: tokenToUse })
+      })
+        .then(function (res) { return res.text(); })
+        .then(function (text) {
+          var json;
+          try { json = JSON.parse(text); }
+          catch (e) {
+            var titleMatch = text.match(/<title>([\s\S]*?)<\/title>/i);
+            var hint = titleMatch ? '網頁標題：「' + titleMatch[1] + '」' : '內容開頭：' + text.slice(0, 200);
+            throw new Error('伺服器回傳非預期內容（不是我們的程式，可能是 Google 的驗證/警示頁面），' + hint);
+          }
+          if (json && json.error) {
+            // 密碼錯誤時清掉存的密碼，下次呼叫會重新跳出輸入畫面，避免一直卡在同一組錯的密碼
+            if (json.error.indexOf('密碼不正確') > -1) clearStoredToken_();
+            throw new Error(json.error);
+          }
+          return json.result;
+        })
+        .catch(function (err) {
+          // 只有「網路層級」的失敗（fetch 本身連不上，例如偶發斷線）才自動重試一次；
+          // 伺服器已經有正常回應、只是內容裡帶著錯誤訊息（例如密碼錯誤）的情況不重試，
+          // 直接把錯誤丟出去，避免用同一組錯密碼一直重打。
+          if (err instanceof TypeError && retriesLeft > 0) {
+            return new Promise(function (resolve) { setTimeout(resolve, 800); })
+              .then(function () { return doFetch(tokenToUse, retriesLeft - 1); });
+          }
+          throw err;
+        });
+    };
+    promise = ensureTokenAsync_().then(function (tokenToUse) {
+      return doFetch(tokenToUse, 1);
+    });
+  }
+
+  return promise.then(
+    function (result) { hideLoading(); return result; },
+    function (err) { hideLoading(); throw err; }
+  );
+}
+
+function toast(msg, isErr) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (isErr ? 'err' : 'ok');
+  t.style.display = 'block';
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function () { t.style.display = 'none'; }, 3200);
+}
+function showError(err) { toast((err && err.message) ? err.message : String(err), true); }
+
+// ============================================================
+// 全域狀態
+// ============================================================
+var state = {
+  subject: null,
+  subjects: [],
+  categories: [],
+  textCorrections: [],
+  items: [],
+  students: [],
+  currentItemCol: null,
+  scoreMode: 'byItem',      // 'byItem'：依項目登記（全班一項）；'byStudent'：依學生登記（單一學生全部項目）
+  currentStudentRow: null,
+  digitPairPointer: 0 // 依學生登記語音輸入：只念分數，兩位一組，依序對應勾選項目
+};
+
+function switchScoreMode(mode) {
+  state.scoreMode = mode;
+  document.getElementById('scoreModeItem').hidden = mode !== 'byItem';
+  document.getElementById('scoreModeStudent').hidden = mode !== 'byStudent';
+  if (mode === 'byStudent') refreshStudents();
+}
+
+// ============================================================
+// 分頁切換
+// ============================================================
+document.querySelectorAll('.tab').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function (p) { p.hidden = true; });
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).hidden = false;
+    if (btn.dataset.tab === 'setup') refreshItems();
+    if (btn.dataset.tab === 'students') refreshStudents();
+    if (btn.dataset.tab === 'system') renderTextCorrectionList();
+    if (btn.dataset.tab === 'scores') refreshScoreItemSelect();
+  });
+});
+
+// ============================================================
+// 初始化
+// ============================================================
+window.addEventListener('load', function () {
+  call('getInitData').then(function (data) {
+    state.subjects = data.subjects || [];
+    state.categories = data.categories || [];
+    state.textCorrections = data.textCorrections || [];
+    if (state.subjects.length) state.subject = state.subjects[0];
+    renderSubjectButtons();
+    renderSubjectList();
+    renderCategoryList();
+    renderCategoryOptionsForItems();
+    renderTextCorrectionList();
+    // 不管頁面預設停在哪個頁籤，載入時就把各頁籤的資料準備好，避免要先切換頁籤才會出現
+    refreshItems();
+    refreshStudents();
+    refreshScoreItemSelect();
+  }).catch(showError);
+});
+
+function selectSubject(s) {
+  if (state.subject === s) return;
+  state.subject = s;
+  renderSubjectButtons();
+  refreshItems();
+  refreshStudents();
+  refreshScoreItemSelect();
+}
+
+function renderSubjectButtons() {
+  var wrap = document.getElementById('subjectButtons');
+  wrap.innerHTML = '';
+  state.subjects.forEach(function (s) {
+    var btn = document.createElement('button');
+    btn.className = 'subjectBtn' + (s === state.subject ? ' active' : '');
+    btn.textContent = s;
+    btn.onclick = function () { selectSubject(s); };
+    wrap.appendChild(btn);
+  });
+
+  // 手機版用下拉選單取代按鈕列（比較不佔版面），跟按鈕列共用同一份資料
+  var sel = document.getElementById('subjectSelectMobile');
+  sel.innerHTML = '';
+  state.subjects.forEach(function (s) {
+    var opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    if (s === state.subject) opt.selected = true;
+    sel.appendChild(opt);
+  });
+
+  document.getElementById('subjectHint').textContent =
+    state.subjects.length ? '' : '（尚未建立任何科目，請先在「科目設定」新增）';
+}
+
+// ------------------------------------------------------------
+// 資料庫（試算表）快速開啟選單
+// ------------------------------------------------------------
+var spreadsheetInfo = null;
+
+function ensureSpreadsheetInfo() {
+  if (spreadsheetInfo) return Promise.resolve(spreadsheetInfo);
+  return call('getSpreadsheetInfo').then(function (info) {
+    spreadsheetInfo = info;
+    return info;
+  });
+}
+
+// 科目／類別／項目設定頁籤：點卡片標題展開/收合內容
+function toggleCard(bodyId) {
+  var body = document.getElementById(bodyId);
+  var card = body.closest('.card');
+  body.hidden = !body.hidden;
+  card.classList.toggle('collapsed', body.hidden);
+}
+
+// ------------------------------------------------------------
+// 語音輸入欄／成績表 中間的可拖曳分隔線
+// ------------------------------------------------------------
+function initColResizer(split) {
+  var resizer = split.querySelector('.colResizer');
+  var left = split.querySelector('.voiceCol');
+  if (!resizer || !left) return;
+  var startX = 0;
+  var startWidth = 0;
+
+  function onMove(e) {
+    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    var delta = clientX - startX;
+    var newWidth = Math.max(180, startWidth + delta);
+    left.style.flex = '0 0 auto';
+    left.style.width = newWidth + 'px';
+  }
+  function onUp() {
+    resizer.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  }
+  function onDown(e) {
+    e.preventDefault();
+    startX = e.touches ? e.touches[0].clientX : e.clientX;
+    startWidth = left.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('touchend', onUp);
+  }
+  resizer.addEventListener('mousedown', onDown);
+  resizer.addEventListener('touchstart', onDown);
+}
+document.querySelectorAll('.voiceTableSplit').forEach(initColResizer);
+
+// 從試算表選單開的面板（google.script.run 存在）一定沒辦法用語音輸入，
+// 麥克風權限會被 Google 的 iframe 擋住，跟瀏覽器/裝置無關。這裡直接把
+// 語音輸入按鈕灰掉、顯示提示，而不是讓使用者按了才發現一直失敗。
+function isPanelMode_() {
+  return !!(window.google && google.script && google.script.run);
+}
+if (isPanelMode_()) {
+  var voiceBtn = document.getElementById('voiceStartBtn');
+  var voiceStudentBtn = document.getElementById('voiceStudentStartBtn');
+  if (voiceBtn) voiceBtn.disabled = true;
+  if (voiceStudentBtn) voiceStudentBtn.disabled = true;
+  var voiceWarning = document.getElementById('voicePanelWarning');
+  var voiceStudentWarning = document.getElementById('voiceStudentPanelWarning');
+  if (voiceWarning) voiceWarning.hidden = false;
+  if (voiceStudentWarning) voiceStudentWarning.hidden = false;
+  refreshManualUrlDisplay();
+} else {
+  // <head> 裡的 <base target="_top"> 是給 Apps Script 面板情境用的（跳出 Google 的
+  // iframe），獨立頁面本身就是最上層頁面，沒有父層 iframe 可跳，留著這個屬性反而會讓
+  // Chrome 把 file:// 頁面裡的導覽當成「不安全的跨來源存取」擋下來
+  // （'file:' URLs are treated as unique security origins），可能連帶影響頁面其他
+  // 功能正常執行。偵測到不是面板模式時就把它拿掉。
+  var baseTag = document.querySelector('base[target]');
+  if (baseTag) baseTag.removeAttribute('target');
+}
+
+function openSpreadsheet() {
+  ensureSpreadsheetInfo().then(function (info) {
+    window.open(info.url, '_blank');
+  }).catch(showError);
+}
+
+function openCurrentSubjectSheet() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  ensureSpreadsheetInfo().then(function (info) {
+    var gid = info.subjectGids[state.subject];
+    var url = gid !== undefined ? info.url + '#gid=' + gid : info.url;
+    window.open(url, '_blank');
+  }).catch(showError);
+}
+
+function refreshAllData() {
+  spreadsheetInfo = null;
+  call('getInitData').then(function (data) {
+    state.subjects = data.subjects || [];
+    state.categories = data.categories || [];
+    state.textCorrections = data.textCorrections || [];
+    if (!state.subject || state.subjects.indexOf(state.subject) === -1) {
+      state.subject = state.subjects[0] || null;
+    }
+    renderSubjectButtons();
+    renderCategoryList();
+    renderCategoryOptionsForItems();
+    renderTextCorrectionList();
+    refreshItems();
+    refreshStudents();
+    refreshScoreItemSelect();
+    toast('已重新整理資料');
+  }).catch(showError);
+}
+
+// ============================================================
+// 科目管理
+// ============================================================
+function onAddSubject() {
+  var name = document.getElementById('newSubjectName').value.trim();
+  if (!name) return toast('請輸入科目名稱', true);
+  call('addSubject', name).then(function (subjects) {
+    state.subjects = subjects;
+    state.subject = name;
+    document.getElementById('newSubjectName').value = '';
+    renderSubjectButtons();
+    renderSubjectList();
+    toast('已新增科目：' + name);
+  }).catch(showError);
+}
+
+function renderSubjectList() {
+  var box = document.getElementById('subjectList');
+  box.innerHTML = '';
+  state.subjects.forEach(function (s, idx) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = '<span>' + escapeHtml(s) + '</span>';
+    var btns = document.createElement('span');
+
+    var upBtn = document.createElement('button');
+    upBtn.className = 'secondary';
+    upBtn.textContent = '▲';
+    upBtn.disabled = idx === 0;
+    upBtn.onclick = function () { onMoveSubject(s, -1); };
+
+    var downBtn = document.createElement('button');
+    downBtn.className = 'secondary';
+    downBtn.style.marginLeft = '4px';
+    downBtn.textContent = '▼';
+    downBtn.disabled = idx === state.subjects.length - 1;
+    downBtn.onclick = function () { onMoveSubject(s, 1); };
+
+    var renameBtn = document.createElement('button');
+    renameBtn.style.marginLeft = '6px';
+    renameBtn.className = 'secondary';
+    renameBtn.textContent = '重新命名';
+    renameBtn.onclick = function () {
+      var nn = prompt('新的科目名稱：', s);
+      if (nn && nn.trim() && nn.trim() !== s) {
+        call('renameSubject', s, nn.trim()).then(function (subjects) {
+          state.subjects = subjects;
+          if (state.subject === s) state.subject = nn.trim();
+          renderSubjectButtons();
+          renderSubjectList();
+          toast('已更名');
+        }).catch(showError);
+      }
+    };
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.style.marginLeft = '6px';
+    delBtn.textContent = '刪除';
+    delBtn.onclick = function () {
+      if (!confirm('確定要刪除科目「' + s + '」嗎？此工作表所有成績資料將永久刪除！')) return;
+      call('deleteSubject', s).then(function (subjects) {
+        state.subjects = subjects;
+        if (state.subject === s) state.subject = subjects[0] || null;
+        renderSubjectButtons();
+        renderSubjectList();
+        toast('已刪除科目：' + s);
+      }).catch(showError);
+    };
+
+    btns.appendChild(upBtn);
+    btns.appendChild(downBtn);
+    btns.appendChild(renameBtn);
+    btns.appendChild(delBtn);
+    div.appendChild(btns);
+    box.appendChild(div);
+  });
+}
+
+function onMoveSubject(name, direction) {
+  call('moveSubject', name, direction).then(function (subjects) {
+    state.subjects = subjects;
+    renderSubjectButtons();
+    renderSubjectList();
+    toast('已調整科目順序');
+  }).catch(showError);
+}
+
+// ============================================================
+// 類別管理
+// ============================================================
+function onAddCategory() {
+  var name = document.getElementById('newCategoryName').value.trim();
+  if (!name) return toast('請輸入類別名稱', true);
+  call('addCategory', name).then(function (cats) {
+    state.categories = cats;
+    document.getElementById('newCategoryName').value = '';
+    renderCategoryList();
+    renderCategoryOptionsForItems();
+    toast('已新增類別：' + name);
+  }).catch(showError);
+}
+
+function renderCategoryList() {
+  var box = document.getElementById('categoryList');
+  box.innerHTML = '';
+  state.categories.forEach(function (c) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = '<span>' + escapeHtml(c) + '</span>';
+    var delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = '刪除';
+    delBtn.onclick = function () {
+      if (!confirm('確定要刪除類別「' + c + '」嗎？（已建立的項目不會被刪除）')) return;
+      call('deleteCategory', c).then(function (cats) {
+        state.categories = cats;
+        renderCategoryList();
+        renderCategoryOptionsForItems();
+        toast('已刪除類別：' + c);
+      }).catch(showError);
+    };
+    div.appendChild(delBtn);
+    box.appendChild(div);
+  });
+}
+
+// 目前科目那一列的「⬇️ 下載語音輸入用的網頁」按鈕：下載已經自動填好 WEBAPP_URL 的獨立頁面
+// （語音輸入專用；密碼故意不寫進檔案，第一次使用時會另外詢問，見 ensureTokenAsync_）。
+// 可以存在本機雙擊開啟，也可以上傳到 GitHub Pages 等靜態網站空間，兩種都是「頂層網頁」，
+// 麥克風權限都能正常運作。
+// 只能在試算表選單開的面板裡使用（需要 google.script.run 讀取這份試算表已部署的網址），
+// 已經是獨立頁面的話就不需要這個功能了（本來就是這樣下載出來的）。
+function downloadStandaloneIndex() {
+  if (!(window.google && google.script && google.script.run)) {
+    return toast('此功能只能在 Google 試算表選單開啟的面板內使用', true);
+  }
+  showLoading();
+  google.script.run
+    .withSuccessHandler(function (html) {
+      hideLoading();
+      var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '登記分數系統(語音輸入用).html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('已開始下載，請雙擊該檔案以瀏覽器開啟即可使用語音輸入');
+    })
+    .withFailureHandler(function (err) {
+      hideLoading();
+      showError(err);
+    })
+    .getDownloadableIndex();
+}
+
+var lastRevealedToken_ = '';
+
+function revealMyToken() {
+  if (!(window.google && google.script && google.script.run)) {
+    return toast('此功能只能在 Google 試算表選單開啟的面板內使用', true);
+  }
+  google.script.run
+    .withSuccessHandler(function (token) {
+      lastRevealedToken_ = token;
+      document.getElementById('myTokenDisplay').textContent = token;
+    })
+    .withFailureHandler(showError)
+    .getMyApiToken();
+}
+
+function copyMyToken() {
+  if (!lastRevealedToken_) return toast('請先按「顯示」', true);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(lastRevealedToken_)
+      .then(function () { toast('已複製密碼'); })
+      .catch(function () { toast('複製失敗，請手動選取複製', true); });
+  } else {
+    toast('此瀏覽器不支援自動複製，請手動選取複製', true);
+  }
+}
+
+// 手動指定正確的 /exec 網址（存進 Script Properties，不會跟著複製到別人的副本，
+// 見 Code.gs 的 setManualWebAppUrl 說明）。只有自動偵測的網址一直不對時才需要用到。
+function onSetManualUrl() {
+  if (!(window.google && google.script && google.script.run)) {
+    return toast('此功能只能在 Google 試算表選單開啟的面板內使用', true);
+  }
+  var v = document.getElementById('manualUrlInput').value.trim();
+  google.script.run
+    .withSuccessHandler(function () {
+      toast(v ? '已設定，下次下載會使用這個網址' : '已清除，下次下載會改用自動偵測');
+      document.getElementById('manualUrlInput').value = '';
+      refreshManualUrlDisplay();
+    })
+    .withFailureHandler(showError)
+    .setManualWebAppUrl(v);
+}
+
+function refreshManualUrlDisplay() {
+  if (!(window.google && google.script && google.script.run)) return;
+  var el = document.getElementById('manualUrlCurrent');
+  if (!el) return;
+  google.script.run
+    .withSuccessHandler(function (url) {
+      el.textContent = url ? '目前手動指定的網址：' + url : '目前沒有手動指定網址（使用自動偵測）';
+    })
+    .withFailureHandler(function () { el.textContent = ''; })
+    .getManualWebAppUrl();
+}
+
+function onAddTextCorrection() {
+  var from = document.getElementById('newCorrectionFrom').value.trim();
+  var to = document.getElementById('newCorrectionTo').value.trim();
+  if (!from) return toast('請輸入「原本聽到的文字」', true);
+  if (!to) return toast('請輸入「要修正成的文字/數字」', true);
+  call('addTextCorrection', from, to).then(function (list) {
+    state.textCorrections = list;
+    document.getElementById('newCorrectionFrom').value = '';
+    document.getElementById('newCorrectionTo').value = '';
+    renderTextCorrectionList();
+    toast('已新增修正：「' + from + '」→「' + to + '」');
+  }).catch(showError);
+}
+
+function renderTextCorrectionList() {
+  var box = document.getElementById('correctionList');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!state.textCorrections.length) {
+    box.innerHTML = '<p class="muted">尚未設定任何修正對照</p>';
+    return;
+  }
+  state.textCorrections.forEach(function (c) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = '<span>「' + escapeHtml(c.from) + '」 → 「' + escapeHtml(c.to) + '」</span>';
+    var delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = '刪除';
+    delBtn.onclick = function () {
+      if (!confirm('確定要刪除這筆修正對照「' + c.from + '」→「' + c.to + '」嗎？')) return;
+      call('deleteTextCorrection', c.from).then(function (list) {
+        state.textCorrections = list;
+        renderTextCorrectionList();
+        toast('已刪除');
+      }).catch(showError);
+    };
+    div.appendChild(delBtn);
+    box.appendChild(div);
+  });
+}
+
+function renderCategoryOptionsForItems() {
+  ['newItemCategory', 'seriesCategory'].forEach(function (id) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    state.categories.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// ============================================================
+// 項目管理
+// ============================================================
+function refreshItems() {
+  if (!state.subject) return;
+  call('getItems', state.subject).then(function (items) {
+    state.items = items;
+    renderItemList();
+  }).catch(showError);
+}
+
+function onAddItem() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  var category = document.getElementById('newItemCategory').value;
+  var name = document.getElementById('newItemName').value.trim();
+  var max = document.getElementById('newItemMax').value;
+  if (!name) return toast('請輸入項目名稱', true);
+  call('addItem', state.subject, category, name, max).then(function (items) {
+    state.items = items;
+    document.getElementById('newItemName').value = '';
+    document.getElementById('newItemMax').value = '';
+    renderItemList();
+    toast('已新增項目：' + name);
+  }).catch(showError);
+}
+
+function onAddItemSeries() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  var category = document.getElementById('seriesCategory').value;
+  var baseName = document.getElementById('seriesBaseName').value.trim();
+  var start = document.getElementById('seriesStart').value || 1;
+  var count = document.getElementById('seriesCount').value;
+  var max = document.getElementById('seriesMax').value;
+  if (!baseName) return toast('請輸入名稱前綴', true);
+  if (!count) return toast('請輸入數量', true);
+  call('addItemSeries', state.subject, category, baseName, count, max, start).then(function (items) {
+    state.items = items;
+    document.getElementById('seriesBaseName').value = '';
+    document.getElementById('seriesCount').value = '';
+    document.getElementById('seriesMax').value = '';
+    renderItemList();
+    toast('已批次產生 ' + count + ' 個項目');
+  }).catch(showError);
+}
+
+function renderItemList() {
+  var box = document.getElementById('itemList');
+  box.innerHTML = '';
+  if (!state.items.length) {
+    box.innerHTML = '<p class="muted">尚未建立任何項目</p>';
+    return;
+  }
+  state.items.forEach(function (it, idx) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = '<span>[' + escapeHtml(it.category || '未分類') + '] ' +
+      escapeHtml(it.name) + (it.max ? '　滿分：' + it.max : '') + '</span>';
+    var btns = document.createElement('span');
+
+    var upBtn = document.createElement('button');
+    upBtn.className = 'secondary';
+    upBtn.textContent = '▲';
+    upBtn.disabled = idx === 0;
+    upBtn.onclick = function () { onMoveItem(it.col, -1); };
+
+    var downBtn = document.createElement('button');
+    downBtn.className = 'secondary';
+    downBtn.style.marginLeft = '4px';
+    downBtn.textContent = '▼';
+    downBtn.disabled = idx === state.items.length - 1;
+    downBtn.onclick = function () { onMoveItem(it.col, 1); };
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.style.marginLeft = '4px';
+    delBtn.textContent = '刪除';
+    delBtn.onclick = function () {
+      if (!confirm('確定要刪除項目「' + it.name + '」嗎？此項目所有已登記的成績將一併刪除！')) return;
+      call('deleteItem', state.subject, it.col).then(function (items) {
+        state.items = items;
+        renderItemList();
+        toast('已刪除項目：' + it.name);
+      }).catch(showError);
+    };
+
+    btns.appendChild(upBtn);
+    btns.appendChild(downBtn);
+    btns.appendChild(delBtn);
+    div.appendChild(btns);
+    box.appendChild(div);
+  });
+}
+
+function onMoveItem(col, direction) {
+  if (!state.subject) return;
+  call('moveItem', state.subject, col, direction).then(function (items) {
+    state.items = items;
+    renderItemList();
+    toast('已調整順序');
+  }).catch(showError);
+}
+
+// ============================================================
+// 名單管理
+// ============================================================
+function refreshStudents() {
+  if (!state.subject) return;
+  call('getStudents', state.subject).then(function (students) {
+    state.students = students;
+    renderStudentList();
+    renderStudentSelectForEntry();
+    renderCopySourceOptions();
+  }).catch(showError);
+}
+
+function renderCopySourceOptions() {
+  var sel = document.getElementById('copySourceSubject');
+  if (!sel) return;
+  sel.innerHTML = '';
+  state.subjects.filter(function (s) { return s !== state.subject; }).forEach(function (s) {
+    var opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+}
+
+function onCopyStudentsFrom() {
+  var sel = document.getElementById('copySourceSubject');
+  if (!sel.value) return toast('沒有其他科目可複製', true);
+  if (!confirm('確定要把「' + sel.value + '」的學生名單複製到「' + state.subject + '」嗎？')) return;
+  call('copyStudentsFrom', state.subject, sel.value).then(function (students) {
+    state.students = students;
+    renderStudentList();
+    renderStudentSelectForEntry();
+    toast('已複製名單');
+  }).catch(showError);
+}
+
+function renderStudentSelectForEntry() {
+  var sel = document.getElementById('studentSelectForEntry');
+  if (!sel) return;
+  sel.innerHTML = '';
+  state.students.forEach(function (s) {
+    var opt = document.createElement('option');
+    opt.value = s.row;
+    opt.textContent = (s.seat ? s.seat + '號 ' : '') + s.name;
+    sel.appendChild(opt);
+  });
+  if (state.scoreMode === 'byStudent' && sel.options.length) loadStudentScoreTable();
+}
+
+// 上一位／下一位學生，切換後自動載入該生成績表
+function stepStudent(delta) {
+  var sel = document.getElementById('studentSelectForEntry');
+  var newIndex = sel.selectedIndex + delta;
+  if (newIndex < 0 || newIndex >= sel.options.length) return;
+  sel.selectedIndex = newIndex;
+  loadStudentScoreTable();
+}
+
+function onAddStudent() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  var seat = document.getElementById('newSeat').value.trim();
+  var name = document.getElementById('newStuName').value.trim();
+  if (!name) return toast('請輸入姓名', true);
+  call('addStudent', state.subject, seat, name).then(function (students) {
+    state.students = students;
+    document.getElementById('newSeat').value = '';
+    document.getElementById('newStuName').value = '';
+    renderStudentList();
+    toast('已新增學生：' + name);
+  }).catch(showError);
+}
+
+function onBulkAddStudents() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  var text = document.getElementById('bulkStudents').value;
+  if (!text.trim()) return toast('請貼上名單內容', true);
+  call('addStudentsBulk', state.subject, text).then(function (students) {
+    state.students = students;
+    document.getElementById('bulkStudents').value = '';
+    renderStudentList();
+    toast('已匯入名單');
+  }).catch(showError);
+}
+
+function renderStudentList() {
+  var box = document.getElementById('studentList');
+  box.innerHTML = '';
+  if (!state.students.length) {
+    box.innerHTML = '<p class="muted">尚未建立任何學生</p>';
+    return;
+  }
+  state.students.forEach(function (s) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = '<span>' + (s.seat ? s.seat + '號　' : '') + escapeHtml(s.name) + '</span>';
+    var delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = '刪除';
+    delBtn.onclick = function () {
+      if (!confirm('確定要刪除學生「' + s.name + '」嗎？')) return;
+      call('deleteStudent', state.subject, s.row).then(function (students) {
+        state.students = students;
+        renderStudentList();
+        toast('已刪除學生：' + s.name);
+      }).catch(showError);
+    };
+    div.appendChild(delBtn);
+    box.appendChild(div);
+  });
+}
+
+// ============================================================
+// 登記成績
+// ============================================================
+function refreshScoreItemSelect() {
+  if (!state.subject) return;
+  call('getItems', state.subject).then(function (items) {
+    state.items = items;
+    renderScoreCategoryFilter();
+    renderScoreItemOptions();
+  }).catch(showError);
+}
+
+// 依項目登記時，先用類別篩選，再列出該類別底下的項目，避免項目一多下拉選單過長
+function renderScoreCategoryFilter() {
+  var sel = document.getElementById('scoreCategoryFilter');
+  var current = sel.value;
+  var cats = [];
+  state.items.forEach(function (it) {
+    var c = it.category || '未分類';
+    if (cats.indexOf(c) === -1) cats.push(c);
+  });
+  sel.innerHTML = '<option value="">全部類別（共 ' + state.items.length + ' 項）</option>';
+  cats.forEach(function (c) {
+    var count = state.items.filter(function (it) { return (it.category || '未分類') === c; }).length;
+    var opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c + '（' + count + ' 項）';
+    sel.appendChild(opt);
+  });
+  if (cats.indexOf(current) > -1) sel.value = current;
+}
+
+function renderScoreItemOptions() {
+  var filter = document.getElementById('scoreCategoryFilter').value;
+  var sel = document.getElementById('scoreItemSelect');
+  sel.innerHTML = '';
+  var filtered = state.items.filter(function (it) {
+    return !filter || (it.category || '未分類') === filter;
+  });
+  filtered.forEach(function (it) {
+    var opt = document.createElement('option');
+    opt.value = it.col;
+    opt.textContent = '[' + (it.category || '未分類') + '] ' + it.name + (it.max ? '（滿分' + it.max + '）' : '');
+    sel.appendChild(opt);
+  });
+  if (filtered.length) loadScoreTable();
+  else document.getElementById('scoreTableBody').innerHTML = '<tr><td colspan="6" class="muted">此類別尚無項目</td></tr>';
+}
+
+function loadScoreTable() {
+  var sel = document.getElementById('scoreItemSelect');
+  if (!sel.value) return;
+  var col = Number(sel.value);
+  state.currentItemCol = col;
+  var item = state.items.find(function (i) { return i.col === col; });
+  document.getElementById('scoreMaxHint').textContent = item && item.max ? '滿分 ' + item.max : '';
+
+  call('getScores', state.subject, col).then(function (scores) {
+    var body = document.getElementById('scoreTableBody');
+    body.innerHTML = '';
+    if (!scores.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">請先在「名單管理」新增學生</td></tr>';
+      return;
+    }
+    // 一列塞兩位學生（6欄），讓成績表能一次容納更多人，不用一直往下滾。
+    // 用「直排」順序：左欄先由上到下排完前半段學生，右欄接著由上到下排後半段，
+    // 不是左右交錯（橫排）。
+    var half = Math.ceil(scores.length / 2);
+    for (var i = 0; i < half; i++) {
+      var left = scores[i];
+      var right = scores[i + half];
+      var tr = document.createElement('tr');
+      // 表格是左右兩欄呈現（一列塞兩位學生），但 Tab 鍵預設會照 DOM 順序左右左右跳，
+      // 不是照座號順序。這裡用 tabindex 強制 Tab 鍵照資料順序走：先走完左欄全部，
+      // 再走右欄，跟座號（資料本身的順序）一致，方便手動輸入時連續按 Tab。
+      tr.innerHTML = scoreCellGroup_(left, i + 1) + (right ? scoreCellGroup_(right, i + half + 1) : '<td></td><td></td><td></td>');
+      body.appendChild(tr);
+    }
+  }).catch(showError);
+}
+
+function scoreCellGroup_(s, tabIndex) {
+  return '<td>' + (s.seat || '') + '</td><td>' + escapeHtml(s.name) + '</td>' +
+    '<td><input type="number" tabindex="' + tabIndex + '" data-row="' + s.row + '" data-name="' + escapeHtml(s.name) + '" data-seat="' + (s.seat || '') + '" value="' + (s.score === '' ? '' : s.score) + '"></td>';
+}
+
+function onSaveScores() {
+  if (!state.currentItemCol) return;
+  var inputs = document.querySelectorAll('#scoreTableBody input[type=number]');
+  var entries = [];
+  inputs.forEach(function (input) {
+    if (!input.dataset.row) return;
+    entries.push({ row: Number(input.dataset.row), score: input.value === '' ? '' : input.value });
+  });
+  if (!entries.length) return;
+  call('saveScores', state.subject, state.currentItemCol, entries).then(function () {
+    toast('已自動儲存');
+  }).catch(showError);
+}
+
+function onClearScores() {
+  if (!state.currentItemCol) return toast('請先選擇項目並載入成績表', true);
+  if (!confirm('確定要清空「目前這個項目」全班的成績嗎？會直接清空 Google 試算表裡的資料，且無法復原！')) return;
+  document.querySelectorAll('#scoreTableBody input[type=number]').forEach(function (input) { input.value = ''; });
+  onSaveScores();
+  toast('已清空此項目成績');
+}
+
+// 手動修改分數欄位時自動儲存，不用再按按鈕
+document.getElementById('scoreTableBody').addEventListener('change', function (e) {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'number') onSaveScores();
+});
+
+// ------------------------------------------------------------
+// 依學生登記：選一位學生，一次輸入他所有項目的成績
+// ------------------------------------------------------------
+function loadStudentScoreTable() {
+  var sel = document.getElementById('studentSelectForEntry');
+  if (!sel.value) return toast('請先選擇學生', true);
+  var row = Number(sel.value);
+  state.currentStudentRow = row;
+
+  call('getStudentScores', state.subject, row).then(function (items) {
+    var body = document.getElementById('studentScoreTableBody');
+    body.innerHTML = '';
+    if (!items.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">請先在「項目管理」建立項目</td></tr>';
+      return;
+    }
+    items.forEach(function (it) {
+      var tr = document.createElement('tr');
+      tr.dataset.col = it.col;
+      tr.dataset.name = it.name;
+      tr.innerHTML = '<td class="seqNum" title="點一下：把下一筆語音指向這一項">-</td>' +
+        '<td><input type="checkbox" class="itemCheckbox" checked></td>' +
+        '<td>' + escapeHtml(it.category || '') + '</td><td>' + escapeHtml(it.name) + '</td>' +
+        '<td>' + (it.max || '') + '</td>' +
+        '<td><input type="number" value="' + (it.score === '' ? '' : it.score) + '"></td>';
+      body.appendChild(tr);
+    });
+    renumberSeq();
+    resetDigitPairPointer();
+  }).catch(showError);
+}
+
+// 依勾選狀態＋順序，重新編列「序」欄位，供「序號＋分數」語音模式對照
+function renumberSeq() {
+  var i = 0;
+  document.querySelectorAll('#studentScoreTableBody tr').forEach(function (tr) {
+    var cb = tr.querySelector('.itemCheckbox');
+    var seqCell = tr.querySelector('.seqNum');
+    if (!cb || !seqCell) return;
+    if (cb.checked) { i++; seqCell.textContent = i; }
+    else { seqCell.textContent = '-'; }
+  });
+}
+
+function setAllItemChecks(checked) {
+  document.querySelectorAll('#studentScoreTableBody .itemCheckbox').forEach(function (cb) { cb.checked = checked; });
+  renumberSeq();
+  resetDigitPairPointer();
+}
+
+// 手動勾選/取消勾選項目時，重新編「序」號並更新進度顯示
+document.getElementById('studentScoreTableBody').addEventListener('change', function (e) {
+  if (e.target.classList.contains('itemCheckbox')) {
+    renumberSeq();
+    resetDigitPairPointer();
+  }
+});
+
+// 語音念到一半發現對不上（例如某幾個分數完全沒被辨識出數字，導致後面全部往前遞補），
+// 可以直接點表格「序」欄位的數字，把下一筆語音要填入的位置手動指到那一項，不用整個重來
+document.getElementById('studentScoreTableBody').addEventListener('click', function (e) {
+  var cell = e.target.closest('.seqNum');
+  if (!cell) return;
+  var num = parseInt(cell.textContent, 10);
+  if (!num) return;
+  state.digitPairPointer = num - 1;
+  updateSequentialProgress();
+  logVoiceTo('voiceStudentLog', '📍 已手動將下一筆指向第 ' + num + ' 項，接下來念的分數會從這裡繼續填入', 'ok');
+});
+
+// 依表格中的勾選狀態＋順序，取得目前有效（會被序號語音模式對應）的項目清單
+function getActiveStudentItems() {
+  var rows = document.querySelectorAll('#studentScoreTableBody tr');
+  var list = [];
+  rows.forEach(function (tr) {
+    var cb = tr.querySelector('.itemCheckbox');
+    if (cb && cb.checked) list.push({ tr: tr, col: tr.dataset.col, name: tr.dataset.name });
+  });
+  return list;
+}
+
+function updateSequentialProgress() {
+  var el = document.getElementById('sequentialProgress');
+  var active = getActiveStudentItems();
+  if (!active.length) {
+    el.textContent = '⚠️ 目前沒有勾選任何項目';
+    return;
+  }
+  if (state.digitPairPointer >= active.length) {
+    el.textContent = '✅ 已全部念完（共 ' + active.length + ' 項）';
+  } else {
+    el.textContent = '📍 下一個要念：「' + active[state.digitPairPointer].name + '」（第 ' +
+      (state.digitPairPointer + 1) + ' / ' + active.length + ' 項）';
+  }
+}
+
+function resetDigitPairPointer() {
+  state.digitPairPointer = 0;
+  updateSequentialProgress();
+}
+
+// 上一個聽錯了，倒退一格，下一次念的分數會蓋掉那一項重填
+function stepDigitPairBack() {
+  if (state.digitPairPointer > 0) state.digitPairPointer--;
+  updateSequentialProgress();
+}
+
+// 把念到的一整串數字，依「每兩位一組、100 是例外」的慣例切成多個分數
+// 例如念「九八八七」→ 文字辨識通常會轉成阿拉伯數字「9887」→ 切成 ["98","87"]
+// 「一百」也會被視為特例（三位數但代表一個分數），不會被切成 10+0 或 1+00
+// 語音辨識有時不會把「九五」這種單獨念的數字詞轉成阿拉伯數字，
+// 而是留成中文字「九五」，導致抓不到任何 \d。這裡先把常見中文數字字元轉回阿拉伯數字再處理。
+var CN_DIGIT_MAP = { '零': '0', '一': '1', '二': '2', '兩': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+
+// 已知的同音詞誤判修正，例如「九八」(jiǔbā) 跟「酒吧」(jiǔbā) 完全同音，
+// 辨識引擎常常優先選常用詞「酒吧」而不是數字讀法，這裡先修正回數字。
+// 教師可在「語音修正設定」分頁自行新增/刪除對照，存在 state.textCorrections（伺服器端「設定」工作表）。
+function applyTextCorrections_(text) {
+  (state.textCorrections || []).forEach(function (c) {
+    if (!c.from) return;
+    text = text.split(c.from).join(c.to);
+  });
+  return text;
+}
+
+function extractDigitPairScores(text) {
+  text = applyTextCorrections_(text);
+  var withHundred = text.replace(/一百/g, '100');
+  withHundred = withHundred.replace(/[零一二兩三四五六七八九]/g, function (ch) { return CN_DIGIT_MAP[ch]; });
+  var digits = withHundred.replace(/\D/g, '');
+  var scores = [];
+  var i = 0;
+  while (i < digits.length) {
+    if (digits.slice(i, i + 3) === '100') {
+      scores.push('100');
+      i += 3;
+    } else if (i + 2 <= digits.length) {
+      scores.push(digits.slice(i, i + 2));
+      i += 2;
+    } else {
+      scores.push(digits.slice(i));
+      i += 1;
+    }
+  }
+  return scores;
+}
+
+// 「只念分數」模式：依勾選順序，把每個切出來的分數依序填入下一個項目
+function applyDigitPairScores(scores, rawText) {
+  var active = getActiveStudentItems();
+  scores.forEach(function (score) {
+    if (state.digitPairPointer >= active.length) return;
+    var target = active[state.digitPairPointer];
+    var input = target.tr.querySelector('input[type=number]');
+    input.value = score;
+    target.tr.classList.remove('flash');
+    void target.tr.offsetWidth;
+    target.tr.classList.add('flash');
+    logVoiceTo('voiceStudentLog', '✅ 聽到「' + rawText + '」→ 第' + (state.digitPairPointer + 1) + '項 ' + target.name + ' → ' + score, 'ok');
+    state.digitPairPointer++;
+  });
+  updateSequentialProgress();
+}
+
+function onSaveStudentScores() {
+  if (!state.currentStudentRow) return;
+  var rows = document.querySelectorAll('#studentScoreTableBody tr');
+  var updates = [];
+  rows.forEach(function (tr) {
+    if (!tr.dataset.col) return;
+    var input = tr.querySelector('input[type=number]');
+    updates.push({
+      col: Number(tr.dataset.col),
+      entries: [{ row: state.currentStudentRow, score: input.value === '' ? '' : input.value }]
+    });
+  });
+  if (!updates.length) return;
+  call('bulkSaveScores', state.subject, updates).then(function () {
+    toast('已自動儲存');
+  }).catch(showError);
+}
+
+function onClearStudentScores() {
+  if (!state.currentStudentRow) return toast('請先選擇學生並載入成績表', true);
+  if (!confirm('確定要清空這位學生「所有項目」的成績嗎？會直接清空 Google 試算表裡的資料，且無法復原！')) return;
+  document.querySelectorAll('#studentScoreTableBody input[type=number]').forEach(function (input) { input.value = ''; });
+  onSaveStudentScores();
+  toast('已清空這位學生的成績');
+}
+
+// 手動修改分數欄位時自動儲存，不用再按按鈕
+document.getElementById('studentScoreTableBody').addEventListener('change', function (e) {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'number') onSaveStudentScores();
+});
+
+function handleStudentSpeechText(text) {
+  var digitScores = extractDigitPairScores(text);
+  if (!digitScores.length) { logVoiceTo('voiceStudentLog', '沒聽到分數：「' + text + '」', 'warn'); return; }
+  applyDigitPairScores(digitScores, text);
+  onSaveStudentScores();
+}
+
+function applyDictationStudentText() {
+  var box = document.getElementById('dictationStudentText');
+  var text = box.value;
+  if (!text.trim()) return toast('請先輸入或聽寫內容', true);
+  if (!state.currentStudentRow) return toast('請先選擇學生並載入成績表', true);
+
+  var digitScores = extractDigitPairScores(text);
+  if (!digitScores.length) { logVoiceTo('voiceStudentLog', '沒有找到分數：' + text, 'warn'); return; }
+  applyDigitPairScores(digitScores, text);
+  onSaveStudentScores();
+  box.value = '';
+}
+
+// ------------------------------------------------------------
+// 依姓名/座號比對成績表列，並填入分數（語音、拍照共用）
+// ------------------------------------------------------------
+function applyScoreToTable(matcher, score) {
+  var inputs = document.querySelectorAll('#scoreTableBody input[type=number]');
+  var matched = null;
+  inputs.forEach(function (input) {
+    if (matched) return;
+    var name = input.dataset.name || '';
+    var seat = input.dataset.seat || '';
+    if (matcher.seat && String(seat) === String(matcher.seat)) matched = input;
+    else if (matcher.name && (name === matcher.name || name.indexOf(matcher.name) > -1 || matcher.name.indexOf(name) > -1)) matched = input;
+  });
+  if (matched) {
+    matched.value = score;
+    var cell = matched.closest('td');
+    if (cell) {
+      cell.classList.remove('flash');
+      void cell.offsetWidth;
+      cell.classList.add('flash');
+    }
+  }
+  return !!matched;
+}
+
+// ============================================================
+// 語音輸入
+// ============================================================
+var recognition = null;
+var voiceOn = false;      // 目前瀏覽器是否正在聆聽中
+var wantVoiceOn = false;  // 使用者是否想要持續聆聽（按過開始、還沒按停止）
+
+// 語音輸入分「依項目」「依學生」兩種模式，共用同一套辨識機制，
+// 只是按鈕/顯示區塊/解析方式不同，用這個小工具依目前模式取得對應的元素 id
+function voiceIds() {
+  return state.scoreMode === 'byStudent'
+    ? { btn: 'voiceStudentStartBtn', interim: 'voiceStudentInterim', log: 'voiceStudentLog' }
+    : { btn: 'voiceStartBtn', interim: 'voiceInterim', log: 'voiceLog' };
+}
+
+// 念完一筆（一位學生，或一個項目）稍微停頓，程式就會把它當一筆處理並填入表格，
+// 不用按任何按鈕、也不用說任何提示語，接著念下一筆即可。
+// 瀏覽器有時會在安靜一段時間後自動斷線，只要使用者還沒按停止，
+// 這裡會自動重新開始聆聽，讓連續念多筆不會中斷。
+function startRecognitionInstance() {
+  var ids = voiceIds();
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-TW';
+  recognition.continuous = true;
+  recognition.interimResults = true; // 開啟即時（尚未確定）辨識結果，讓使用者邊講邊看到畫面反應
+
+  recognition.onstart = function () {
+    voiceOn = true;
+    document.getElementById(ids.btn).textContent = '⏹ 停止語音輸入';
+    document.getElementById(ids.interim).textContent = '🎙️ 聆聽中...';
+  };
+  recognition.onend = function () {
+    voiceOn = false;
+    document.getElementById(ids.interim).textContent = '';
+    if (wantVoiceOn) {
+      setTimeout(function () { if (wantVoiceOn) startRecognitionInstance(); }, 300);
+    } else {
+      document.getElementById(ids.btn).textContent = '開始語音輸入';
+    }
+  };
+  recognition.onerror = function (e) {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      wantVoiceOn = false;
+      document.getElementById(ids.btn).textContent = '開始語音輸入';
+      document.getElementById(ids.interim).textContent = '';
+      logVoiceTo(ids.log, '麥克風權限被拒絕，語音輸入已停止（' + e.error + '）', 'warn');
+    } else {
+      logVoiceTo(ids.log, '語音辨識中斷，自動重新聆聽中...（' + e.error + '）', 'warn');
+    }
+  };
+  recognition.onresult = function (event) {
+    var interimText = '';
+    for (var i = event.resultIndex; i < event.results.length; i++) {
+      var transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        if (state.scoreMode === 'byStudent') handleStudentSpeechText(transcript.trim());
+        else handleSpeechText(transcript.trim());
+      } else {
+        interimText += transcript;
+      }
+    }
+    document.getElementById(ids.interim).textContent = interimText ? '🎙️ 辨識中：' + interimText : '🎙️ 聆聽中...';
+  };
+
+  recognition.start();
+}
+
+function toggleVoice() {
+  if (isPanelMode_()) {
+    return toast('這個面板無法使用語音輸入，請按上方「⬇️ 下載語音輸入用的網頁」下載後另外開啟', true);
+  }
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    return toast('此瀏覽器不支援語音辨識，請改用電腦版 Google Chrome', true);
+  }
+  var ids = voiceIds();
+  if (state.scoreMode === 'byStudent') {
+    if (!state.currentStudentRow) return toast('請先選擇學生並載入成績表', true);
+  } else {
+    if (!state.currentItemCol) return toast('請先選擇登記項目並載入成績表', true);
+  }
+
+  if (wantVoiceOn) {
+    wantVoiceOn = false;
+    if (recognition) recognition.stop();
+    document.getElementById(ids.btn).textContent = '開始語音輸入';
+    logVoiceTo(ids.log, '（已停止聆聽）', 'ok');
+    return;
+  }
+
+  wantVoiceOn = true;
+  if (state.scoreMode === 'byStudent') {
+    logVoiceTo(ids.log, '（開始聆聽...請說「項目名稱 分數」，例如「國習1 90」，念完一項稍停即可接著念下一項，全部念完再按「停止語音輸入」）', 'ok');
+  } else {
+    logVoiceTo(ids.log, '（開始聆聽...請說「姓名 分數」或「座號 分數」，念完一位稍停即可接著念下一位，全部念完再按「停止語音輸入」）', 'ok');
+  }
+  startRecognitionInstance();
+}
+
+function handleSpeechText(text) {
+  var pairs = extractNameScorePairs(text);
+  if (!pairs.length) {
+    logVoice('無法解析：「' + text + '」', 'warn');
+    return;
+  }
+  pairs.forEach(function (p) {
+    var ok = applyScoreToTable(p, p.score);
+    if (ok) logVoice('✅ ' + (p.name || p.seat + '號') + ' → ' + p.score, 'ok');
+    else logVoice('⚠️ 找不到符合的學生：「' + text + '」（辨識為 ' + (p.name || p.seat) + ' ' + p.score + '）', 'warn');
+  });
+  onSaveScores();
+}
+
+// 從一段文字中解析出多組「姓名/座號 + 分數」
+function extractNameScorePairsRaw_(text) {
+  var clean = text.replace(/[，,。.！!？?、]/g, ' ').replace(/分/g, ' ');
+  var pairs = [];
+  var m;
+
+  // 姓名（中文/英文）＋分數，例如「王小明 85」
+  // 分數強制固定兩位數（或100），不允許1位數，這樣在數字完全連在一起、
+  // 沒有任何空格或「號」分隔時，regex 引擎才會自動回溯，正確切開座號跟分數，
+  // 例如念「376」（座號3、分數76完全黏在一起）也能正確拆成 seat=3, score=76，
+  // 而不會被前面貪婪比對誤吃成 seat=37, score=6。
+  // 代價是分數低於10分時必須念成兩位數（例如「05」），不能只念「5」。
+  var nameRe = /([一-鿿A-Za-z]{2,6})\D{0,4}(100|\d{2})/g;
+  while ((m = nameRe.exec(clean)) !== null) {
+    pairs.push({ name: m[1], score: m[2] });
+  }
+  if (pairs.length) return pairs;
+
+  // 座號＋分數，例如「3號 85」「3 85」（座號最多兩位數，班級人數不會超過99人）
+  var seatRe = /(\d{1,2})\s*號?\D{0,2}(100|\d{2})/g;
+  while ((m = seatRe.exec(clean)) !== null) {
+    pairs.push({ seat: m[1], score: m[2] });
+  }
+  return pairs;
+}
+
+function extractNameScorePairs(text) {
+  // 修正對照表一律先套用（不是失敗才套用），否則像「9號爸爸10號94」會先被姓名規則
+  // 誤吃成「號爸爸→10」這種假匹配、直接回傳結果，導致後面的修正/備援都沒機會執行。
+  var corrected = applyTextCorrections_(text);
+  var pairs = extractNameScorePairsRaw_(corrected);
+  if (pairs.length) return pairs;
+  // 原始文字解析不到，可能是分數被語音辨識成中文數字字詞（如「九七」而非「97」）
+  // 才轉換後重試一次，避免直接轉換整段文字誤傷姓名裡剛好帶到的數字字（如「王一心」）
+  var fixed = corrected.replace(/一百/g, '100');
+  fixed = fixed.replace(/[零一二兩三四五六七八九]/g, function (ch) { return CN_DIGIT_MAP[ch]; });
+  if (fixed === corrected) return pairs;
+  return extractNameScorePairsRaw_(fixed);
+}
+
+function logVoiceTo(logId, msg, cls) {
+  var log = document.getElementById(logId);
+  var div = document.createElement('div');
+  div.className = cls || '';
+  div.textContent = msg;
+  log.insertBefore(div, log.firstChild);
+}
+function logVoice(msg, cls) { logVoiceTo('voiceLog', msg, cls); }
+
+// 給 iPhone（或任何裝置）用：文字框裡的內容可能是用手機鍵盤聽寫口述來的，
+// 也可能是直接用手打的，不管來源為何都用同一套「姓名/座號＋分數」解析邏輯處理。
+function applyDictationText() {
+  var box = document.getElementById('dictationText');
+  var text = box.value;
+  if (!text.trim()) return toast('請先輸入或聽寫內容', true);
+  if (!state.currentItemCol) return toast('請先選擇登記項目並載入成績表', true);
+
+  var pairs = extractNameScorePairs(text);
+  if (!pairs.length) {
+    logVoice('無法從內容解析出「姓名/座號＋分數」：' + text, 'warn');
+    return;
+  }
+  pairs.forEach(function (p) {
+    var ok = applyScoreToTable(p, p.score);
+    if (ok) logVoice('✅ ' + (p.name || p.seat + '號') + ' → ' + p.score, 'ok');
+    else logVoice('⚠️ 找不到符合的學生（' + (p.name || p.seat) + ' ' + p.score + '）', 'warn');
+  });
+  onSaveScores();
+  box.value = '';
+}
+
+// ============================================================
+// 拍照辨識（OCR）
+// ============================================================
+document.getElementById('photoInput').addEventListener('change', function (e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var img = document.getElementById('photoPreview');
+  img.src = URL.createObjectURL(file);
+  img.style.display = 'block';
+});
+
+function onRunOcr() {
+  if (!state.currentItemCol) return toast('請先選擇登記項目並載入成績表', true);
+  var fileInput = document.getElementById('photoInput');
+  var file = fileInput.files[0];
+  if (!file) return toast('請先選擇或拍攝一張照片', true);
+
+  logOcr('辨識中，請稍候...（照片較大時可能需要 10~30 秒）', 'ok');
+
+  var reader = new FileReader();
+  reader.onload = function () {
+    var base64 = reader.result.split(',')[1];
+    call('ocrImage', base64, file.type).then(function (text) {
+      document.getElementById('ocrTextWrap').style.display = 'block';
+      document.getElementById('ocrRawText').value = text;
+      logOcr('辨識完成，開始比對名單...', 'ok');
+      applyOcrText(text);
+    }).catch(function (err) {
+      logOcr('辨識失敗：' + err.message, 'warn');
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function reparseOcr() {
+  var text = document.getElementById('ocrRawText').value;
+  applyOcrText(text);
+}
+
+function applyOcrText(text) {
+  var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+  var matchedCount = 0;
+  lines.forEach(function (line) {
+    var pairs = extractNameScorePairs(line);
+    pairs.forEach(function (p) {
+      var ok = applyScoreToTable(p, p.score);
+      if (ok) {
+        matchedCount++;
+        logOcr('✅ ' + (p.name || p.seat + '號') + ' → ' + p.score, 'ok');
+      } else {
+        logOcr('⚠️ 找不到符合的學生：「' + line + '」', 'warn');
+      }
+    });
+    if (!pairs.length) logOcr('（略過無法解析的行）：' + line, 'warn');
+  });
+  if (matchedCount > 0) onSaveScores();
+  logOcr('比對完成，共成功帶入並自動儲存 ' + matchedCount + ' 筆，請於下方成績表確認數字是否正確。', 'ok');
+}
+
+function logOcr(msg, cls) {
+  var log = document.getElementById('ocrLog');
+  var div = document.createElement('div');
+  div.className = cls || '';
+  div.textContent = msg;
+  log.insertBefore(div, log.firstChild);
+}
+
+// ============================================================
+// 小工具
+// ============================================================
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+</script>
 </body>
 </html>
