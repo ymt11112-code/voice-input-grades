@@ -414,21 +414,27 @@
           </div>
         </div>
         <p class="muted" id="voicePanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請按上方「目前科目」那一列右邊的「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入；密碼可以在「系統設定」頁籤查看並複製。</p>
-        <p class="muted">建議唸法：「姓名 分數」，例如：「王小明 85」；分數固定念兩位數，10分以下請念成兩位數（例如5分念「05」），連續念多筆不用特別停頓也能正確分辨。僅支援電腦版／Android 版 Chrome 瀏覽器，需允許麥克風權限。</p>
+        <p class="muted">建議唸法：「姓名 分數」，例如：「王小明 85」；分數固定念兩位數，10分以下請念成兩位數（例如5分念「05」），連續念多筆不用特別停頓也能正確分辨。電腦版／Android 版 Chrome 支援度最穩定，需允許麥克風權限；iPhone 部分機型也可能可以使用，沒反應的話請改用下方手機聽寫。</p>
         <div id="voiceInterim" style="min-height:22px; font-weight:600; color:var(--forest);"></div>
         <div class="log" id="voiceLog"></div>
 
-        <div style="margin-top:10px; border-top:1px dashed var(--line); padding-top:10px;">
-          <p class="muted">📱 手機請改用這個：iPhone 完全不支援本頁語音辨識；Android 也可能因權限限制無法使用。點下面欄位、再點手機鍵盤上的🎤聽寫圖示口述（例如：「3號 85 4號 90 5號 78」），說完按「解析並套用」，不受瀏覽器語音辨識限制影響。</p>
-          <textarea id="dictationText" rows="2" style="width:100%" placeholder="點這裡，再點手機鍵盤的麥克風圖示口述..."></textarea>
-          <button class="secondary" style="margin-top:6px" onclick="applyDictationText()">解析並套用</button>
+        <div class="card collapsed" style="margin-top:10px;">
+          <div class="cardHeader" onclick="toggleCard('card-dictation-item')">
+            <b><span class="cardIcon tint-teal">📱</span> 手機聽寫備用輸入</b>
+            <span class="cardToggle" id="cardToggle-card-dictation-item">▾</span>
+          </div>
+          <div class="cardBody" id="card-dictation-item" hidden>
+            <p class="muted">上面的語音辨識沒反應時可以改用這個：不同手機／瀏覽器對語音辨識的支援度不一定穩定（尤其 iPhone、部分 Android）。點下面欄位、再點手機鍵盤上的🎤聽寫圖示口述（例如：「3號 85 4號 90 5號 78」），說完按「解析並套用」，不受瀏覽器語音辨識限制影響。</p>
+            <textarea id="dictationText" rows="2" style="width:100%" placeholder="點這裡，再點手機鍵盤的麥克風圖示口述..."></textarea>
+            <button class="secondary" style="margin-top:6px" onclick="applyDictationText()">解析並套用</button>
+          </div>
         </div>
       </div>
 
       <div class="colResizer" title="拖曳調整左右寬度"></div>
 
       <div class="tableCol subpanel">
-        <h3 style="margin-top:0">成績表（手動輸入，或由語音/拍照自動帶入後再確認）</h3>
+        <h3 style="margin-top:0">成績表（手動輸入，或由語音/拍照自動帶入後再確認）<span class="pill" id="scoreTableLoadedTag"></span></h3>
         <div class="tableScroll">
           <table id="scoreTable">
             <thead><tr><th>座號</th><th>姓名</th><th>成績</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead>
@@ -480,10 +486,16 @@
         <div id="voiceStudentInterim" style="min-height:22px; font-weight:600; color:var(--forest);"></div>
         <div class="log" id="voiceStudentLog"></div>
 
-        <div style="margin-top:10px; border-top:1px dashed var(--line); padding-top:10px;">
-          <p class="muted">📱 手機請改用這個：iPhone 完全不支援本頁語音辨識；Android 也可能因權限限制無法使用。點下面欄位、用手機鍵盤🎤聽寫圖示口述，說完按「解析並套用」，不受瀏覽器語音辨識限制影響。</p>
-          <textarea id="dictationStudentText" rows="2" style="width:100%" placeholder="點這裡，再點手機鍵盤的麥克風圖示口述..."></textarea>
-          <button class="secondary" style="margin-top:6px" onclick="applyDictationStudentText()">解析並套用</button>
+        <div class="card collapsed" style="margin-top:10px;">
+          <div class="cardHeader" onclick="toggleCard('card-dictation-student')">
+            <b><span class="cardIcon tint-teal">📱</span> 手機聽寫備用輸入</b>
+            <span class="cardToggle" id="cardToggle-card-dictation-student">▾</span>
+          </div>
+          <div class="cardBody" id="card-dictation-student" hidden>
+            <p class="muted">上面的語音辨識沒反應時可以改用這個：不同手機／瀏覽器對語音辨識的支援度不一定穩定（尤其 iPhone、部分 Android）。點下面欄位、用手機鍵盤🎤聽寫圖示口述，說完按「解析並套用」，不受瀏覽器語音辨識限制影響。</p>
+            <textarea id="dictationStudentText" rows="2" style="width:100%" placeholder="點這裡，再點手機鍵盤的麥克風圖示口述..."></textarea>
+            <button class="secondary" style="margin-top:6px" onclick="applyDictationStudentText()">解析並套用</button>
+          </div>
         </div>
       </div>
 
@@ -1459,11 +1471,17 @@ function loadScoreTable() {
   var item = state.items.find(function (i) { return i.col === col; });
   document.getElementById('scoreMaxHint').textContent = item && item.max ? '滿分 ' + item.max : '';
 
+  // 低調的「有沒有成功換成目前選的項目」提示：不用跳訊息，直接看標題旁這個小標籤
+  // 是不是跟下拉選單一致，就知道畫面是不是真的已經重新載入、還是連線失敗留著舊資料。
+  var loadedTag = document.getElementById('scoreTableLoadedTag');
+  if (loadedTag) loadedTag.textContent = '⏳ 載入中…';
+
   call('getScores', state.subject, col).then(function (scores) {
     var body = document.getElementById('scoreTableBody');
     body.innerHTML = '';
     if (!scores.length) {
       body.innerHTML = '<tr><td colspan="6" class="muted">請先在「名單管理」新增學生</td></tr>';
+      if (loadedTag) loadedTag.textContent = '已載入：' + (item ? item.name : '');
       return;
     }
     // 一列塞兩位學生（6欄），讓成績表能一次容納更多人，不用一直往下滾。
@@ -1480,7 +1498,11 @@ function loadScoreTable() {
       tr.innerHTML = scoreCellGroup_(left, i + 1) + (right ? scoreCellGroup_(right, i + half + 1) : '<td></td><td></td><td></td>');
       body.appendChild(tr);
     }
-  }).catch(showError);
+    if (loadedTag) loadedTag.textContent = '已載入：' + (item ? item.name : '');
+  }).catch(function (err) {
+    if (loadedTag) loadedTag.textContent = '⚠️ 載入失敗';
+    showError(err);
+  });
 }
 
 function scoreCellGroup_(s, tabIndex) {
