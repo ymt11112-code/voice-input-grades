@@ -224,7 +224,6 @@
       <select id="subjectSelectMobile" class="subjectSelectMobile" onchange="selectSubject(this.value)"></select>
       <span class="muted" id="subjectHint"></span>
       <span style="flex:1"></span>
-      <button class="gold" onclick="downloadStandaloneIndex()">⬇️ 下載語音輸入用的網頁</button>
       <span id="loadingIndicator" class="pill" style="display:none;">⏳ 載入中...</span>
     </div>
   </div>
@@ -328,22 +327,30 @@
   <div class="panel" id="panel-system" hidden>
     <div class="card">
       <div class="cardHeader" onclick="toggleCard('card-download')">
-        <b><span class="cardIcon tint-teal">🎙️</span> 語音輸入專用頁面</b>
+        <b><span class="cardIcon tint-teal">🎙️</span> 語音輸入設定</b>
         <span class="cardToggle" id="cardToggle-card-download">▾</span>
       </div>
       <div class="cardBody" id="card-download">
-        <p class="muted">語音輸入因為麥克風權限限制，不能在這個面板或網頁應用程式網址裡使用，必須開啟成「頂層網頁」——可以是存到自己電腦雙擊開啟，也可以上傳到 GitHub Pages 等網站空間，任何裝置用瀏覽器打開都能用。下載按鈕在最上方「目前科目」那一列的右邊（⬇️ 下載語音輸入用的網頁），需要先完成「部署 → 新增部署作業 → 網頁應用程式」，這個按鈕才抓得到你的專屬網址；還沒部署的話按下去會提示你先部署。</p>
+        <p class="muted">語音輸入因為麥克風權限限制，不能在這個面板或網頁應用程式網址裡使用，必須開啟成「頂層網頁」——可以是存到自己電腦雙擊開啟，也可以上傳到 GitHub Pages 等網站空間，任何裝置用瀏覽器打開都能用。</p>
 
-        <div class="row" style="margin-top:14px; align-items:center;">
-          <span class="muted">你的密碼：</span>
-          <code id="myTokenDisplay">••••••••</code>
-          <button class="secondary" onclick="revealMyToken()">顯示</button>
-          <button class="secondary" onclick="copyMyToken()">複製</button>
+        <div class="row">
+          <button class="gold" onclick="downloadStandaloneIndex()">⬇️ 下載語音輸入用的網頁</button>
         </div>
-        <p class="muted">下載的檔案不會寫死密碼（避免萬一放到公開網站外流），語音輸入頁面第一次要存檔時會跳出畫面要你輸入密碼，把這裡的密碼複製貼上即可，之後同一台裝置就不用再輸入。</p>
+        <p class="muted">需要先完成「部署 → 新增部署作業 → 網頁應用程式」，這個按鈕才抓得到你的專屬網址；還沒部署的話按下去會提示你先部署。如果你已經有一份固定網址在用（例如放在 GitHub Pages），不用每次都重新下載——直接在那份頁面右下角按「⚙️ 連線設定」改網址或密碼即可。</p>
 
         <div style="margin-top:14px; border-top:1px dashed var(--line); padding-top:12px;">
-          <p class="muted">大多數情況不需要用到下面這個。只有下載出來的網址一直不對（例如連線一直失敗）時，才需要手動指定一次正確的 <code>/exec</code> 網址。這個設定只存在你自己這份試算表裡，<b>不會被複製到別人建立的副本</b>，可以放心分享範本。</p>
+          <p class="muted"><b>密碼</b></p>
+          <div class="row" style="align-items:center;">
+            <code id="myTokenDisplay">••••••••</code>
+            <button class="secondary" onclick="revealMyToken()">顯示</button>
+            <button class="secondary" onclick="copyMyToken()">複製</button>
+          </div>
+          <p class="muted">密碼不會寫進下載的檔案或任何頁面原始碼裡（避免萬一放到公開網站外流）。獨立頁面第一次連線時，把這裡的密碼複製貼到它跳出的「連線設定」畫面即可，之後同一台裝置、同一個瀏覽器都不用再輸入。</p>
+        </div>
+
+        <div style="margin-top:14px; border-top:1px dashed var(--line); padding-top:12px;">
+          <p class="muted"><b>自動偵測的網址不對時</b>（大多數情況不需要用到這個）</p>
+          <p class="muted">如果下載出來的頁面連線一直失敗，可以在這裡手動指定一次正確的 <code>/exec</code> 網址，之後下載都會固定用這一個。這個設定只存在你自己這份試算表裡，<b>不會被複製到別人建立的副本</b>，可以放心分享範本。</p>
           <div class="row">
             <input type="text" id="manualUrlInput" placeholder="正確的 /exec 網址（通常不需要填）" style="flex:1; min-width:220px;">
             <button class="secondary" onclick="onSetManualUrl()">設定</button>
@@ -413,7 +420,7 @@
             <button id="voiceStartBtn" class="secondary" onclick="toggleVoice()">開始語音輸入</button>
           </div>
         </div>
-        <p class="muted" id="voicePanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請按上方「目前科目」那一列右邊的「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入；密碼可以在「系統設定」頁籤查看並複製。</p>
+        <p class="muted" id="voicePanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請到「系統設定 → 語音輸入設定」按「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入，密碼也在同一張卡片查看並複製。</p>
         <p class="muted">建議唸法：「姓名 分數」，例如：「王小明 85」；分數固定念兩位數，10分以下請念成兩位數（例如5分念「05」），連續念多筆不用特別停頓也能正確分辨。電腦版／Android 版 Chrome 支援度最穩定，需允許麥克風權限；iPhone 部分機型也可能可以使用，沒反應的話請改用下方手機聽寫。</p>
         <div id="voiceInterim" style="min-height:22px; font-weight:600; color:var(--forest);"></div>
         <div class="log" id="voiceLog"></div>
@@ -477,7 +484,7 @@
           <b>🎤 語音輸入</b>
           <button id="voiceStudentStartBtn" class="secondary" onclick="toggleVoice()">開始語音輸入</button>
         </div>
-        <p class="muted" id="voiceStudentPanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請按上方「目前科目」那一列右邊的「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入；密碼可以在「系統設定」頁籤查看並複製。</p>
+        <p class="muted" id="voiceStudentPanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請到「系統設定 → 語音輸入設定」按「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入，密碼也在同一張卡片查看並複製。</p>
         <p class="muted">不用念項目名稱也不用念序號，照勾選順序直接念分數，每個分數固定兩位數字，100 請念「一百」，例如念「九八」代表 98、念「八七」代表 87：「九八，八七，七六...」念完稍停即可接著念下一個，念錯可按「回上一項」重念。僅支援電腦版／Android 版 Chrome 瀏覽器。</p>
         <div class="row">
           <button class="secondary" onclick="stepDigitPairBack()">↩ 回上一項（重念一次）</button>
@@ -529,7 +536,7 @@
 <div class="tokenGate" id="tokenGate">
   <div class="box">
     <h3>連線設定</h3>
-    <p class="muted">網址或密碼可以在試算表面板「系統設定 → 語音輸入專用頁面」查看並複製。這裡存起來之後，同一台裝置、同一個瀏覽器都不用再輸入；之後想換網址或密碼，隨時按右下角「⚙️ 連線設定」回來改，不用重新下載檔案。</p>
+    <p class="muted">網址或密碼可以在試算表面板「系統設定 → 語音輸入設定」查看並複製。這裡存起來之後，同一台裝置、同一個瀏覽器都不用再輸入；之後想換網址或密碼，隨時按右下角「⚙️ 連線設定」回來改，不用重新下載檔案。</p>
     <label class="muted" style="display:block; margin-bottom:4px; font-size:12.5px;">Google 試算表連線網址</label>
     <input type="text" id="tokenGateUrlInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" style="margin-bottom:12px;">
     <label class="muted" style="display:block; margin-bottom:4px; font-size:12.5px;">密碼</label>
@@ -548,12 +555,12 @@
 //    Cloudflare Pages、Netlify 等任何 HTTPS 靜態網站空間——重點是「不是被包在 Apps Script
 //    的 iframe 裡的頂層頁面」，麥克風權限才拿得到，跟檔案實際放在哪裡無關。
 //    此時沒有 google.script.run，會改用下面的 WEBAPP_URL 透過網路呼叫已部署的網頁應用程式。
-//    WEBAPP_URL 不用自己手動填！部署好網頁應用程式後，回到面板最上方「目前科目」那一列，
-//    按右邊的「⬇️ 下載語音輸入用的網頁」，系統會自動產生一份已經填好網址的 Index.html 給你下載。
+//    WEBAPP_URL 不用自己手動填！部署好網頁應用程式後，回到面板「系統設定 → 語音輸入設定」，
+//    按「⬇️ 下載語音輸入用的網頁」，系統會自動產生一份已經填好網址的 Index.html 給你下載。
 //    密碼（WEBAPP_TOKEN）故意不會寫進下載的檔案裡——因為這份檔案有可能被放到公開的網站上，
 //    寫死密碼等於任何人看原始碼都能拿到。改成頁面第一次要跟試算表溝通時才詢問（網址／密碼
 //    只要有一個缺，就會跳出「連線設定」畫面收集），存進瀏覽器的 localStorage，之後同一台
-//    裝置、同一個瀏覽器都不用再輸入。網址／密碼都可以在面板「系統設定 → 語音輸入專用頁面」
+//    裝置、同一個瀏覽器都不用再輸入。網址／密碼都可以在面板「系統設定 → 語音輸入設定」
 //    查看並複製。之後想換網址或密碼（例如自動偵測抓錯、或密碼改了），不用重新下載檔案，
 //    直接按頁面右下角「⚙️ 連線設定」隨時回來改即可，不用等程式自動跳出來才有地方可以貼。
 //    注意：連線設定畫面故意不用瀏覽器原生的 window.prompt()——手機用「檔案」App
@@ -1061,7 +1068,7 @@ function renderCategoryList() {
   });
 }
 
-// 目前科目那一列的「⬇️ 下載語音輸入用的網頁」按鈕：下載已經自動填好 WEBAPP_URL 的獨立頁面
+// 「系統設定 → 語音輸入設定」卡片裡的「⬇️ 下載語音輸入用的網頁」按鈕：下載已經自動填好 WEBAPP_URL 的獨立頁面
 // （語音輸入專用；密碼故意不寫進檔案，第一次使用時會另外詢問，見 ensureTokenAsync_）。
 // 可以存在本機雙擊開啟，也可以上傳到 GitHub Pages 等靜態網站空間，兩種都是「頂層網頁」，
 // 麥克風權限都能正常運作。
@@ -1847,7 +1854,7 @@ function startRecognitionInstance() {
 
 function toggleVoice() {
   if (isPanelMode_()) {
-    return toast('這個面板無法使用語音輸入，請按上方「⬇️ 下載語音輸入用的網頁」下載後另外開啟', true);
+    return toast('這個面板無法使用語音輸入，請到「系統設定 → 語音輸入設定」下載後另外開啟', true);
   }
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
