@@ -511,12 +511,18 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<button class="secondary" id="connSettingsBtn" onclick="openTokenGateManually()" hidden
+  style="position:fixed; bottom:16px; right:16px; z-index:1500; box-shadow:0 4px 14px rgba(0,0,0,.18);">⚙️ 連線設定</button>
+
 <div class="tokenGate" id="tokenGate">
   <div class="box">
-    <h3>請輸入密碼</h3>
-    <p class="muted">在試算表面板「系統設定 → 語音輸入專用頁面」可以查看並複製你的專屬密碼，貼在下面即可，之後這台裝置、這個瀏覽器都不用再輸入。</p>
+    <h3>連線設定</h3>
+    <p class="muted">網址或密碼可以在試算表面板「系統設定 → 語音輸入專用頁面」查看並複製。這裡存起來之後，同一台裝置、同一個瀏覽器都不用再輸入；之後想換網址或密碼，隨時按右下角「⚙️ 連線設定」回來改，不用重新下載檔案。</p>
+    <label class="muted" style="display:block; margin-bottom:4px; font-size:12.5px;">Google 試算表連線網址</label>
+    <input type="text" id="tokenGateUrlInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" style="margin-bottom:12px;">
+    <label class="muted" style="display:block; margin-bottom:4px; font-size:12.5px;">密碼</label>
     <input type="text" id="tokenGateInput" placeholder="貼上密碼" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <button onclick="submitTokenGate()">確定</button>
+    <button onclick="submitTokenGate()">儲存並連線</button>
   </div>
 </div>
 
@@ -533,35 +539,69 @@
 //    WEBAPP_URL 不用自己手動填！部署好網頁應用程式後，回到面板最上方「目前科目」那一列，
 //    按右邊的「⬇️ 下載語音輸入用的網頁」，系統會自動產生一份已經填好網址的 Index.html 給你下載。
 //    密碼（WEBAPP_TOKEN）故意不會寫進下載的檔案裡——因為這份檔案有可能被放到公開的網站上，
-//    寫死密碼等於任何人看原始碼都能拿到。改成頁面第一次要跟試算表溝通時才詢問密碼，
-//    存進瀏覽器的 localStorage，之後同一台裝置、同一個瀏覽器就不用再輸入。
-//    密碼可以在面板「系統設定 → 語音輸入專用頁面」查看並複製。
-//    注意：密碼輸入畫面故意不用瀏覽器原生的 window.prompt()——手機用「檔案」App
+//    寫死密碼等於任何人看原始碼都能拿到。改成頁面第一次要跟試算表溝通時才詢問（網址／密碼
+//    只要有一個缺，就會跳出「連線設定」畫面收集），存進瀏覽器的 localStorage，之後同一台
+//    裝置、同一個瀏覽器都不用再輸入。網址／密碼都可以在面板「系統設定 → 語音輸入專用頁面」
+//    查看並複製。之後想換網址或密碼（例如自動偵測抓錯、或密碼改了），不用重新下載檔案，
+//    直接按頁面右下角「⚙️ 連線設定」隨時回來改即可，不用等程式自動跳出來才有地方可以貼。
+//    注意：連線設定畫面故意不用瀏覽器原生的 window.prompt()——手機用「檔案」App
 //    或下載清單打開本機 HTML 時，常常是用精簡版 WebView 顯示，不一定有實作
 //    window.prompt()，呼叫了也可能完全不顯示、直接回傳空值。改成頁面自己畫的
 //    輸入框（見下面 #tokenGate），只要畫得出網頁畫面就一定能用。
-var WEBAPP_URL = '<?!= WEBAPP_URL_INJECT ?>';
+// WEBAPP_URL 優先讀 localStorage（使用者自己在「連線設定」畫面存過的網址），沒有的話
+// 才退回下載時自動代入的網址。這樣網址錯了也不用重新下載檔案，直接在頁面裡改就好。
+var WEBAPP_URL = (function () {
+  try {
+    var stored = localStorage.getItem('WEBAPP_URL');
+    if (stored) return stored;
+  } catch (e) { /* 忽略 */ }
+  var injected = '<?!= WEBAPP_URL_INJECT ?>';
+  return injected.indexOf('http') === 0 ? injected : '';
+})();
 var WEBAPP_TOKEN = (function () {
   try { return localStorage.getItem('WEBAPP_TOKEN') || ''; } catch (e) { return ''; }
 })();
 var tokenGateResolve_ = null;
+
+// 網址／密碼有其中一個缺，就跳出「連線設定」畫面，兩個一起收；已經都有的話直接放行。
 function ensureTokenAsync_() {
-  if (WEBAPP_TOKEN) return Promise.resolve(WEBAPP_TOKEN);
+  if (WEBAPP_URL && WEBAPP_TOKEN) return Promise.resolve(WEBAPP_TOKEN);
+  return openTokenGate_();
+}
+function openTokenGate_() {
   return new Promise(function (resolve) {
     tokenGateResolve_ = resolve;
-    var input = document.getElementById('tokenGateInput');
-    input.value = '';
+    document.getElementById('tokenGateUrlInput').value = WEBAPP_URL || '';
+    document.getElementById('tokenGateInput').value = '';
     document.getElementById('tokenGate').style.display = 'flex';
-    setTimeout(function () { input.focus(); }, 50);
+    setTimeout(function () {
+      document.getElementById(WEBAPP_URL ? 'tokenGateInput' : 'tokenGateUrlInput').focus();
+    }, 50);
   });
 }
+// 右下角「⚙️ 連線設定」按鈕：隨時可以主動打開來改網址或密碼，不用等程式跳出來才能改，
+// 也不會卡在「密碼框沒跳出來、無處可貼」的情況。
+function openTokenGateManually() {
+  tokenGateResolve_ = null; // 主動打開不是為了完成某次呼叫，不需要 resolve 任何 promise
+  document.getElementById('tokenGateUrlInput').value = WEBAPP_URL || '';
+  document.getElementById('tokenGateInput').value = WEBAPP_TOKEN || '';
+  document.getElementById('tokenGate').style.display = 'flex';
+}
 function submitTokenGate() {
-  var input = document.getElementById('tokenGateInput');
-  var v = (input.value || '').trim();
-  if (!v) { input.focus(); return; }
-  WEBAPP_TOKEN = v;
-  try { localStorage.setItem('WEBAPP_TOKEN', WEBAPP_TOKEN); } catch (e) { /* 無痕視窗等情況可能無法存取，忽略 */ }
+  var urlInput = document.getElementById('tokenGateUrlInput');
+  var tokenInput = document.getElementById('tokenGateInput');
+  var u = (urlInput.value || '').trim();
+  var t = (tokenInput.value || '').trim();
+  if (!u) { urlInput.focus(); return; }
+  if (!t) { tokenInput.focus(); return; }
+  WEBAPP_URL = u;
+  WEBAPP_TOKEN = t;
+  try {
+    localStorage.setItem('WEBAPP_URL', WEBAPP_URL);
+    localStorage.setItem('WEBAPP_TOKEN', WEBAPP_TOKEN);
+  } catch (e) { /* 無痕視窗等情況可能無法存取，忽略 */ }
   document.getElementById('tokenGate').style.display = 'none';
+  toast('已儲存連線設定');
   if (tokenGateResolve_) { var r = tokenGateResolve_; tokenGateResolve_ = null; r(WEBAPP_TOKEN); }
 }
 function clearStoredToken_() {
@@ -570,6 +610,9 @@ function clearStoredToken_() {
 }
 document.getElementById('tokenGateInput').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') submitTokenGate();
+});
+document.getElementById('tokenGateUrlInput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') document.getElementById('tokenGateInput').focus();
 });
 
 // 顯示「載入中」小提示，避免完全沒反應讓人以為沒連線；用計數器處理多個請求同時進行的情況
@@ -599,12 +642,10 @@ function call(fnName) {
         .withFailureHandler(function (err) { reject(err); });
       runner[fnName].apply(runner, args);
     });
-  } else if (!WEBAPP_URL || WEBAPP_URL.indexOf('http') !== 0) {
-    // 獨立頁面模式：透過已部署的網頁應用程式 API 呼叫
-    promise = Promise.reject(new Error('尚未設定 WEBAPP_URL，請先在檔案開頭貼上你部署後的網頁應用程式網址'));
   } else {
-    // 密碼輸入畫面是非同步的（等使用者在 #tokenGate 畫面按下確定），
-    // 所以整段 fetch 都串在 ensureTokenAsync_() 的 then 裡面。
+    // 獨立頁面模式：透過已部署的網頁應用程式 API 呼叫。網址／密碼只要有一個還沒設定，
+    // ensureTokenAsync_() 就會跳出「連線設定」畫面收集兩者，所以這裡不用另外檢查
+    // WEBAPP_URL 是否存在——整段 fetch 都串在它的 then 裡面，等使用者存好才會執行。
     var doFetch = function (tokenToUse, retriesLeft) {
       return fetch(WEBAPP_URL, {
         method: 'POST',
@@ -840,6 +881,10 @@ if (isPanelMode_()) {
   // 功能正常執行。偵測到不是面板模式時就把它拿掉。
   var baseTag = document.querySelector('base[target]');
   if (baseTag) baseTag.removeAttribute('target');
+  // 獨立頁面模式才需要手動管理連線網址／密碼，顯示右下角的設定按鈕；
+  // 面板模式（google.script.run）完全不會用到這個，維持隱藏。
+  var connBtn = document.getElementById('connSettingsBtn');
+  if (connBtn) connBtn.hidden = false;
 }
 
 function openSpreadsheet() {
