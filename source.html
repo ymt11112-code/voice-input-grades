@@ -678,7 +678,12 @@ function call(fnName) {
           catch (e) {
             var titleMatch = text.match(/<title>([\s\S]*?)<\/title>/i);
             var hint = titleMatch ? '網頁標題：「' + titleMatch[1] + '」' : '內容開頭：' + text.slice(0, 200);
-            throw new Error('伺服器回傳非預期內容（不是我們的程式，可能是 Google 的驗證/警示頁面），' + hint);
+            var parseErr = new Error('伺服器回傳非預期內容（不是我們的程式，可能是 Google 的驗證/警示頁面），' + hint);
+            // Google 這種「回應了，但內容不是我們的程式」的情況（常見是偶發性的 404
+            // 找不到網頁），十之八九是 Google 那邊短暫抽風，跟我們的設定或網路無關，
+            // 重打一次通常就會恢復正常，所以標記成可重試，不要直接算失敗。
+            parseErr.retryable = true;
+            throw parseErr;
           }
           if (json && json.error) {
             // 密碼錯誤時清掉存的密碼，下次呼叫會重新跳出輸入畫面，避免一直卡在同一組錯的密碼
@@ -688,18 +693,22 @@ function call(fnName) {
           return json.result;
         })
         .catch(function (err) {
-          // 只有「網路層級」的失敗（fetch 本身連不上，例如偶發斷線）才自動重試一次；
-          // 伺服器已經有正常回應、只是內容裡帶著錯誤訊息（例如密碼錯誤）的情況不重試，
+          // 自動重試的情況：
+          // 1. 「網路層級」的失敗（fetch 本身連不上，例如偶發斷線）→ TypeError
+          // 2. 伺服器有回應、但內容不是我們程式的正常 JSON（例如 Google 偶發回傳
+          //    404「找不到網頁」）→ 上面標記的 retryable
+          // 伺服器正常回應、只是內容裡帶著我們自己程式的錯誤訊息（例如密碼錯誤）則不重試，
           // 直接把錯誤丟出去，避免用同一組錯密碼一直重打。
-          if (err instanceof TypeError && retriesLeft > 0) {
-            return new Promise(function (resolve) { setTimeout(resolve, 800); })
+          if ((err instanceof TypeError || err.retryable) && retriesLeft > 0) {
+            var delay = retriesLeft === 2 ? 500 : 1200; // 重試間隔隨次數拉長，給 Google 更多喘息時間
+            return new Promise(function (resolve) { setTimeout(resolve, delay); })
               .then(function () { return doFetch(tokenToUse, retriesLeft - 1); });
           }
           throw err;
         });
     };
     promise = ensureTokenAsync_().then(function (tokenToUse) {
-      return doFetch(tokenToUse, 1);
+      return doFetch(tokenToUse, 2);
     });
   }
 
