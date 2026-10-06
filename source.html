@@ -536,7 +536,8 @@
 <div class="tokenGate" id="tokenGate">
   <div class="box">
     <h3>連線設定</h3>
-    <p class="muted">網址或密碼可以在試算表面板「系統設定 → 語音輸入設定」查看並複製。這裡存起來之後，同一台裝置、同一個瀏覽器都不用再輸入；之後想換網址或密碼，隨時按右下角「⚙️ 連線設定」回來改，不用重新下載檔案。</p>
+    <p id="tokenGateNotice" hidden style="white-space:pre-line; background:var(--danger); color:#fff; border-radius:8px; padding:10px 12px; margin:0 0 12px; font-size:13.5px; line-height:1.6;"></p>
+    <p class="muted">密碼哪裡拿：打開你的 Google 試算表 → 上方選單「📊 登記分數」→「開啟登記分數面板」→「系統設定」→「語音輸入設定」卡片，按「複製」。網址哪裡拿：試算表「擴充功能 → Apps Script」→「部署 → 管理部署作業」。這裡存起來之後，同一台裝置、同一個瀏覽器都不用再輸入；之後想換網址或密碼，隨時按右下角「⚙️ 連線設定」回來改，不用重新下載檔案。</p>
     <label class="muted" style="display:block; margin-bottom:4px; font-size:12.5px;">Google 試算表連線網址</label>
     <input type="text" id="tokenGateUrlInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" style="margin-bottom:12px;">
     <label class="muted" style="display:block; margin-bottom:4px; font-size:12.5px;">密碼</label>
@@ -602,26 +603,79 @@ function openTokenGate_() {
 // 也不會卡在「密碼框沒跳出來、無處可貼」的情況。
 function openTokenGateManually() {
   tokenGateResolve_ = null; // 主動打開不是為了完成某次呼叫，不需要 resolve 任何 promise
+  document.getElementById('tokenGateNotice').hidden = true;
   document.getElementById('tokenGateUrlInput').value = WEBAPP_URL || '';
   document.getElementById('tokenGateInput').value = WEBAPP_TOKEN || '';
   document.getElementById('tokenGate').style.display = 'flex';
 }
+
+// 連線出問題時（網址貼錯、密碼錯、部署失效），光靠右上角幾秒就消失的錯誤訊息，使用者
+// 來不及看、也不知道下一步要做什麼。所以改成直接打開「連線設定」畫面，並在最上面用
+// 紅底說明「哪裡錯了、正確的值去哪裡拿」，讓使用者當場就能改。
+var CONN_HELP_WHERE_ = '【去哪裡拿正確的網址和密碼】\n'
+  + '① 打開你的 Google 試算表 → 上方選單「📊 登記分數」→「開啟登記分數面板」\n'
+  + '② 面板切到「系統設定」→ 展開「語音輸入設定」卡片\n'
+  + '③ 密碼：在卡片裡按「複製」\n'
+  + '④ 網址：試算表上方「擴充功能 → Apps Script」→ 右上角「部署 → 管理部署作業」→ 複製「網頁應用程式」的網址\n'
+  + '⑤ 回到這個畫面，貼到下面的欄位，按「儲存並連線」\n'
+  + '（或在原本能用的那台裝置開這個頁面，按右下角「⚙️ 連線設定」直接照抄。）';
+function looksLikeWebAppUrl_(u) {
+  return /^https:\/\/script\.google\.com\/.+\/exec(\?.*)?$/.test(u || '');
+}
+function urlProblemHint_(u) {
+  if (/^https:\/\/docs\.google\.com\//.test(u)) {
+    return '網址欄貼到的是「Google 試算表」的網址，這裡要填的是「網頁應用程式」的網址（https://script.google.com/macros/s/一長串/exec）。';
+  }
+  if (/\/dev(\?.*)?$/.test(u)) {
+    return '網址結尾是 /dev（測試用網址），請改用結尾是 /exec 的正式網址。';
+  }
+  return '網址格式不對，正確格式是 https://script.google.com/macros/s/一長串/exec（結尾是 /exec）。';
+}
+function showConnHelp_(msg) {
+  var gate = document.getElementById('tokenGate');
+  var notice = document.getElementById('tokenGateNotice');
+  notice.textContent = msg;
+  notice.hidden = false;
+  // 畫面已經開著的話不要動輸入框，避免蓋掉使用者正在打的內容
+  if (gate.style.display !== 'flex') {
+    document.getElementById('tokenGateUrlInput').value = WEBAPP_URL || '';
+    document.getElementById('tokenGateInput').value = WEBAPP_TOKEN || '';
+    gate.style.display = 'flex';
+  }
+}
 function submitTokenGate() {
   var urlInput = document.getElementById('tokenGateUrlInput');
   var tokenInput = document.getElementById('tokenGateInput');
+  var notice = document.getElementById('tokenGateNotice');
   var u = (urlInput.value || '').trim();
   var t = (tokenInput.value || '').trim();
   if (!u) { urlInput.focus(); return; }
+  // 學校／機構帳號複製到的網址常帶網域（/a/網域/macros/ 或 /a/macros/網域/），
+  // 這種格式不能匿名跨網域呼叫，自動換成不綁網域的公開格式（跟 Code.gs 的處理一致）。
+  u = u.replace(/^https:\/\/script\.google\.com\/a\/[^/]+\/macros\//, 'https://script.google.com/macros/')
+       .replace(/^https:\/\/script\.google\.com\/a\/macros\/[^/]+\//, 'https://script.google.com/macros/');
+  urlInput.value = u;
+  if (!looksLikeWebAppUrl_(u)) {
+    showConnHelp_(urlProblemHint_(u) + '\n' + CONN_HELP_WHERE_);
+    urlInput.focus();
+    return;
+  }
   if (!t) { tokenInput.focus(); return; }
+  var wasFixingError = !notice.hidden;
   WEBAPP_URL = u;
   WEBAPP_TOKEN = t;
+  var saved = true;
   try {
     localStorage.setItem('WEBAPP_URL', WEBAPP_URL);
     localStorage.setItem('WEBAPP_TOKEN', WEBAPP_TOKEN);
-  } catch (e) { /* 無痕視窗等情況可能無法存取，忽略 */ }
+  } catch (e) { saved = false; /* 無痕視窗等情況可能無法存取，忽略 */ }
+  notice.hidden = true;
   document.getElementById('tokenGate').style.display = 'none';
   toast('已儲存連線設定');
   if (tokenGateResolve_) { var r = tokenGateResolve_; tokenGateResolve_ = null; r(WEBAPP_TOKEN); }
+  // 是因為連線出錯才進來改設定的話，先前失敗的載入不會自己重來，直接重新整理頁面
+  // 用新設定重新載入（設定存不進 localStorage 時不能重整，否則剛輸入的值會不見）。
+  if (wasFixingError && saved) location.reload();
 }
 function clearStoredToken_() {
   WEBAPP_TOKEN = '';
@@ -687,7 +741,11 @@ function call(fnName) {
           }
           if (json && json.error) {
             // 密碼錯誤時清掉存的密碼，下次呼叫會重新跳出輸入畫面，避免一直卡在同一組錯的密碼
-            if (json.error.indexOf('密碼不正確') > -1) clearStoredToken_();
+            if (json.error.indexOf('密碼不正確') > -1) {
+              clearStoredToken_();
+              showConnHelp_('密碼不正確，請重新貼上密碼（網址是對的，不用改）。\n' + CONN_HELP_WHERE_);
+              throw new Error('密碼不正確，請在「連線設定」重新輸入密碼');
+            }
             throw new Error(json.error);
           }
           return json.result;
@@ -703,6 +761,20 @@ function call(fnName) {
             var delay = retriesLeft === 2 ? 500 : 1200; // 重試間隔隨次數拉長，給 Google 更多喘息時間
             return new Promise(function (resolve) { setTimeout(resolve, delay); })
               .then(function () { return doFetch(tokenToUse, retriesLeft - 1); });
+          }
+          // 重試完還是連不上：告訴使用者下一步怎麼排除，不要只丟一句錯誤訊息
+          if (err instanceof TypeError || err.retryable) {
+            if (!looksLikeWebAppUrl_(WEBAPP_URL)) {
+              showConnHelp_('連不上試算表：' + urlProblemHint_(WEBAPP_URL) + '\n' + CONN_HELP_WHERE_);
+            } else if (err.retryable) {
+              showConnHelp_('連不上試算表：這個網址沒有對應到可用的網頁應用程式。請依序檢查：\n'
+                + '1. 網址是否完整（中間那一長串少一個字就會失敗），建議重新複製貼上。\n'
+                + '2. 到 Apps Script「部署 → 管理部署作業」確認這個部署還在，且存取權是「所有人」。\n'
+                + CONN_HELP_WHERE_);
+            } else {
+              err = new Error('網路連線失敗，請檢查網路後再試一次。如果一直失敗，請按右下角「⚙️ 連線設定」確認網址，'
+                + '並到 Apps Script「部署 → 管理部署作業」確認存取權是「所有人」。');
+            }
           }
           throw err;
         });
