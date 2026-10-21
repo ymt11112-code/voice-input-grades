@@ -35,9 +35,15 @@
     }
     #app { padding: 12px 16px 20px; }
 
-    .appHeader { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+    .appHeader { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
     .appTitle { font-size: 18px; font-weight: 700; color: var(--forest); }
     .appVersion { font-size: 12px; color: var(--muted); font-family: monospace; background: var(--card-bg); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+
+    .analysisLink {
+      font-size: 13.5px; font-weight: 600; text-decoration: none; color: var(--forest);
+      background: var(--card-bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+    }
+    .analysisLink:hover { background: var(--gold-tint); }
 
     /* 頁籤跟「目前科目」併成同一列，節省畫面高度 */
     .topBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -208,6 +214,8 @@
   <div class="appHeader">
     <span class="appTitle">📊 登記分數系統</span>
     <span class="appVersion">v1.0.0</span>
+    <span style="flex:1"></span>
+    <a class="analysisLink" href="https://ymt11112-code.github.io/voice-input-grades/analysis/Dashboard.html" target="_blank" rel="noopener">📈 成績分析（全班概況／個人概況）</a>
   </div>
 
   <div class="topBar">
