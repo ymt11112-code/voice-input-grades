@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>關注名單</title>
+  <link rel="stylesheet" href="analysis-common.css">
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <span class="title">📊 成績分析</span>
+    <nav class="pages">
+      <a href="Dashboard.html">全班概況</a>
+      <a href="Personal.html">個人概況</a>
+      <a href="Report.html">家長報告</a>
+      <a class="on" href="Attention.html">關注名單</a>
+      <a href="Awards.html">獎狀名單</a>
+    </nav>
+    <span class="spacer"></span>
+    <button id="connBtn">⚙️ 連線設定</button>
+  </div>
+
+  <div id="content" class="content">
+    <div class="bar">
+      <span class="grp"><span class="lbl">以哪個學期為準</span><span id="termBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">科目</span><span id="subjectBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">程度</span><span id="levelBtns" class="grp"></span></span>
+      <span class="spacer"></span>
+      <button id="settingsBtn">⚙️ 分析與警示設定</button>
+    </div>
+    <div class="card" id="settings" hidden></div>
+    <div id="main"></div>
+  </div>
+</div>
+
+<script src="analysis-stats.js"></script>
+<script src="analysis-demo.js"></script>
+<script src="analysis-common.js"></script>
+<script>
+(function () {
+  var S = AX.stats, el = AX.el, fmt = S.fmt, LATEST = '^', ALLS = '*';
+  var st = { raw: null, model: null, term: LATEST, subject: ALLS, level: ALLS };
+
+  AX.shell();
+  AX.$('settingsBtn').onclick = function () { var b = AX.$('settings'); b.hidden = !b.hidden; };
+
+  function load(keep) {
+    AX.load().then(function (r) {
+      st.raw = r.raw; st.model = r.model;
+      if (!keep) st.term = st.model.terms.indexOf(st.model.currentTerm) > -1 ? st.model.currentTerm : LATEST;
+      AX.renderSettings(AX.$('settings'), { raw: st.raw, model: st.model, showAlert: true, onChange: function (reload) { if (reload) load(true); else render(); } });
+      render();
+    }).catch(AX.showError);
+  }
+  load(false);
+
+  function render() {
+    var m = st.model;
+    AX.btnGroup(AX.$('termBtns'), m.terms.map(function (t) { return { label: S.termLabel(t), value: t }; }).concat([{ label: '各科最新學期', value: LATEST }]), st.term, function (v) { st.term = v; render(); });
+    AX.btnGroup(AX.$('subjectBtns'), [{ label: '全部', value: ALLS }].concat(m.subjects.map(function (x) { return { label: x.name, value: x.name }; })), st.subject, function (v) { st.subject = v; render(); });
+    AX.btnGroup(AX.$('levelBtns'), [{ label: '全部', value: ALLS }, { label: '只看警示', value: 'high' }], st.level, function (v) { st.level = v; render(); });
+
+    var main = AX.$('main'); AX.clear(main);
+    var th = AX.getAlertTh(), asOf = st.term === LATEST ? null : st.term;
+    var rows = [];
+    m.roster.forEach(function (r) {
+      var list = S.alertsFor(m, r.key, th, asOf).filter(function (a) {
+        return (st.subject === ALLS || a.subject === st.subject) && (st.level === ALLS || a.level === st.level);
+      });
+      if (list.length) rows.push({ r: r, list: list, high: list.filter(function (a) { return a.level === 'high'; }).length });
+    });
+    rows.sort(function (a, b) { return (b.high - a.high) || (b.list.length - a.list.length); });
+
+    var total = m.roster.length, highStu = rows.filter(function (x) { return x.high > 0; }).length;
+    var types = {};
+    rows.forEach(function (x) { x.list.forEach(function (a) { types[a.type] = (types[a.type] || 0) + 1; }); });
+
+    var tiles = el('div', { 'class': 'tiles' });
+    tiles.appendChild(AX.tile('需要關注的學生', String(rows.length), '/ ' + total + ' 人', total ? fmt(rows.length / total * 100, 0) + '%' : ''));
+    tiles.appendChild(AX.tile('其中有「警示」', String(highStu), '人', '較嚴重，建議優先處理', highStu ? 'down' : ''));
+    tiles.appendChild(AX.tile('提醒總數', String(rows.reduce(function (n, x) { return n + x.list.length; }, 0)), '則'));
+    main.appendChild(tiles);
+
+    var tkeys = Object.keys(types).sort(function (a, b) { return types[b] - types[a]; });
+    if (tkeys.length) {
+      var c0 = AX.card('提醒類型', '點下方學生姓名可看個人概況，「家長報告」可直接產生給家長看的一頁報告。');
+      c0.appendChild(AX.chips(tkeys.map(function (k) { return [k, types[k] + ' 則']; })));
+      main.appendChild(c0);
+    }
+    if (!rows.length) {
+      main.appendChild(el('div', { 'class': 'card empty' }, '目前沒有符合條件的提醒。可以到右上角「分析與警示設定」調整門檻。'));
+      return;
+    }
+
+    var card = AX.card('關注名單', '依嚴重程度排序。「警示」＝較嚴重（例如大幅落差、低於及格線 10 分以上、缺交過半）；「注意」＝建議留意。門檻可以在設定中調整。');
+    rows.forEach(function (x) {
+      var box = el('div', { 'class': 'lvbar ' + (x.high ? 'high' : 'mid') });
+      box.style.marginBottom = '12px';
+      var head = el('div'); head.style.cssText = 'display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:2px 0 4px';
+      head.appendChild(el('b', null, AX.seatLabel(x.r)));
+      var subs = []; x.list.forEach(function (a) { if (subs.indexOf(a.subject) === -1) subs.push(a.subject); });
+      head.appendChild(el('span', { 'class': 'muted small' }, subs.join('、')));
+      head.appendChild(el('span', { 'class': 'spacer' }));
+      head.appendChild(el('a', { 'class': 'link small', href: AX.pageUrl('Report.html', { key: x.r.key, term: asOf }) }, '家長報告 ›'));
+      var firstSub = subs[0];
+      head.appendChild(el('a', { 'class': 'link small', href: AX.pageUrl('Personal.html', { subject: firstSub, key: x.r.key, term: asOf }) }, '個人概況 ›'));
+      box.appendChild(head);
+      x.list.forEach(function (a) {
+        var it = el('div', { 'class': 'alertItem' });
+        it.appendChild(el('span', { 'class': 'badge ' + a.level }, (a.level === 'high' ? '❗ 警示' : '⚠ 注意')));
+        var tx = el('div', { 'class': 'tx' }, a.text);
+        tx.appendChild(el('small', null, a.type + (a.term ? '・' + S.termLabel(a.term) : '')));
+        it.appendChild(tx);
+        box.appendChild(it);
+      });
+      card.appendChild(box);
+    });
+    main.appendChild(card);
+  }
+})();
+</script>
+</body>
+</html>

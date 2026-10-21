@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>獎狀名單</title>
+  <link rel="stylesheet" href="analysis-common.css">
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <span class="title">📊 成績分析</span>
+    <nav class="pages">
+      <a href="Dashboard.html">全班概況</a>
+      <a href="Personal.html">個人概況</a>
+      <a href="Report.html">家長報告</a>
+      <a href="Attention.html">關注名單</a>
+      <a class="on" href="Awards.html">獎狀名單</a>
+    </nav>
+    <span class="spacer"></span>
+    <button id="connBtn">⚙️ 連線設定</button>
+  </div>
+
+  <div id="content" class="content">
+    <div class="bar">
+      <span class="grp"><span class="lbl">學期</span><span id="termBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">哪一次考試</span><span id="phaseBtns" class="grp"></span></span>
+    </div>
+    <div class="card noprint">
+      <div class="setgrp">
+        <div class="h3">名單條件</div>
+        <div class="bar">
+          <span class="grp"><span class="lbl">每科前</span><input type="number" id="optTopN" min="1" max="30"><span class="lbl">名</span></span>
+          <label class="chk"><input type="checkbox" id="optTies"> 同分一併列入</label>
+          <span class="grp"><span class="lbl">排名依據</span>
+            <select id="optBasis">
+              <option value="exam">只看這次考試分數</option>
+              <option value="term">學期成績（平時＋考試依權重）</option>
+            </select></span>
+          <label class="chk"><input type="checkbox" id="optSeat"> 不重複名單依座號排列</label>
+        </div>
+        <div class="bar" id="progBar">
+          <span class="grp"><span class="lbl">進步獎每科</span><input type="number" id="optProgN" min="1" max="30"><span class="lbl">人</span></span>
+          <span class="grp"><span class="lbl">進步算法</span>
+            <select id="optMetric">
+              <option value="score">分數進步（期末 − 比較基準）</option>
+              <option value="relative">相對班平均進步（扣除考卷難易）</option>
+              <option value="rank">名次進步</option>
+            </select></span>
+          <span class="grp"><span class="lbl">比較基準</span>
+            <select id="optBase">
+              <option value="midterm">同學期的期中考</option>
+              <option value="prevFinal">上一學期的期末考</option>
+            </select></span>
+          <span class="grp"><span class="lbl">至少進步</span><input type="number" id="optMin" min="1"><span class="lbl" id="minUnit">分</span></span>
+          <label class="chk"><input type="checkbox" id="optExcl"> 已得該科前幾名者不重複領進步獎</label>
+        </div>
+        <div class="bar"><span class="lbl">納入的科目</span><span id="subjChecks" class="grp"></span></div>
+      </div>
+    </div>
+    <div id="main"></div>
+  </div>
+</div>
+
+<script src="analysis-stats.js"></script>
+<script src="analysis-demo.js"></script>
+<script src="analysis-common.js"></script>
+<script>
+(function () {
+  var S = AX.stats, el = AX.el, fmt = S.fmt;
+  var st = { model: null, term: null, phase: 'final', last: null,
+    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true, subjects: null } };
+
+  AX.shell();
+  try { var sv = JSON.parse(AX.lsGet('AX_AWARD') || '{}'); for (var k in sv) if (k in st.o && k !== 'subjects') st.o[k] = sv[k]; } catch (e) { /* 用預設值 */ }
+  function persist() { var c = {}; for (var k in st.o) if (k !== 'subjects') c[k] = st.o[k]; AX.lsSet('AX_AWARD', JSON.stringify(c)); }
+
+  // ---- 條件欄位
+  var F = { topN: AX.$('optTopN'), ties: AX.$('optTies'), basis: AX.$('optBasis'), seat: AX.$('optSeat'), progN: AX.$('optProgN'), metric: AX.$('optMetric'), base: AX.$('optBase'), min: AX.$('optMin'), excl: AX.$('optExcl') };
+  function loadFields() {
+    F.topN.value = st.o.topN; F.ties.checked = st.o.ties; F.basis.value = st.o.basis; F.seat.checked = st.o.sortBySeat;
+    F.progN.value = st.o.progressN; F.metric.value = st.o.progressMetric; F.base.value = st.o.progressBase; F.min.value = st.o.minGain; F.excl.checked = st.o.excludeTop;
+    AX.$('minUnit').textContent = st.o.progressMetric === 'rank' ? '名' : '分';
+  }
+  function readFields() {
+    var n = Number(F.topN.value); st.o.topN = n >= 1 ? Math.floor(n) : 5;
+    st.o.ties = F.ties.checked; st.o.basis = F.basis.value; st.o.sortBySeat = F.seat.checked;
+    var p = Number(F.progN.value); st.o.progressN = p >= 1 ? Math.floor(p) : 3;
+    st.o.progressMetric = F.metric.value; st.o.progressBase = F.base.value;
+    var mg = Number(F.min.value); st.o.minGain = mg > 0 ? mg : 1; st.o.excludeTop = F.excl.checked;
+    AX.$('minUnit').textContent = st.o.progressMetric === 'rank' ? '名' : '分';
+    persist(); render();
+  }
+  Object.keys(F).forEach(function (k) { F[k].onchange = readFields; });
+  F.metric.addEventListener('change', function () { // 換算法時順手換成合理的預設門檻
+    F.min.value = F.metric.value === 'rank' ? 3 : 5; readFields();
+  });
+
+  AX.load().then(function (r) {
+    st.model = r.model;
+    var m = st.model, q = AX.qs();
+    st.term = q.term && m.terms.indexOf(q.term) > -1 ? q.term : (m.terms.indexOf(m.currentTerm) > -1 ? m.currentTerm : m.terms[m.terms.length - 1]);
+    st.o.subjects = m.subjects.map(function (s) { return s.name; });
+    st.phase = hasFinal() ? 'final' : 'midterm';
+    loadFields(); renderBar(); render();
+  }).catch(AX.showError);
+
+  function hasFinal() {
+    return st.model.subjects.some(function (sm) { var bt = sm.byTerm[st.term]; return bt && bt.T.comp.final.some(function (v) { return v != null; }); });
+  }
+
+  function renderBar() {
+    var m = st.model;
+    AX.btnGroup(AX.$('termBtns'), m.terms.map(function (t) { return { label: S.termLabel(t), value: t }; }), st.term, function (v) { st.term = v; st.phase = hasFinal() ? 'final' : 'midterm'; renderBar(); render(); });
+    AX.btnGroup(AX.$('phaseBtns'), [{ label: '期中考', value: 'midterm' }, { label: '期末考', value: 'final' }], st.phase, function (v) { st.phase = v; renderBar(); render(); });
+    AX.$('progBar').hidden = st.phase !== 'final';
+    var box = AX.$('subjChecks'); AX.clear(box);
+    m.subjects.forEach(function (sm) {
+      var lab = el('label', { 'class': 'chk' }), cb = el('input', { type: 'checkbox' });
+      cb.checked = st.o.subjects.indexOf(sm.name) > -1;
+      cb.onchange = function () {
+        st.o.subjects = m.subjects.map(function (x) { return x.name; }).filter(function (n) { return n === sm.name ? cb.checked : st.o.subjects.indexOf(n) > -1; });
+        render();
+      };
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + sm.name)); box.appendChild(lab);
+    });
+  }
+
+  function phaseName() { return st.phase === 'midterm' ? '期中考' : '期末考'; }
+  function titleText() { return S.termLabel(st.term) + ' ' + phaseName(); }
+
+  function render() {
+    var main = AX.$('main'); AX.clear(main);
+    var o = Object.assign({}, st.o, { term: st.term, phase: st.phase });
+    var R = S.awards(st.model, o);
+    st.last = R;
+    var isFinal = st.phase === 'final';
+
+    if (R.missing.length) main.appendChild(el('div', { 'class': 'note noprint' }, '這些科目沒有可用的成績，未列入名單：' + R.missing.map(function (x) { return x.subject + '（' + x.why + '）'; }).join('、') +
+      '。如果是別位老師的科目（例如自然），請先用試算表選單「建立外科成績貼上區」建立工作表並貼上成績。'));
+    if (!R.subjects.length) { main.appendChild(el('div', { 'class': 'card empty' }, '沒有可以產生名單的科目。')); return; }
+
+    var tiles = el('div', { 'class': 'tiles noprint' });
+    tiles.appendChild(AX.tile('前 ' + st.o.topN + ' 名（不重複）', String(R.topUnique.length), '人', R.subjects.length + ' 科合計 ' + R.subjects.reduce(function (n, s) { return n + s.top.length; }, 0) + ' 個名額'));
+    if (isFinal) tiles.appendChild(AX.tile('進步獎（不重複）', String(R.progUnique.length), '人', R.subjects.reduce(function (n, s) { return n + s.prog.length; }, 0) + ' 個名額'));
+    main.appendChild(tiles);
+
+    // ---- 名單（對照你原本的格式：不重複名單＋科目）
+    var c = AX.card(titleText() + ' 獎狀名單', '同一位同學在多個科目得獎時合併成一列，科目依序列出。可以直接複製貼到試算表／Word，或寫入試算表。');
+    var bar = el('div', { 'class': 'bar noprint' });
+    var b1 = el('button', { 'class': 'primary' }, '📋 複製（可貼進試算表）'); b1.onclick = copyTable;
+    var b2 = el('button', null, '📄 寫入試算表「獎狀名單_系統產生」'); b2.onclick = writeSheet;
+    var b3 = el('button', null, '🖨️ 列印'); b3.onclick = function () { window.print(); };
+    bar.appendChild(b1); bar.appendChild(b2); bar.appendChild(b3);
+    var link = el('a', { 'class': 'link', id: 'sheetLink', target: '_blank', rel: 'noopener' }); link.hidden = true; bar.appendChild(link);
+    c.appendChild(bar);
+    var cols = el('div', { 'class': isFinal ? 'cols' : '' });
+    var L = el('div'), Rr = el('div'); cols.appendChild(L); if (isFinal) cols.appendChild(Rr); c.appendChild(cols); main.appendChild(c);
+    L.appendChild(uniqueTable('前 ' + st.o.topN + ' 名名單', R.topUnique));
+    if (isFinal) Rr.appendChild(uniqueTable('進步獎名單', R.progUnique));
+
+    // ---- 各科明細
+    var d = AX.card('各科明細', '每一科各自的名次與分數，製作獎狀時可以對照。' + (isFinal ? '進步獎的數字是「比較基準 → 期末考」與進步幅度。' : ''));
+    var grid = el('div', { 'class': 'grid2' }); d.appendChild(grid); main.appendChild(d);
+    R.subjects.forEach(function (s) {
+      var mini = el('div', { 'class': 'mini' });
+      mini.appendChild(el('h3', null, s.name));
+      mini.appendChild(el('div', { 'class': 'h3 muted' }, '前 ' + st.o.topN + ' 名（' + s.top.length + ' 人' + (s.top.length > st.o.topN ? '，含同分' : '') + '）'));
+      mini.appendChild(AX.studentList(s.top.map(function (x) { return { label: AX.seatLabel(x), rank: x.rank, value: fmt(x.value) + (st.o.basis === 'term' ? ' 分' : ' %') }; })));
+      if (isFinal) {
+        var h = el('div', { 'class': 'h3 muted' }, '進步獎（' + s.prog.length + ' 人）'); h.style.marginTop = '10px'; mini.appendChild(h);
+        if (s.prog.length) mini.appendChild(AX.studentList(s.prog.map(function (x) {
+          return { label: AX.seatLabel(x), rank: null, value: st.o.progressMetric === 'rank' ? '第 ' + x.baseRank + ' → 第 ' + x.curRank + ' 名（+' + fmt(x.gain, 0) + '）' : fmt(x.base) + ' → ' + fmt(x.cur) + '（+' + fmt(x.gain) + '）' };
+        })));
+        else mini.appendChild(el('div', { 'class': 'muted small' }, s.progNote || '沒有符合條件的同學（可以調低「至少進步」）'));
+      }
+      grid.appendChild(mini);
+    });
+    if (st.o.basis === 'exam') d.appendChild(el('p', { 'class': 'muted small' }, '分數單位：考試得分率（得分 ÷ 滿分 × 100）。滿分都是 100 時就是原始分數。'));
+  }
+
+  function uniqueTable(title, list) {
+    var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' });
+    var thead = el('thead'), hr = el('tr');
+    [title, '姓名', '科目'].forEach(function (h, i) { hr.appendChild(el('th', { 'class': i === 0 ? '' : 'l' }, i === 0 ? '序' : h)); });
+    thead.appendChild(el('tr')).appendChild(el('th', { colspan: '3', 'class': 'l' }, title));
+    thead.appendChild(hr); tb.appendChild(thead);
+    var body = el('tbody');
+    list.forEach(function (x, i) {
+      var tr = el('tr');
+      tr.appendChild(el('td', null, String(i + 1)));
+      tr.appendChild(el('td', { 'class': 'l' }, x.name));
+      tr.appendChild(el('td', { 'class': 'l' }, x.subjects.join('、')));
+      body.appendChild(tr);
+    });
+    if (!list.length) { var e = el('tr'); e.appendChild(el('td', { colspan: '3', 'class': 'l muted' }, '（沒有符合條件的同學）')); body.appendChild(e); }
+    tb.appendChild(body); wrap.appendChild(tb); return wrap;
+  }
+
+  // ---- 輸出：與你原本表格一致的版面（序號｜姓名｜科目［｜進步獎姓名｜科目］）
+  function tableRows() {
+    var R = st.last, isFinal = st.phase === 'final';
+    var n = Math.max(R.topUnique.length, isFinal ? R.progUnique.length : 0);
+    var head = ['序號', '前' + st.o.topN + '名 姓名', '科目'].concat(isFinal ? ['進步獎 姓名', '科目'] : []);
+    var rows = [head];
+    for (var i = 0; i < n; i++) {
+      var a = R.topUnique[i], b = isFinal ? R.progUnique[i] : null;
+      rows.push([i + 1, a ? a.name : '', a ? a.subjects.join('、') : ''].concat(isFinal ? [b ? b.name : '', b ? b.subjects.join('、') : ''] : []));
+    }
+    return rows;
+  }
+  function copyTable() {
+    var text = tableRows().map(function (r) { return r.join('\t'); }).join('\n');
+    function fallback() {
+      var ta = el('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); AX.toast('已複製，可以貼到試算表或 Word'); } catch (e) { AX.toast('瀏覽器不允許複製，請改用「寫入試算表」', true); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { AX.toast('已複製，可以貼到試算表或 Word'); }, fallback);
+    else fallback();
+  }
+  function writeSheet() {
+    var rows = [[titleText() + ' 獎狀名單']].concat(tableRows());
+    AX.call('writeAwardsSheet', titleText(), rows).then(function (res) {
+      AX.toast('已寫入試算表工作表「' + res.name + '」');
+      return AX.call('getSpreadsheetInfo').then(function (info) {
+        if (!info || !info.url) return;
+        var a = AX.$('sheetLink'); a.href = info.url + '#gid=' + res.gid; a.textContent = '開啟「' + res.name + '」›'; a.hidden = false;
+      }).catch(function () { /* 連結只是方便，失敗不影響 */ });
+    }).catch(AX.showError);
+  }
+})();
+</script>
+</body>
+</html>

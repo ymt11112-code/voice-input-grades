@@ -39,6 +39,10 @@
     .appTitle { font-size: 18px; font-weight: 700; color: var(--forest); }
     .appVersion { font-size: 12px; color: var(--muted); font-family: monospace; background: var(--card-bg); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
 
+    .termPick { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
+    .termTag { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--blue-tint); color: var(--blue); margin-right: 6px; }
+    .termNow { background: var(--gold-tint); color: var(--gold-ink); }
+    .upgradeBanner { background: var(--gold-tint); color: var(--gold-ink); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.7; }
     .analysisLink {
       font-size: 13.5px; font-weight: 600; text-decoration: none; color: var(--forest);
       background: var(--card-bg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
@@ -231,6 +235,7 @@
       <span id="subjectButtons" class="row subjectButtonsDesktop" style="margin:0;"></span>
       <select id="subjectSelectMobile" class="subjectSelectMobile" onchange="selectSubject(this.value)"></select>
       <span class="muted" id="subjectHint"></span>
+      <span class="termPick">學期：<select id="termSelect" onchange="onViewTermChange(this.value)"></select></span>
       <span style="flex:1"></span>
       <span id="loadingIndicator" class="pill" style="display:none;">⏳ 載入中...</span>
     </div>
@@ -238,6 +243,24 @@
 
   <!-- 科目設定（科目／類別／項目，合併頁籤，用可收合卡片區分） -->
   <div class="panel" id="panel-setup" hidden>
+    <div class="upgradeBanner" id="upgradeBanner" hidden></div>
+    <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-terms')">
+        <b><span class="cardIcon tint-teal">🗓️</span> 學期管理</b>
+        <span class="cardToggle" id="cardToggle-card-terms">▾</span>
+      </div>
+      <div class="cardBody" id="card-terms">
+        <p class="muted">每個登記項目都屬於一個學期，之後才能比較上學期／下學期、跨學年的進退步。新增項目時預設放在「目前學期」，畫面上方「學期」下拉可以切換要檢視／登記哪一學期（也可選「全部學期」）。學期名稱建議用「114上」「114下」這種格式，系統會依學年與上下學期自動排序。</p>
+        <h3>新增學期</h3>
+        <div class="row">
+          <input type="text" id="newTermName" placeholder="例如：115上">
+          <button onclick="onAddTerm()">新增學期</button>
+        </div>
+        <h3>學期清單</h3>
+        <div id="termList"></div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="cardHeader" onclick="toggleCard('card-subjects')">
         <b><span class="cardIcon tint-purple">📚</span> 科目管理</b>
@@ -248,6 +271,15 @@
         <div class="row">
           <input type="text" id="newSubjectName" placeholder="例如：數學、英文、自然">
           <button onclick="onAddSubject()">新增科目</button>
+        </div>
+        <div class="subpanel">
+          <b>📥 建立外科成績貼上區（例如自然老師提供的成績）</b>
+          <p class="muted">不是你自己登記、但名單或分析需要用到的科目，可以在這裡建立一個貼上區：系統會建一張跟其他科目格式相同的工作表，自動帶入座號姓名，並預先建好「平時成績、期中考、期末考」三欄（淡黃色區域）。把老師給的成績依座號順序貼進去就好，之後分析頁面和獎狀名單都會自動納入。</p>
+          <div class="row">
+            <input type="text" id="externalSubjectName" value="自然" placeholder="科目名稱，例如：自然">
+            <button class="secondary" onclick="onCreateExternalSubject()">建立貼上區</button>
+          </div>
+          <p class="muted" id="externalSubjectResult"></p>
         </div>
         <h3>科目清單</h3>
         <div id="subjectList"></div>
@@ -279,6 +311,7 @@
       <div class="cardBody" id="card-items">
         <h3>新增登記項目（例如：第一次段考、第3次作業）</h3>
         <div class="row">
+          <select id="newItemTerm" title="項目所屬學期"></select>
           <select id="newItemCategory"></select>
           <input type="text" id="newItemName" placeholder="項目名稱，例如：第一次段考">
           <input type="number" id="newItemMax" placeholder="滿分(選填)" style="width:90px">
@@ -289,6 +322,7 @@
           <b>⚡ 批次產生一系列項目</b>
           <p class="muted">例如類別選「作業」、前綴輸入「作業」、起始編號 1、數量輸入 6，會一次產生「作業1」～「作業6」；之後要接著產生「作業7」～「作業12」，起始編號改成 7 即可。</p>
           <div class="row">
+            <select id="seriesTerm" title="項目所屬學期"></select>
             <select id="seriesCategory"></select>
             <input type="text" id="seriesBaseName" placeholder="名稱前綴，例如：作業">
             <input type="number" id="seriesStart" placeholder="起始編號" value="1" style="width:90px">
@@ -819,6 +853,10 @@ var state = {
   items: [],
   students: [],
   currentItemCol: null,
+  terms: [],                // 學期清單（時間順序）
+  currentTerm: '',          // 目前學期：新增項目的預設值
+  viewTerm: '',             // 畫面檢視／登記的學期，空字串＝全部學期
+  legacySubjects: [],       // 還沒升級成學期格式的科目
   scoreMode: 'byItem',      // 'byItem'：依項目登記（全班一項）；'byStudent'：依學生登記（單一學生全部項目）
   currentStudentRow: null,
   digitPairPointer: 0 // 依學生登記語音輸入：只念分數，兩位一組，依序對應勾選項目
@@ -855,6 +893,7 @@ window.addEventListener('load', function () {
     state.subjects = data.subjects || [];
     state.categories = data.categories || [];
     state.textCorrections = data.textCorrections || [];
+    applyTermConfig_(data);
     if (state.subjects.length) state.subject = state.subjects[0];
     renderSubjectButtons();
     renderSubjectList();
@@ -1016,6 +1055,7 @@ function refreshAllData() {
     state.subjects = data.subjects || [];
     state.categories = data.categories || [];
     state.textCorrections = data.textCorrections || [];
+    applyTermConfig_(data);
     if (!state.subject || state.subjects.indexOf(state.subject) === -1) {
       state.subject = state.subjects[0] || null;
     }
@@ -1043,6 +1083,22 @@ function onAddSubject() {
     renderSubjectButtons();
     renderSubjectList();
     toast('已新增科目：' + name);
+  }).catch(showError);
+}
+
+function onCreateExternalSubject() {
+  var name = document.getElementById('externalSubjectName').value.trim();
+  if (!name) return toast('請輸入科目名稱', true);
+  call('createExternalSubject', name, state.currentTerm).then(function (res) {
+    var box = document.getElementById('externalSubjectResult');
+    box.textContent = '已建立「' + res.name + '」工作表（' + res.term + '，帶入 ' + res.students + ' 位學生）。請到試算表該工作表，把老師提供的成績依座號順序貼進淡黃色區域：C 欄＝平時成績、D 欄＝期中考、E 欄＝期末考（還沒有的留空）。 ';
+    spreadsheetInfo = null;
+    ensureSpreadsheetInfo().then(function (info) {
+      var a = document.createElement('a');
+      a.href = info.url + '#gid=' + res.gid; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '開啟「' + res.name + '」工作表 ›';
+      box.appendChild(a);
+    }).catch(function () { /* 沒有連結只是不方便，不影響 */ });
+    refreshAllData();
   }).catch(showError);
 }
 
@@ -1116,6 +1172,114 @@ function onMoveSubject(name, direction) {
     renderSubjectList();
     toast('已調整科目順序');
   }).catch(showError);
+}
+
+// ============================================================
+// 學期管理
+// ============================================================
+function applyTermConfig_(data) {
+  var tc = data.termConfig || { terms: [], current: '' };
+  state.terms = tc.terms || [];
+  state.currentTerm = tc.current || '';
+  if (state.viewTerm !== '' && state.terms.indexOf(state.viewTerm) === -1) state.viewTerm = state.currentTerm;
+  if (state.viewTerm === '' && !state.termViewTouched) state.viewTerm = state.currentTerm;
+  state.legacySubjects = (data.layout && data.layout.v1) || [];
+  renderTermUI();
+}
+
+function renderTermUI() {
+  // 畫面上方的檢視學期下拉
+  var sel = document.getElementById('termSelect');
+  sel.innerHTML = '';
+  var all = document.createElement('option');
+  all.value = ''; all.textContent = '全部學期';
+  sel.appendChild(all);
+  state.terms.forEach(function (t) {
+    var o = document.createElement('option');
+    o.value = t; o.textContent = t + (t === state.currentTerm ? '（目前）' : '');
+    sel.appendChild(o);
+  });
+  sel.value = state.viewTerm;
+
+  // 新增項目時的學期下拉（預設＝目前學期，不是檢視學期）
+  ['newItemTerm', 'seriesTerm'].forEach(function (id) {
+    var s2 = document.getElementById(id);
+    if (!s2) return;
+    var keep = s2.value;
+    s2.innerHTML = '';
+    state.terms.forEach(function (t) {
+      var o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      s2.appendChild(o);
+    });
+    s2.value = state.terms.indexOf(keep) > -1 ? keep : (state.viewTerm || state.currentTerm);
+  });
+
+  // 學期清單
+  var box = document.getElementById('termList');
+  box.innerHTML = '';
+  state.terms.forEach(function (t) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    var label = document.createElement('span');
+    label.textContent = t;
+    if (t === state.currentTerm) {
+      var tag = document.createElement('span');
+      tag.className = 'termTag termNow';
+      tag.textContent = '目前學期';
+      label.insertBefore(tag, label.firstChild);
+    }
+    div.appendChild(label);
+    if (t !== state.currentTerm) {
+      var btn = document.createElement('button');
+      btn.className = 'secondary';
+      btn.textContent = '設為目前學期';
+      btn.onclick = function () {
+        call('setCurrentTerm', t).then(function (tc) {
+          state.terms = tc.terms; state.currentTerm = tc.current; state.viewTerm = tc.current;
+          renderTermUI(); renderItemList(); renderScoreCategoryFilter(); renderScoreItemOptions();
+          toast('目前學期：' + t);
+        }).catch(showError);
+      };
+      div.appendChild(btn);
+    }
+    box.appendChild(div);
+  });
+
+  // 還沒升級成學期格式的科目：提醒到試算表選單升級
+  var banner = document.getElementById('upgradeBanner');
+  if (state.legacySubjects.length) {
+    banner.hidden = false;
+    banner.textContent = '⚠️ 這些科目還是舊格式（沒有學期欄位）：' + state.legacySubjects.join('、') +
+      '。要比較不同學期的成績，請回到 Google 試算表上方選單「📊 登記分數 → 升級為學期格式（兩學年用）」。升級前系統會自動建立備份分頁；沒升級前這些科目照常可以登記，只是不分學期。';
+  } else {
+    banner.hidden = true;
+  }
+}
+
+function onViewTermChange(v) {
+  state.viewTerm = v;
+  state.termViewTouched = true;
+  renderItemList();
+  renderScoreCategoryFilter();
+  renderScoreItemOptions();
+  if (state.scoreMode === 'byStudent') loadStudentScoreTable();
+}
+
+function onAddTerm() {
+  var name = document.getElementById('newTermName').value.trim();
+  if (!name) return toast('請輸入學期名稱', true);
+  call('addTerm', name).then(function (tc) {
+    state.terms = tc.terms; state.currentTerm = tc.current;
+    document.getElementById('newTermName').value = '';
+    renderTermUI();
+    toast('已新增學期：' + name + '（要登記這個學期，請按「設為目前學期」）');
+  }).catch(showError);
+}
+
+// 項目是否在目前檢視的學期內（舊格式科目沒有學期，一律顯示）
+function inViewTerm_(it) {
+  return !state.viewTerm || !it.term || it.term === state.viewTerm;
 }
 
 // ============================================================
@@ -1314,7 +1478,8 @@ function onAddItem() {
   var name = document.getElementById('newItemName').value.trim();
   var max = document.getElementById('newItemMax').value;
   if (!name) return toast('請輸入項目名稱', true);
-  call('addItem', state.subject, category, name, max).then(function (items) {
+  var term = document.getElementById('newItemTerm').value;
+  call('addItem', state.subject, category, name, max, term).then(function (items) {
     state.items = items;
     document.getElementById('newItemName').value = '';
     document.getElementById('newItemMax').value = '';
@@ -1332,7 +1497,8 @@ function onAddItemSeries() {
   var max = document.getElementById('seriesMax').value;
   if (!baseName) return toast('請輸入名稱前綴', true);
   if (!count) return toast('請輸入數量', true);
-  call('addItemSeries', state.subject, category, baseName, count, max, start).then(function (items) {
+  var term = document.getElementById('seriesTerm').value;
+  call('addItemSeries', state.subject, category, baseName, count, max, start, term).then(function (items) {
     state.items = items;
     document.getElementById('seriesBaseName').value = '';
     document.getElementById('seriesCount').value = '';
@@ -1345,14 +1511,16 @@ function onAddItemSeries() {
 function renderItemList() {
   var box = document.getElementById('itemList');
   box.innerHTML = '';
-  if (!state.items.length) {
-    box.innerHTML = '<p class="muted">尚未建立任何項目</p>';
+  var visible = state.items.filter(inViewTerm_);
+  if (!visible.length) {
+    box.innerHTML = '<p class="muted">' + (state.items.length ? '這個學期尚未建立任何項目（上方「學期」可切換）' : '尚未建立任何項目') + '</p>';
     return;
   }
-  state.items.forEach(function (it, idx) {
+  visible.forEach(function (it, idx) {
     var div = document.createElement('div');
     div.className = 'list-item';
-    div.innerHTML = '<span>[' + escapeHtml(it.category || '未分類') + '] ' +
+    div.innerHTML = '<span>' + (it.term ? '<span class="termTag">' + escapeHtml(it.term) + '</span>' : '') +
+      '[' + escapeHtml(it.category || '未分類') + '] ' +
       escapeHtml(it.name) + (it.max ? '　滿分：' + it.max : '') + '</span>';
     var btns = document.createElement('span');
 
@@ -1360,14 +1528,14 @@ function renderItemList() {
     upBtn.className = 'secondary';
     upBtn.textContent = '▲';
     upBtn.disabled = idx === 0;
-    upBtn.onclick = function () { onMoveItem(it.col, -1); };
+    upBtn.onclick = function () { onMoveItem(it.col, -1, it.col - visible[idx - 1].col); };
 
     var downBtn = document.createElement('button');
     downBtn.className = 'secondary';
     downBtn.style.marginLeft = '4px';
     downBtn.textContent = '▼';
-    downBtn.disabled = idx === state.items.length - 1;
-    downBtn.onclick = function () { onMoveItem(it.col, 1); };
+    downBtn.disabled = idx === visible.length - 1;
+    downBtn.onclick = function () { onMoveItem(it.col, 1, visible[idx + 1].col - it.col); };
 
     var delBtn = document.createElement('button');
     delBtn.className = 'danger';
@@ -1390,9 +1558,15 @@ function renderItemList() {
   });
 }
 
-function onMoveItem(col, direction) {
+// steps：要跨過幾欄（目前學期篩選下，相鄰兩個項目中間可能隔著其他學期的欄位，要連續互換幾次）
+function onMoveItem(col, direction, steps) {
   if (!state.subject) return;
-  call('moveItem', state.subject, col, direction).then(function (items) {
+  var p = Promise.resolve(null), cur = col;
+  for (var i = 0; i < (steps || 1); i++) {
+    (function (c) { p = p.then(function () { return call('moveItem', state.subject, c, direction); }); })(cur);
+    cur += direction;
+  }
+  p.then(function (items) {
     state.items = items;
     renderItemList();
     toast('已調整順序');
@@ -1527,13 +1701,14 @@ function renderScoreCategoryFilter() {
   var sel = document.getElementById('scoreCategoryFilter');
   var current = sel.value;
   var cats = [];
-  state.items.forEach(function (it) {
+  var inTerm = state.items.filter(inViewTerm_);
+  inTerm.forEach(function (it) {
     var c = it.category || '未分類';
     if (cats.indexOf(c) === -1) cats.push(c);
   });
-  sel.innerHTML = '<option value="">全部類別（共 ' + state.items.length + ' 項）</option>';
+  sel.innerHTML = '<option value="">全部類別（共 ' + inTerm.length + ' 項）</option>';
   cats.forEach(function (c) {
-    var count = state.items.filter(function (it) { return (it.category || '未分類') === c; }).length;
+    var count = inTerm.filter(function (it) { return (it.category || '未分類') === c; }).length;
     var opt = document.createElement('option');
     opt.value = c;
     opt.textContent = c + '（' + count + ' 項）';
@@ -1547,12 +1722,12 @@ function renderScoreItemOptions() {
   var sel = document.getElementById('scoreItemSelect');
   sel.innerHTML = '';
   var filtered = state.items.filter(function (it) {
-    return !filter || (it.category || '未分類') === filter;
+    return inViewTerm_(it) && (!filter || (it.category || '未分類') === filter);
   });
   filtered.forEach(function (it) {
     var opt = document.createElement('option');
     opt.value = it.col;
-    opt.textContent = '[' + (it.category || '未分類') + '] ' + it.name + (it.max ? '（滿分' + it.max + '）' : '');
+    opt.textContent = (!state.viewTerm && it.term ? it.term + ' ' : '') + '[' + (it.category || '未分類') + '] ' + it.name + (it.max ? '（滿分' + it.max + '）' : '');
     sel.appendChild(opt);
   });
   if (filtered.length) loadScoreTable();
@@ -1643,6 +1818,7 @@ function loadStudentScoreTable() {
   state.currentStudentRow = row;
 
   call('getStudentScores', state.subject, row).then(function (items) {
+    items = items.filter(inViewTerm_);
     var body = document.getElementById('studentScoreTableBody');
     body.innerHTML = '';
     if (!items.length) {
