@@ -71,7 +71,16 @@
       });
       return { subject: subj, layout: 2, items: items, students: students, kinds: {} };
     });
+    // 學校系統匯出的「學期領域成績」：前面有標題列，欄位順序與老師的分數表不同，右邊還有老師自己算的名次欄
+    var dr = rng(4242), grid = [['高雄市某某國小', '', '', '', '', '', '', '', '', '', '', '', ''], ['114學年度第2學期 學期領域成績加權平均班級排序一覽表', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['班級', '座\n號', '姓名', '語文\n(7.0)', '健體\n(3.0)', '數學\n(4.0)', '社會\n(3.0)', '藝才\n(6.0)', '自然科學\n(3.0)', '綜合\n(1.0)', '藝術', '名次', '平均', '', '語文', '數學', '社會', '藝才', '自然', '健體', '藝術', '綜合']];
+    people.forEach(function (p) {
+      function g(mu, sdv, int) { var v = Math.max(60, Math.min(100, mu + (dr() - 0.5) * sdv)); return int ? Math.round(v) : Math.round(v * 100) / 100; }
+      var ab = p.ability + 12;
+      grid.push(['413', p.seat < 10 ? '0' + p.seat : String(p.seat), p.name, g(ab, 14), g(93, 8, true), g(ab - 2, 18), g(ab, 14), g(92, 10), g(ab, 14), g(94, 6, true), g(94, 8), '', '', '', 9, 9, 9, 9, 9, 9, 9, 9]);
+    });
     return {
+      domains: { '114下': grid },
       subjects: subjects, terms: TERMS.slice(), currentTerm: CURRENT,
       kinds: { '平時測驗': 'quiz', '作業': 'homework', '期中考': 'midterm', '期末考': 'final' },
       weights: { quiz: 30, homework: 10, midterm: 30, final: 30 },
@@ -85,6 +94,7 @@
     if (fn === 'getAnalysisAll') return clone(state);
     if (fn === 'setCategoryKind') { state.kinds[args[0]] = args[1]; return clone(state.kinds); }
     if (fn === 'setWeights') { state.weights = clone(args[0]); return clone(state.weights); }
+    if (fn === 'createDomainSheet') return { name: '領域成績_' + args[0], term: args[0], gid: 0, existed: true };
     if (fn === 'writeAwardsSheet') return { name: '獎狀名單_系統產生', gid: 0 };
     if (fn === 'getSpreadsheetInfo') return { url: 'https://docs.google.com/spreadsheets/d/demo/edit', subjectGids: {} };
     throw new Error('示範模式不支援：' + fn);

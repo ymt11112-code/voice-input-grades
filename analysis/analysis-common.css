@@ -223,3 +223,6 @@ label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5
   .tbl-wrap { overflow: visible; }
   .chart svg { max-width: 100%; }
 }
+
+/* 讓 hidden 屬性一定生效（否則 display:flex 的元素設了 hidden 仍會顯示） */
+[hidden] { display: none !important; }

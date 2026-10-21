@@ -473,7 +473,7 @@
   function S_series(A, idx) { return studentSeries(A, idx, null); }
 
   // ============================================================
-  // 七、獎狀名單（前 N 名、進步獎）
+  // 七、獎狀名單（前 N 名、進步獎、學期領域前 N 名）
   // ============================================================
   // 期中階段／期末階段的「學期成績」：只納入該階段已經有的成分（期中階段不含期末考）
   function stageScores(T, phase) {
@@ -499,7 +499,7 @@
   }
 
   function progressList(sm, term, o, excludeIdx) {
-    var T = sm.byTerm[term].T, cur = T.comp.final, base, note = '';
+    var T = sm.byTerm[term].T, cur = T.comp.final, base;
     if (o.progressBase === 'prevFinal') {
       var ti = sm.terms.indexOf(term), pt = ti > 0 ? sm.terms[ti - 1] : null;
       if (pt == null) return { list: [], note: '沒有上一學期的期末考可以比較' };
@@ -523,11 +523,28 @@
       var cut = rows[n - 1].gain;
       rows = o.ties ? rows.filter(function (r) { return r.gain >= cut - 1e-9; }) : rows.slice(0, n);
     }
-    return { list: rows, note: note };
+    return { list: rows, note: '' };
+  }
+
+  // 手動調整：o.excluded(kind, 科目, 學生key) 回傳 true 的人不列入不重複名單（但仍顯示在明細，讓老師可以勾回來）
+  function markExcluded(list, kind, subject, o) {
+    list.forEach(function (x) { x.excluded = !!(o.excluded && o.excluded(kind, subject, x.key)); });
+  }
+  function uniqueOf(subjects, field, sortBySeat) {
+    var map = {}, list = [];
+    subjects.forEach(function (s) {
+      s[field].forEach(function (x) {
+        if (x.excluded) return;
+        if (!map[x.key]) { map[x.key] = { key: x.key, name: x.name, seat: x.seat, subjects: [] }; list.push(map[x.key]); }
+        if (map[x.key].subjects.indexOf(s.name) === -1) map[x.key].subjects.push(s.name);
+      });
+    });
+    if (sortBySeat) list.sort(function (a, b) { return (Number(a.seat) || 9999) - (Number(b.seat) || 9999); });
+    return list;
   }
 
   // o = { term, phase:'midterm'|'final', topN, ties, basis:'exam'|'term', progressN, progressMetric:'score'|'relative'|'rank',
-  //       progressBase:'midterm'|'prevFinal', minGain, excludeTop, subjects:[科目名]|null, sortBySeat }
+  //       progressBase:'midterm'|'prevFinal', minGain, excludeTop, subjects:[科目名]|null, sortBySeat, excluded:function }
   function awards(model, o) {
     var out = { subjects: [], missing: [], topUnique: [], progUnique: [] };
     function info(sm, idx) { var s = sm.data.students[idx]; return { key: sm.keys[idx], name: s.name, seat: s.seat }; }
@@ -545,21 +562,89 @@
         progNote = pr.note;
         prog = pr.list.map(function (x) { var r = info(sm, x.idx); r.base = x.base; r.cur = x.cur; r.gain = x.gain; r.baseRank = x.baseRank; r.curRank = x.curRank; r.idx = x.idx; return r; });
       }
+      markExcluded(top, 'top', sm.name, o); markExcluded(prog, 'prog', sm.name, o);
       out.subjects.push({ name: sm.name, top: top, prog: prog, progNote: progNote, n: nonNull(vals).length });
     });
-    function unique(field) {
-      var map = {}, list = [];
-      out.subjects.forEach(function (s) {
-        s[field].forEach(function (x) {
-          if (!map[x.key]) { map[x.key] = { key: x.key, name: x.name, seat: x.seat, subjects: [] }; list.push(map[x.key]); }
-          if (map[x.key].subjects.indexOf(s.name) === -1) map[x.key].subjects.push(s.name);
-        });
-      });
-      if (o.sortBySeat) list.sort(function (a, b) { return (Number(a.seat) || 9999) - (Number(b.seat) || 9999); });
-      return list;
+    out.topUnique = uniqueOf(out.subjects, 'top', o.sortBySeat);
+    out.progUnique = uniqueOf(out.subjects, 'prog', o.sortBySeat);
+    return out;
+  }
+
+  // ---------- 學期領域成績（學校系統匯出的表） ----------
+  var DOMAIN_ORDER = ['語文', '數學', '社會', '自然', '健體', '藝術', '綜合', '藝才'];
+  var DOMAIN_ALIAS = { '自然科學': '自然', '自然與生活科技': '自然', '健康與體育': '健體', '藝術與人文': '藝術', '綜合活動': '綜合', '藝術才能': '藝才', '國語': '語文', '國語文': '語文', '本國語文': '語文' };
+  var NON_DOMAIN = ['班級', '座號', '姓名', '名次', '排名', '班排', '班級排名', '平均', '總平均', '加權平均', '總分', '加權總分', '學號'];
+  var STOP_COLS = ['名次', '排名', '班排', '班級排名', '平均', '總平均', '加權平均', '總分', '加權總分'];
+
+  function normHeader(s) { return String(s == null ? '' : s).replace(/[（(][^）)]*[）)]/g, '').replace(/\s+/g, ''); }
+  function toNum(v) {
+    if (v === '' || v == null) return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  // values＝工作表的二維陣列。回傳 { domains:[{name,idx}], students:[{key,name,seat,scores:[]}], headerRow } 或 { error }
+  function parseDomainSheet(values) {
+    if (!values || !values.length) return { error: '這張工作表還是空的，請把學校匯出的成績貼進去' };
+    var hr = -1, i, j;
+    for (i = 0; i < Math.min(values.length, 30); i++) {
+      var h = values[i].map(normHeader);
+      if (h.indexOf('座號') > -1 && h.indexOf('姓名') > -1) { hr = i; break; }
     }
-    out.topUnique = unique('top');
-    out.progUnique = unique('prog');
+    if (hr < 0) return { error: '找不到標題列：貼上的內容需要包含「座號」「姓名」兩個標題' };
+    var head = values[hr].map(normHeader), cs = head.indexOf('座號'), cn = head.indexOf('姓名');
+    var stop = head.length;
+    for (j = cn + 1; j < head.length; j++) if (STOP_COLS.indexOf(head[j]) > -1) { stop = j; break; }
+    var cols = [], seen = {};
+    for (j = 0; j < stop; j++) {
+      if (j === cs || j === cn) continue;
+      var raw = head[j];
+      if (!raw || NON_DOMAIN.indexOf(raw) > -1) continue;
+      var dn = DOMAIN_ALIAS[raw] || raw;
+      if (seen[dn]) continue;
+      seen[dn] = true; cols.push({ j: j, name: dn });
+    }
+    var students = [];
+    for (i = hr + 1; i < values.length; i++) {
+      var name = String(values[i][cn] == null ? '' : values[i][cn]).trim();
+      if (!name || name === '平均' || name === '合計') continue;
+      var sc = cols.map(function (c) { return toNum(values[i][c.j]); });
+      if (!sc.some(function (v) { return v != null; })) continue;
+      students.push({ name: name, seat: values[i][cs], scores: sc });
+    }
+    // 只留下真的有數字的領域（避免多貼到說明文字）
+    var keep = [];
+    cols.forEach(function (c, ci) { if (students.some(function (s) { return s.scores[ci] != null; })) keep.push(ci); });
+    var domains = keep.map(function (ci, k) { return { name: cols[ci].name, idx: k }; });
+    var dup = {}, nm = {};
+    students.forEach(function (s) { if (nm[s.name]) dup[s.name] = true; nm[s.name] = true; });
+    students.forEach(function (s) {
+      s.scores = keep.map(function (ci) { return s.scores[ci]; });
+      s.key = dup[s.name] ? s.name + '（' + s.seat + '）' : s.name;
+    });
+    if (!students.length) return { error: '找到標題列了，但底下沒有學生成績' };
+    if (!domains.length) return { error: '找到「座號」「姓名」，但右邊沒有任何領域成績欄位' };
+    return { domains: domains, students: students, headerRow: hr + 1 };
+  }
+
+  // o = { topN, ties, domains:[領域名]|null, sortBySeat, excluded:function }
+  function domainAwards(P, o) {
+    var out = { subjects: [], missing: [], topUnique: [], progUnique: [] };
+    var order = P.domains.slice().sort(function (a, b) {
+      var ia = DOMAIN_ORDER.indexOf(a.name), ib = DOMAIN_ORDER.indexOf(b.name);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.idx - b.idx;
+    });
+    order.forEach(function (d) {
+      if (o.domains && o.domains.indexOf(d.name) === -1) return;
+      var vals = P.students.map(function (s) { return s.scores[d.idx]; });
+      var top = pickTop(vals, o.topN, o.ties).map(function (x) {
+        var s = P.students[x.idx];
+        return { key: s.key, name: s.name, seat: s.seat, value: x.value, rank: x.rank, idx: x.idx };
+      });
+      markExcluded(top, 'top', d.name, o);
+      out.subjects.push({ name: d.name, top: top, prog: [], progNote: '', n: nonNull(vals).length });
+    });
+    out.topUnique = uniqueOf(out.subjects, 'top', o.sortBySeat);
     return out;
   }
 
@@ -570,7 +655,8 @@
     defaultKind: defaultKind, analyze: analyze, studentAgg: studentAgg, studentSeries: studentSeries, trendJudge: trendJudge,
     termSummary: termSummary, buildModel: buildModel, subjectOf: subjectOf, termLabel: termLabel, defaultTerm: defaultTerm,
     termRow: termRow, chronoTests: chronoTests, alertsFor: alertsFor, studentProfile: studentProfile,
-    awards: awards, stageScores: stageScores, pickTop: pickTop
+    awards: awards, stageScores: stageScores, pickTop: pickTop,
+    parseDomainSheet: parseDomainSheet, domainAwards: domainAwards, DOMAIN_ORDER: DOMAIN_ORDER
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = AX;
 })(typeof window !== 'undefined' ? window : globalThis);

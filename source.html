@@ -281,6 +281,15 @@
           </div>
           <p class="muted" id="externalSubjectResult"></p>
         </div>
+        <div class="subpanel">
+          <b>🏫 建立學期領域成績貼上區（學校系統匯出的成績）</b>
+          <p class="muted">學期總成績的各領域前五名（語文、數學、社會、自然、健體、藝術、綜合、藝才…）以學校系統匯出的表為準。這裡會建一張「領域成績_學期」工作表，把匯出的表整份貼到 A1（含標題列、名次、平均都可以一起貼），再到分析頁面「獎狀名單 → 學期總成績」產生名單。</p>
+          <div class="row">
+            <select id="domainTerm" title="哪一個學期"></select>
+            <button class="secondary" onclick="onCreateDomainSheet()">建立貼上區</button>
+          </div>
+          <p class="muted" id="domainSheetResult"></p>
+        </div>
         <h3>科目清單</h3>
         <div id="subjectList"></div>
       </div>
@@ -1102,6 +1111,20 @@ function onCreateExternalSubject() {
   }).catch(showError);
 }
 
+function onCreateDomainSheet() {
+  var term = document.getElementById('domainTerm').value || state.currentTerm;
+  call('createDomainSheet', term).then(function (res) {
+    var box = document.getElementById('domainSheetResult');
+    box.textContent = (res.existed ? '「' + res.name + '」已經存在，直接貼上成績即可。' : '已建立「' + res.name + '」。') + '請把學校系統匯出的學期領域成績表整份貼到 A1。 ';
+    spreadsheetInfo = null;
+    ensureSpreadsheetInfo().then(function (info) {
+      var a = document.createElement('a');
+      a.href = info.url + '#gid=' + res.gid; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '開啟「' + res.name + '」›';
+      box.appendChild(a);
+    }).catch(function () { /* 連結只是方便 */ });
+  }).catch(showError);
+}
+
 function renderSubjectList() {
   var box = document.getElementById('subjectList');
   box.innerHTML = '';
@@ -1202,7 +1225,7 @@ function renderTermUI() {
   sel.value = state.viewTerm;
 
   // 新增項目時的學期下拉（預設＝目前學期，不是檢視學期）
-  ['newItemTerm', 'seriesTerm'].forEach(function (id) {
+  ['newItemTerm', 'seriesTerm', 'domainTerm'].forEach(function (id) {
     var s2 = document.getElementById(id);
     if (!s2) return;
     var keep = s2.value;
