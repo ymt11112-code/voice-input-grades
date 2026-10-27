@@ -130,7 +130,10 @@
   AX.load().then(function (r) {
     init(r, false);
     var m = st.model, q = AX.qs(), terms = allTerms();
-    st.term = q.term && terms.indexOf(q.term) > -1 ? q.term : (terms.indexOf(m.currentTerm) > -1 ? m.currentTerm : terms[terms.length - 1]);
+    // 預設學期要選「有成績資料」的學期；舊格式（沒分學期）的資料學期是空的，不能直接選登記簿裡自動建的預設學期
+    var dataTerms = m.terms;
+    st.term = q.term && terms.indexOf(q.term) > -1 ? q.term
+      : (dataTerms.indexOf(m.currentTerm) > -1 ? m.currentTerm : (dataTerms.length ? dataTerms[dataTerms.length - 1] : terms[terms.length - 1]));
     st.phase = hasFinal() ? 'final' : 'midterm';
     loadFields(); renderBar(); render();
   }).catch(AX.showError);

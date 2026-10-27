@@ -452,6 +452,8 @@
           soft: w.subject + '相對其他科目比較吃力，可以多給一些支持。' });
       }
     }
+    // 範圍：作業缺交屬於「作業」，其餘（單次考試、學期成績相關）屬於「考試」
+    out.forEach(function (a) { a.area = a.type === '作業缺交' ? 'homework' : 'exam'; });
     out.sort(function (a, b) { return (a.level === 'high' ? 0 : 1) - (b.level === 'high' ? 0 : 1); });
     return out;
   }

@@ -93,7 +93,15 @@
   AX.demoCall = function (fn, args) {
     state = state || build();
     function clone(o) { return JSON.parse(JSON.stringify(o)); }
-    if (fn === 'getAnalysisAll') return clone(state);
+    if (fn === 'getAnalysisAll') {
+      var r = clone(state);
+      // 網址加 &legacy=1：模擬還沒升級成學期格式的試算表（項目沒有學期，登記簿卻有一個預設學期）
+      if (typeof location !== 'undefined' && /legacy=1/.test(location.search)) {
+        r.subjects.forEach(function (d) { d.layout = 1; d.items.forEach(function (it) { it.term = ''; }); });
+        r.terms = ['115上']; r.currentTerm = '115上'; r.domains = {};
+      }
+      return r;
+    }
     if (fn === 'setCategoryKind') { state.kinds[args[0]] = args[1]; return clone(state.kinds); }
     if (fn === 'setWeights') { state.weights = clone(args[0]); return clone(state.weights); }
     if (fn === 'createDomainSheet') return { name: '領域成績_' + args[0], term: args[0], gid: 0, existed: true };

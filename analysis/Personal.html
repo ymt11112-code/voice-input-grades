@@ -175,6 +175,15 @@
     renderHomework(main, sc, i, stu);
   }
 
+  // 平均會被少數特別高／低的分數拉動，而名次與「頂標～底標」位置是依排名（中位數）判斷，
+  // 所以「高於平均、卻落在均標以下」這類情況是正常的。出現時補一句說明，避免看起來矛盾。
+  function meanMedianNote(score, mean, median) {
+    if (mean == null || median == null) return '';
+    if (score > mean + 0.05 && score < median - 0.05) return '補充：全班平均是 ' + fmt(mean) + ' 分，中位數（均標）是 ' + fmt(median) + ' 分。這位同學高於平均、但低於中位數，是因為少數特別低的分數把全班平均拉低了；名次與「頂標～底標」位置是依排名判斷，不看平均。';
+    if (score < mean - 0.05 && score > median + 0.05) return '補充：全班平均是 ' + fmt(mean) + ' 分，中位數（均標）是 ' + fmt(median) + ' 分。這位同學低於平均、但高於中位數，是因為少數特別高的分數把全班平均拉高了；名次與「頂標～底標」位置是依排名判斷，不看平均。';
+    return '';
+  }
+
   // ---------- 分析重點（文字） ----------
   function renderInsights(main, A, series, agg, me, tr, prevRow, T, i) {
     var c = AX.card('分析重點', '依照全班資料自動整理。進退步是和「當次班平均」相比，所以不會因為某次考卷特別難或特別簡單而誤判。');
@@ -184,6 +193,8 @@
     if (tr) {
       add('學期成績 ' + fmt(tr.score) + ' 分，' + (Math.abs(tr.diff) < 0.05 ? '與全班平均相同' : (tr.diff > 0 ? '高於' : '低於') + '全班平均 ' + fmt(Math.abs(tr.diff)) + ' 分') +
         '；名次第 ' + tr.rank + ' 名（共 ' + tr.n + ' 人，前 ' + S.topPercent(tr.rank, tr.n) + '%），落在「' + tr.tier + '」位置' + (tr.partial ? '（有缺考的成分，權重已重新分配）' : '') + '。');
+      var mm = T ? meanMedianNote(tr.score, tr.classMean, T.stats.median) : '';
+      if (mm) add(mm);
       if (prevRow) {
         var rel = tr.diff - prevRow.diff, dsc = tr.score - prevRow.score;
         add('與 ' + S.termLabel(prevRow.term) + ' 相比，學期成績' + (Math.abs(dsc) < 0.05 ? '相同' : (dsc > 0 ? '進步 ' : '退步 ') + fmt(Math.abs(dsc)) + ' 分') + '；扣除整體難易，相對班平均的差距由 ' + sg(prevRow.diff) + ' 變成 ' + sg(tr.diff) + ' 分（' +
@@ -195,9 +206,11 @@
         add('期中考 ' + fmt(tr.comp.midterm) + ' 分（班平均 ' + fmt(cm) + '）→ 期末考 ' + fmt(tr.comp.final) + ' 分（班平均 ' + fmt(cf) + '），期末相對班平均' + (Math.abs(d2) < 2 ? '與期中差不多' : (d2 > 0 ? '比期中進步 ' : '比期中退步 ') + fmt(Math.abs(d2)) + ' 分') + '。');
       }
     } else if (me.avg != null) {
+      var mm2 = me.eligible ? meanMedianNote(me.avg, agg.stats.mean, agg.stats.median) : '';
       var d = me.avg - agg.stats.mean;
       add('累計平均 ' + fmt(me.avg) + ' 分，' + (Math.abs(d) < 0.05 ? '與全班平均相同' : (d > 0 ? '高於' : '低於') + '全班平均 ' + fmt(Math.abs(d)) + ' 分') +
         (me.eligible ? '；累計名次第 ' + me.rank + ' 名（共 ' + agg.eligibleN + ' 人，前 ' + S.topPercent(me.rank, agg.eligibleN) + '%），落在「' + S.tierName(agg.tiers, me.avg) + '」位置。' : '；因缺考超過一半，未列入排名。'));
+      if (mm2) add(mm2);
     }
     if (!series.length) { add('這個範圍內還沒有任何測驗成績。'); c.appendChild(ul); main.appendChild(c); return; }
 

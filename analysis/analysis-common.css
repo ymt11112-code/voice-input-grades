@@ -226,3 +226,9 @@ label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5
 
 /* 讓 hidden 屬性一定生效（否則 display:flex 的元素設了 hidden 仍會顯示） */
 [hidden] { display: none !important; }
+
+/* 可點選的標籤（例如關注名單的提醒類型） */
+button.chip { border: 1px solid var(--line); cursor: pointer; font-weight: 500; font-size: 12.5px; padding: 4px 11px; }
+button.chip:hover { background: var(--line); }
+button.chip.on { background: var(--forest); color: var(--on-forest); border-color: var(--forest); }
+button.chip.on b { color: inherit; }

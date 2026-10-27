@@ -27,6 +27,7 @@
       <span class="grp"><span class="lbl">以哪個學期為準</span><span id="termBtns" class="grp"></span></span>
       <span class="grp"><span class="lbl">科目</span><span id="subjectBtns" class="grp"></span></span>
       <span class="grp"><span class="lbl">程度</span><span id="levelBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">範圍</span><span id="areaBtns" class="grp"></span></span>
       <span class="spacer"></span>
       <button id="settingsBtn">⚙️ 分析與警示設定</button>
     </div>
@@ -41,7 +42,7 @@
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, LATEST = '^', ALLS = '*';
-  var st = { raw: null, model: null, term: LATEST, subject: ALLS, level: ALLS };
+  var st = { raw: null, model: null, term: LATEST, subject: ALLS, level: ALLS, area: ALLS, types: [] };
 
   AX.shell();
   AX.$('settingsBtn').onclick = function () { var b = AX.$('settings'); b.hidden = !b.hidden; };
@@ -61,32 +62,52 @@
     AX.btnGroup(AX.$('termBtns'), m.terms.map(function (t) { return { label: S.termLabel(t), value: t }; }).concat([{ label: '各科最新學期', value: LATEST }]), st.term, function (v) { st.term = v; render(); });
     AX.btnGroup(AX.$('subjectBtns'), [{ label: '全部', value: ALLS }].concat(m.subjects.map(function (x) { return { label: x.name, value: x.name }; })), st.subject, function (v) { st.subject = v; render(); });
     AX.btnGroup(AX.$('levelBtns'), [{ label: '全部', value: ALLS }, { label: '只看警示', value: 'high' }], st.level, function (v) { st.level = v; render(); });
+    AX.btnGroup(AX.$('areaBtns'), [{ label: '全部', value: ALLS }, { label: '考試', value: 'exam' }, { label: '作業', value: 'homework' }], st.area, function (v) { st.area = v; st.types = []; render(); });
 
     var main = AX.$('main'); AX.clear(main);
     var th = AX.getAlertTh(), asOf = st.term === LATEST ? null : st.term;
+    // 先依「科目、程度、範圍」篩選並統計各類型人數；類型本身再另外篩選，這樣類型標籤才不會因為自己被點選而消失
+    var per = m.roster.map(function (r) {
+      return { r: r, list0: S.alertsFor(m, r.key, th, asOf).filter(function (a) {
+        return (st.subject === ALLS || a.subject === st.subject) && (st.level === ALLS || a.level === st.level) && (st.area === ALLS || a.area === st.area);
+      }) };
+    });
+    var types = {};
+    per.forEach(function (x) { x.list0.forEach(function (a) { types[a.type] = (types[a.type] || 0) + 1; }); });
+    var tkeys = Object.keys(types).sort(function (a, b) { return types[b] - types[a]; });
+    st.types = st.types.filter(function (t) { return tkeys.indexOf(t) > -1; });   // 篩選條件變了，已經不存在的類型自動取消
+
     var rows = [];
-    m.roster.forEach(function (r) {
-      var list = S.alertsFor(m, r.key, th, asOf).filter(function (a) {
-        return (st.subject === ALLS || a.subject === st.subject) && (st.level === ALLS || a.level === st.level);
-      });
-      if (list.length) rows.push({ r: r, list: list, high: list.filter(function (a) { return a.level === 'high'; }).length });
+    per.forEach(function (x) {
+      var list = st.types.length ? x.list0.filter(function (a) { return st.types.indexOf(a.type) > -1; }) : x.list0;
+      if (list.length) rows.push({ r: x.r, list: list, high: list.filter(function (a) { return a.level === 'high'; }).length });
     });
     rows.sort(function (a, b) { return (b.high - a.high) || (b.list.length - a.list.length); });
 
     var total = m.roster.length, highStu = rows.filter(function (x) { return x.high > 0; }).length;
-    var types = {};
-    rows.forEach(function (x) { x.list.forEach(function (a) { types[a.type] = (types[a.type] || 0) + 1; }); });
-
     var tiles = el('div', { 'class': 'tiles' });
     tiles.appendChild(AX.tile('需要關注的學生', String(rows.length), '/ ' + total + ' 人', total ? fmt(rows.length / total * 100, 0) + '%' : ''));
     tiles.appendChild(AX.tile('其中有「警示」', String(highStu), '人', '較嚴重，建議優先處理', highStu ? 'down' : ''));
     tiles.appendChild(AX.tile('提醒總數', String(rows.reduce(function (n, x) { return n + x.list.length; }, 0)), '則'));
     main.appendChild(tiles);
 
-    var tkeys = Object.keys(types).sort(function (a, b) { return types[b] - types[a]; });
     if (tkeys.length) {
-      var c0 = AX.card('提醒類型', '點下方學生姓名可看個人概況，「家長報告」可直接產生給家長看的一頁報告。');
-      c0.appendChild(AX.chips(tkeys.map(function (k) { return [k, types[k] + ' 則']; })));
+      var c0 = AX.card('提醒類型', '點選類型就只看該類型（可以複選），再點一次取消；「考試」範圍包含單次考試與學期成績相關的提醒。');
+      var chips = el('div', { 'class': 'chips' });
+      var allB = el('button', { 'class': 'chip' + (st.types.length ? '' : ' on') }, '全部類型');
+      allB.onclick = function () { st.types = []; render(); };
+      chips.appendChild(allB);
+      tkeys.forEach(function (k) {
+        var on = st.types.indexOf(k) > -1, bt = el('button', { 'class': 'chip' + (on ? ' on' : '') }, k);
+        bt.appendChild(el('b', null, types[k] + ' 則'));
+        bt.onclick = function () {
+          var i = st.types.indexOf(k);
+          if (i > -1) st.types.splice(i, 1); else st.types.push(k);
+          render();
+        };
+        chips.appendChild(bt);
+      });
+      c0.appendChild(chips);
       main.appendChild(c0);
     }
     if (!rows.length) {

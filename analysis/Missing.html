@@ -36,6 +36,12 @@
   <div id="content" class="content">
     <div class="bar">
       <span class="grp"><span class="lbl">科目</span><select id="fSubject"></select></span>
+      <span class="grp"><span class="lbl">範圍</span>
+        <select id="fArea">
+          <option value="*">全部（作業＋考試）</option>
+          <option value="exam">只看考試</option>
+          <option value="homework">只看作業</option>
+        </select></span>
       <span class="grp"><span class="lbl">學期</span><select id="fTerm"></select></span>
       <span class="grp"><span class="lbl">狀態</span>
         <select id="fStatus">
@@ -48,7 +54,8 @@
           <option value="student">依座號</option>
           <option value="item">依科目、項目（補登整份考卷）</option>
         </select></span>
-      <span class="grp"><span class="lbl">找學生</span><input type="text" id="fName" placeholder="姓名或座號" style="width:120px"></span>
+      <span class="grp"><span class="lbl">學生</span><select id="fStudent"></select></span>
+      <label class="chk" title="平常只列出「至少有一位同學已經登記」的項目；勾選後，連全班都還沒有任何成績的項目也列出來"><input type="checkbox" id="fEmpty"> 也列出全班都還沒登記的項目</label>
       <span class="spacer"></span>
       <button id="reloadBtn" title="在試算表直接改過成績時，按這裡重新讀取">🔄 重新讀取</button>
     </div>
@@ -79,13 +86,12 @@
   }
   load(false);
   AX.$('reloadBtn').onclick = function () { load(true); };
-  ['fSubject', 'fTerm', 'fStatus', 'fSort'].forEach(function (id) { AX.$(id).onchange = render; });
-  AX.$('fName').oninput = render;
+  ['fSubject', 'fArea', 'fTerm', 'fStatus', 'fSort', 'fStudent', 'fEmpty'].forEach(function (id) { AX.$(id).onchange = function () { if (id === 'fEmpty') buildFilters(true); render(); }; });
 
   function buildFilters(keep) {
-    var raw = st.raw, fs = AX.$('fSubject'), ft = AX.$('fTerm');
-    var ps = keep ? fs.value : ALL, pt = keep ? ft.value : null;
-    AX.clear(fs); AX.clear(ft);
+    var raw = st.raw, fs = AX.$('fSubject'), ft = AX.$('fTerm'), fst = AX.$('fStudent');
+    var ps = keep ? fs.value : ALL, pt = keep ? ft.value : null, pst = keep ? fst.value : ALL;
+    AX.clear(fs); AX.clear(ft); AX.clear(fst);
     fs.appendChild(el('option', { value: ALL }, '全部科目'));
     raw.subjects.forEach(function (d) { fs.appendChild(el('option', { value: d.subject }, d.subject)); });
     fs.value = raw.subjects.some(function (d) { return d.subject === ps; }) ? ps : ALL;
@@ -93,7 +99,18 @@
     var terms = (raw.terms || []).slice();
     raw.subjects.forEach(function (d) { d.items.forEach(function (it) { var t = it.term || ''; if (terms.indexOf(t) === -1) terms.push(t); }); });
     terms.forEach(function (t) { ft.appendChild(el('option', { value: t }, S.termLabel(t))); });
-    ft.value = pt != null && (pt === ALL || terms.indexOf(pt) > -1) ? pt : (terms.indexOf(raw.currentTerm) > -1 ? raw.currentTerm : ALL);
+    // 預設學期：目前學期「真的有缺分」才選它。舊格式（沒分學期）的項目學期是空的，
+    // 但系統登記簿裡仍可能有個預設學期，若直接選它會把沒有學期的項目全部濾掉、看起來一筆都沒有。
+    var hasTerm = {};
+    collect().forEach(function (e) { hasTerm[e.term] = true; });
+    ft.value = pt != null && (pt === ALL || terms.indexOf(pt) > -1) ? pt : (hasTerm[raw.currentTerm] ? raw.currentTerm : ALL);
+    // 學生下拉：各科名單合併（依姓名），依座號排列
+    var people = {}, list = [];
+    raw.subjects.forEach(function (d) { d.students.forEach(function (s) { if (!people[s.name]) { people[s.name] = true; list.push(s); } }); });
+    list.sort(function (a, b) { return ((Number(a.seat) || 9999) - (Number(b.seat) || 9999)); });
+    fst.appendChild(el('option', { value: ALL }, '全部學生'));
+    list.forEach(function (s) { fst.appendChild(el('option', { value: s.name }, AX.seatLabel(s))); });
+    fst.value = people[pst] ? pst : ALL;
   }
 
   // 掃出所有缺分：已經登記過（全班至少有一人有成績）的項目裡，空白的格子。「不分析」類別略過。
@@ -104,7 +121,7 @@
         var kind = (raw.kinds && raw.kinds[it.category]) || S.defaultKind(it.category);
         if (kind === 'skip') return;
         var any = d.students.some(function (s) { return s.scores[ii] != null; });
-        if (!any) return;
+        if (!any && !AX.$('fEmpty').checked) return;
         d.students.forEach(function (s, sIdx) {
           if (s.scores[ii] != null) return;
           out.push({ subject: d.subject, si: si, ii: ii, sIdx: sIdx, term: it.term || '', item: it.name, category: it.category, max: it.max, col: it.col,
@@ -116,14 +133,16 @@
   }
 
   function filtered(all) {
-    var fs = AX.$('fSubject').value, ft = AX.$('fTerm').value, status = AX.$('fStatus').value, q = AX.$('fName').value.trim();
+    var fs = AX.$('fSubject').value, ft = AX.$('fTerm').value, status = AX.$('fStatus').value, area = AX.$('fArea').value, who = AX.$('fStudent').value;
     var list = all.filter(function (e) {
       if (fs !== ALL && e.subject !== fs) return false;
+      if (area === 'homework' && e.kind !== 'homework') return false;
+      if (area === 'exam' && e.kind === 'homework') return false;
+      if (who !== ALL && e.name !== who) return false;
       if (ft !== ALL && e.term !== ft) return false;
       var n = st.notes[noteKey(e.subject, e.term, e.item, e.name)], has = !!(n && (n.reason || n.note));
       if (status === 'none' && has) return false;
       if (status === 'noted' && !has) return false;
-      if (q && String(e.name).indexOf(q) === -1 && String(e.seat) !== q) return false;
       return true;
     });
     var byItem = AX.$('fSort').value === 'item';

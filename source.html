@@ -183,6 +183,21 @@
     .colResizer:hover::after, .colResizer.dragging::after { background: var(--forest-light); }
     .tableScroll { height: 480px; min-height: 200px; resize: vertical; overflow-y: auto; overflow-x: auto; border-radius: 10px; }
 
+    /* 平板／小螢幕：語音輸入與成績表可以「分頁切換」，一次只顯示一欄、各佔滿整個寬度 */
+    .layoutBar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    .layoutBar button { padding: 5px 12px; font-size: 13px; }
+    .layoutBar button.on { background: var(--forest); color: #fff; border-color: var(--forest); }
+    .splitTabs { display: none; gap: 6px; margin-left: 8px; }
+    body.layout-tabs .splitTabs { display: inline-flex; }
+    body.layout-tabs .splitTabs button { padding: 6px 16px; font-size: 14px; }
+    body.layout-tabs .voiceTableSplit { display: block; }
+    body.layout-tabs .voiceTableSplit > .colResizer { display: none; }
+    body.layout-tabs .voiceTableSplit > .voiceCol,
+    body.layout-tabs .voiceTableSplit > .tableCol { width: auto !important; flex: none; min-width: 0; }
+    body.layout-tabs.tab-voice .voiceTableSplit > .tableCol { display: none; }
+    body.layout-tabs.tab-table .voiceTableSplit > .voiceCol { display: none; }
+    body.layout-tabs .tableScroll { height: 68vh; }
+
     /* 手機（窄螢幕）友善調整 */
     @media (max-width: 640px) {
       #app { padding: 8px 8px 16px; }
@@ -463,6 +478,15 @@
       <span id="scoreMaxHint" class="pill"></span>
     </div>
 
+    <div class="layoutBar">
+      <span class="muted">版面：</span>
+      <button class="secondary layoutBtn" data-mode="side" onclick="setLayoutMode('side', true)">並排</button>
+      <button class="secondary layoutBtn" data-mode="tabs" onclick="setLayoutMode('tabs', true)">分頁切換</button>
+      <span class="splitTabs">
+        <button class="secondary splitTabBtn" data-tab="voice" onclick="setSplitTab('voice')">🎤 語音輸入</button>
+        <button class="secondary splitTabBtn" data-tab="table" onclick="setSplitTab('table')">📋 成績表</button>
+      </span>
+    </div>
     <div class="voiceTableSplit" id="itemSplit">
       <div class="voiceCol subpanel">
         <div class="row" style="justify-content:space-between">
@@ -470,6 +494,14 @@
           <div>
             <button id="voiceStartBtn" class="secondary" onclick="toggleVoice()">開始語音輸入</button>
           </div>
+        </div>
+        <div class="row"><span class="muted">辨識語言</span>
+          <select class="voiceLangSel" onchange="onVoiceLangChange(this.value)">
+            <option value="zh-TW">國語（台灣）</option>
+            <option value="zh-Hant-TW">繁體中文（台灣）</option>
+            <option value="zh-CN">普通話（簡體，系統會自動轉換）</option>
+          </select>
+          <span class="muted">平板辨識出簡體字（例如「二号89」）時，系統會自動看懂；如果辨識一直不準，可以試試換語言。</span>
         </div>
         <p class="muted" id="voicePanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請到「系統設定 → 語音輸入設定」按「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入，密碼也在同一張卡片查看並複製。</p>
         <p class="muted">建議唸法：「姓名 分數」，例如：「王小明 85」；分數固定念兩位數，10分以下請念成兩位數（例如5分念「05」），連續念多筆不用特別停頓也能正確分辨。電腦版／Android 版 Chrome 支援度最穩定，需允許麥克風權限；iPhone 部分機型也可能可以使用，沒反應的話請改用下方手機聽寫。</p>
@@ -529,11 +561,28 @@
       <button class="danger" onclick="onClearStudentScores()">🗑 清空這位學生的成績</button>
     </div>
 
+    <div class="layoutBar">
+      <span class="muted">版面：</span>
+      <button class="secondary layoutBtn" data-mode="side" onclick="setLayoutMode('side', true)">並排</button>
+      <button class="secondary layoutBtn" data-mode="tabs" onclick="setLayoutMode('tabs', true)">分頁切換</button>
+      <span class="splitTabs">
+        <button class="secondary splitTabBtn" data-tab="voice" onclick="setSplitTab('voice')">🎤 語音輸入</button>
+        <button class="secondary splitTabBtn" data-tab="table" onclick="setSplitTab('table')">📋 成績表</button>
+      </span>
+    </div>
     <div class="voiceTableSplit" id="studentSplit">
       <div class="voiceCol subpanel">
         <div class="row" style="justify-content:space-between">
           <b>🎤 語音輸入</b>
           <button id="voiceStudentStartBtn" class="secondary" onclick="toggleVoice()">開始語音輸入</button>
+        </div>
+        <div class="row"><span class="muted">辨識語言</span>
+          <select class="voiceLangSel" onchange="onVoiceLangChange(this.value)">
+            <option value="zh-TW">國語（台灣）</option>
+            <option value="zh-Hant-TW">繁體中文（台灣）</option>
+            <option value="zh-CN">普通話（簡體，系統會自動轉換）</option>
+          </select>
+          <span class="muted">平板辨識出簡體字（例如「二号89」）時，系統會自動看懂；如果辨識一直不準，可以試試換語言。</span>
         </div>
         <p class="muted" id="voiceStudentPanelWarning" hidden style="color:var(--danger);">⚠️ 這個面板（從試算表選單開啟的）沒辦法使用語音輸入，麥克風權限會被 Google 的畫面擋住。請到「系統設定 → 語音輸入設定」按「⬇️ 下載語音輸入用的網頁」，開啟下載出來的檔案才能使用語音輸入，密碼也在同一張卡片查看並複製。</p>
         <p class="muted">不用念項目名稱也不用念序號，照勾選順序直接念分數，每個分數固定兩位數字，100 請念「一百」，例如念「九八」代表 98、念「八七」代表 87：「九八，八七，七六...」念完稍停即可接著念下一個，念錯可按「回上一項」重念。僅支援電腦版／Android 版 Chrome 瀏覽器。</p>
@@ -1944,7 +1993,46 @@ function stepDigitPairBack() {
 // 「一百」也會被視為特例（三位數但代表一個分數），不會被切成 10+0 或 1+00
 // 語音辨識有時不會把「九五」這種單獨念的數字詞轉成阿拉伯數字，
 // 而是留成中文字「九五」，導致抓不到任何 \d。這裡先把常見中文數字字元轉回阿拉伯數字再處理。
-var CN_DIGIT_MAP = { '零': '0', '一': '1', '二': '2', '兩': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+var CN_DIGIT_MAP = { '零': '0', '一': '1', '二': '2', '兩': '2', '两': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+
+// 有些裝置（例如小米平板）的語音辨識會直接回傳簡體字，像「二号89」「陈亮宇 89」。
+// 做法：①「号」視同「號」，「二號」這類中文座號先轉成阿拉伯數字；②比對學生姓名時，
+// 兩邊都先轉成簡體再比，所以簡體、繁體辨識結果都能對得上。
+// 下面是常見的繁簡對照（兩個字一組：繁體＋簡體），沒列到的字兩邊本來就一樣或交給原字比對。
+var T2S_PAIRS = ('號号 陳陈 張张 黃黄 劉刘 許许 鄭郑 謝谢 賴赖 葉叶 蘇苏 莊庄 呂吕 蕭萧 羅罗 鄧邓 馮冯 楊杨 吳吴 鍾钟 鐘钟 龔龚 簡简 韓韩 蔣蒋 賈贾 閻阎 範范 溫温 盧卢 湯汤 鄒邹 嚴严 華华 錢钱 孫孙 趙赵 閔闵 譚谭 駱骆 費费 紀纪 ' +
+  '偉伟 麗丽 詩诗 瑩莹 軒轩 謙谦 傑杰 銘铭 鴻鸿 騰腾 軍军 國国 剛刚 強强 凱凯 勳勋 鈞钧 學学 瑋玮 瑤瑶 緯纬 穎颖 蘭兰 鳳凤 貞贞 靜静 賢贤 維维 誠诚 緒绪 濤涛 懷怀 鵬鹏 龍龙 飛飞 揚扬 義义 達达 勵励 儀仪 億亿 優优 兒儿 習习 藝艺 術术 營营 團团 園园 圓圆 圖图 觀观 關关 ' +
+  '馬马 鳥鸟 魚鱼 門门 問问 開开 間间 閱阅 聽听 說说 語语 讀读 寫写 論论 課课 講讲 話话 試试 認认 設设 識识 議议 護护 證证 計计 訂订 記记 訓训 詞词 該该 誰谁 請请 調调 談谈 變变 讓让 長长 東东 車车 鄉乡 陽阳 隊队 際际 隨随 難难 雙双 雜杂 雲云 電电 靈灵 風风 飲饮 體体 點点 黨党 齊齐 ' +
+  '寶宝 實实 寧宁 對对 專专 導导 尋寻 層层 屬属 嶺岭 帶带 師师 廣广 慶庆 憶忆 應应 戰战 戲戏 擇择 擊击 時时 暉晖 曉晓 書书 會会 條条 樂乐 橋桥 檢检 權权 歲岁 歷历 殺杀 氣气 漢汉 潔洁 澤泽 灣湾 為为 無无 熱热 燦灿 爾尔 獎奖 獻献 現现 環环 產产 畢毕 異异 當当 發发 髮发 盡尽 監监 盤盘 碩硕 禮礼 稱称 穩稳 筆笔 簽签 納纳 級级 紹绍 經经 結结 絡络 給给 統统 絲丝 綠绿 綜综 緣缘 練练 縣县 總总 織织 繼继 續续 聖圣 聯联 職职 聰聪 腦脑 臺台 與与 興兴 舉举 舊旧 處处 補补 裡里 見见 親亲 資资 賽赛 趕赶 輝辉 輔辅 輪轮 輯辑 轉转 辦办 邊边 遠远 遞递 遲迟 選选 遷迁 還还 郵邮 醫医 釋释 鑑鉴 鋼钢 錄录 錯错 鍵键 鎮镇 閣阁 陣阵 階阶 陸陆 隱隐 響响 頂顶 項项 順顺 須须 頭头 顏颜 題题 願愿 類类 顯显 飯饭 養养 館馆 驗验 驚惊 魯鲁 鳴鸣 鷹鹰 麥麦 齡龄').split(' ');
+var T2S_MAP = {};
+T2S_PAIRS.forEach(function (p) { if (p.length === 2) T2S_MAP[p.charAt(0)] = p.charAt(1); });
+function toSimp(s) {
+  return String(s).replace(/[^\x00-\x7f]/g, function (ch) { return T2S_MAP[ch] || ch; });
+}
+
+// 中文數字（一～九十九）轉阿拉伯數字，例如「二十三」→ 23、「十二」→ 12；轉不了回傳 null
+function cnNumToInt(str) {
+  var d = { '零': 0, '一': 1, '二': 2, '兩': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+  if (str.indexOf('十') === -1) {
+    var n = 0;
+    for (var i = 0; i < str.length; i++) { if (d[str.charAt(i)] === undefined) return null; n = n * 10 + d[str.charAt(i)]; }
+    return str.length ? n : null;
+  }
+  var parts = str.split('十');
+  if (parts.length !== 2) return null;
+  var tens = parts[0] === '' ? 1 : d[parts[0]], ones = parts[1] === '' ? 0 : d[parts[1]];
+  if (tens === undefined || ones === undefined) return null;
+  return tens * 10 + ones;
+}
+
+function getVoiceLang_() {
+  try { return localStorage.getItem('VOICE_LANG') || 'zh-TW'; } catch (e) { return 'zh-TW'; }
+}
+function onVoiceLangChange(v) {
+  try { localStorage.setItem('VOICE_LANG', v); } catch (e) { /* 忽略 */ }
+  document.querySelectorAll('.voiceLangSel').forEach(function (s) { s.value = v; });
+  // 正在聆聽的話，停掉讓它用新語言自動重新開始
+  if (wantVoiceOn && recognition) { try { recognition.stop(); } catch (e) { /* 忽略 */ } }
+}
 
 // 已知的同音詞誤判修正，例如「九八」(jiǔbā) 跟「酒吧」(jiǔbā) 完全同音，
 // 辨識引擎常常優先選常用詞「酒吧」而不是數字讀法，這裡先修正回數字。
@@ -1960,7 +2048,7 @@ function applyTextCorrections_(text) {
 function extractDigitPairScores(text) {
   text = applyTextCorrections_(text);
   var withHundred = text.replace(/一百/g, '100');
-  withHundred = withHundred.replace(/[零一二兩三四五六七八九]/g, function (ch) { return CN_DIGIT_MAP[ch]; });
+  withHundred = withHundred.replace(/[零一二兩两三四五六七八九]/g, function (ch) { return CN_DIGIT_MAP[ch]; });
   var digits = withHundred.replace(/\D/g, '');
   var scores = [];
   var i = 0;
@@ -2055,10 +2143,11 @@ function applyScoreToTable(matcher, score) {
   var matched = null;
   inputs.forEach(function (input) {
     if (matched) return;
-    var name = input.dataset.name || '';
+    var name = toSimp(input.dataset.name || '');
     var seat = input.dataset.seat || '';
+    var mname = matcher.name ? toSimp(matcher.name) : '';
     if (matcher.seat && String(seat) === String(matcher.seat)) matched = input;
-    else if (matcher.name && (name === matcher.name || name.indexOf(matcher.name) > -1 || matcher.name.indexOf(name) > -1)) matched = input;
+    else if (mname && name && (name === mname || name.indexOf(mname) > -1 || mname.indexOf(name) > -1)) matched = input;
   });
   if (matched) {
     matched.value = score;
@@ -2095,7 +2184,7 @@ function startRecognitionInstance() {
   var ids = voiceIds();
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
-  recognition.lang = 'zh-TW';
+  recognition.lang = getVoiceLang_();
   recognition.continuous = true;
   recognition.interimResults = true; // 開啟即時（尚未確定）辨識結果，讓使用者邊講邊看到畫面反應
 
@@ -2189,6 +2278,11 @@ function handleSpeechText(text) {
 // 從一段文字中解析出多組「姓名/座號 + 分數」
 function extractNameScorePairsRaw_(text) {
   var clean = text.replace(/[，,。.！!？?、]/g, ' ').replace(/分/g, ' ');
+  // 簡體「号」視同「號」；「二號」「十二號」這類中文座號先換成阿拉伯數字（例如「二号89」→「2號89」）
+  clean = clean.replace(/([零一二兩两三四五六七八九十]{1,3})\s*[號号]/g, function (m, cn) {
+    var n = cnNumToInt(cn);
+    return n === null ? m : n + '號';
+  }).replace(/号/g, '號');
   var pairs = [];
   var m;
 
@@ -2221,7 +2315,7 @@ function extractNameScorePairs(text) {
   // 原始文字解析不到，可能是分數被語音辨識成中文數字字詞（如「九七」而非「97」）
   // 才轉換後重試一次，避免直接轉換整段文字誤傷姓名裡剛好帶到的數字字（如「王一心」）
   var fixed = corrected.replace(/一百/g, '100');
-  fixed = fixed.replace(/[零一二兩三四五六七八九]/g, function (ch) { return CN_DIGIT_MAP[ch]; });
+  fixed = fixed.replace(/[零一二兩两三四五六七八九]/g, function (ch) { return CN_DIGIT_MAP[ch]; });
   if (fixed === corrected) return pairs;
   return extractNameScorePairsRaw_(fixed);
 }
@@ -2323,6 +2417,29 @@ function logOcr(msg, cls) {
   div.textContent = msg;
   log.insertBefore(div, log.firstChild);
 }
+
+// ============================================================
+// 版面：並排／分頁切換（平板用分頁切換，語音輸入與成績表各佔滿整個寬度）
+// ============================================================
+function setSplitTab(tab) {
+  document.body.classList.toggle('tab-voice', tab === 'voice');
+  document.body.classList.toggle('tab-table', tab === 'table');
+  document.querySelectorAll('.splitTabBtn').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
+}
+function setLayoutMode(mode, save) {
+  document.body.classList.toggle('layout-tabs', mode === 'tabs');
+  document.querySelectorAll('.layoutBtn').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === mode); });
+  if (save) { try { localStorage.setItem('LAYOUT_MODE', mode); } catch (e) { /* 忽略 */ } }
+  if (mode === 'tabs' && !document.body.classList.contains('tab-voice') && !document.body.classList.contains('tab-table')) setSplitTab('table');
+}
+(function initLayout_() {
+  var saved = null;
+  try { saved = localStorage.getItem('LAYOUT_MODE'); } catch (e) { /* 忽略 */ }
+  // 沒選過的話：視窗比較窄（平板、手機）預設用分頁切換，寬螢幕維持並排
+  setLayoutMode(saved || (window.innerWidth < 1100 ? 'tabs' : 'side'), false);
+  var lang = getVoiceLang_();
+  document.querySelectorAll('.voiceLangSel').forEach(function (s) { s.value = lang; });
+})();
 
 // ============================================================
 // 小工具
