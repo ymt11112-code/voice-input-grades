@@ -79,6 +79,18 @@
     return (v > 0.0499 ? '+' : (v < -0.0499 ? '−' : '')) + s;
   }
 
+  // 各分數段人數（依得分率）：100 分、90 幾、80 幾、70 幾、60 幾、不及格（低於 60）。null（缺考）不計。
+  function scoreBands(pcts) {
+    var r = { b100: 0, b90: 0, b80: 0, b70: 0, b60: 0, fail: 0 };
+    pcts.forEach(function (p) {
+      if (p == null) return;
+      p = p + 1e-9; // 避免 19/20*100 這類浮點誤差把 95 算成 94.99999
+      if (p >= 100) r.b100++; else if (p >= 90) r.b90++; else if (p >= 80) r.b80++;
+      else if (p >= 70) r.b70++; else if (p >= 60) r.b60++; else r.fail++;
+    });
+    return r;
+  }
+
   // ============================================================
   // 二、單科單期分析（一個科目、一組項目）
   // ============================================================
@@ -649,7 +661,7 @@
   }
 
   AX.stats = {
-    sum: sum, mean: mean, median: median, sd: sd, describe: describe, nonNull: nonNull, tiers: tiers, tierName: tierName,
+    sum: sum, mean: mean, median: median, sd: sd, describe: describe, scoreBands: scoreBands, nonNull: nonNull, tiers: tiers, tierName: tierName,
     TIER_DEFS: TIER_DEFS, compRank: compRank, topPercent: topPercent, histogram: histogram, fmt: fmt, signed: signed,
     DEFAULT_PASS: DEFAULT_PASS, DEFAULT_WEIGHTS: DEFAULT_WEIGHTS, DEFAULT_ALERT: DEFAULT_ALERT, KIND_LABEL: KIND_LABEL, TEST_KINDS: TEST_KINDS,
     defaultKind: defaultKind, analyze: analyze, studentAgg: studentAgg, studentSeries: studentSeries, trendJudge: trendJudge,

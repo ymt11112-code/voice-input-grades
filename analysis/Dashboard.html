@@ -217,21 +217,60 @@
   }
 
   // ---------- 各項目一覽表 ----------
+  // 組距：100 分、90 幾、80 幾、70 幾、60 幾、不及格（60 分以下，不含 60）。依「得分率」分，滿分不是 100 的測驗也適用。
   function renderTable(main, qs, isAll) {
-    var c = AX.card('各次測驗一覽', '點選任一列，下方會顯示該次測驗的組距分布與名單。分數欄為原始分數；五標＝成績由高到低排，位於前 12%／25%／50%／75%／88% 位置的那個分數。缺考者不列入統計。');
+    var more = AX.lsGet('AX_MORECOLS') === '1';
+    var c = AX.card('各次測驗一覽', '點選任一列，下方會顯示該次測驗的完整分布與名單。五標＝成績由高到低排，位於前 12%／25% 位置的那個分數（頂標、前標）。右邊是各分數段的人數，依得分率計算；缺考者不列入統計。');
+    var bar = el('div', { 'class': 'bar noprint' });
+    bar.style.marginBottom = '8px';
+    var tg = el('button', null, more ? '收合額外欄位' : '顯示更多欄位（得分率、最高最低、均標後標底標、及格率）');
+    tg.onclick = function () { AX.lsSet('AX_MORECOLS', more ? '0' : '1'); renderMain(); };
+    bar.appendChild(tg); c.appendChild(bar);
+
+    // 欄位定義：left＝靠左；extra＝只在「顯示更多欄位」時出現
+    var cols = [{ h: '項目', left: true, v: function (q) { return q.name; } }];
+    if (isAll) cols.push({ h: '學期', left: true, v: function (q) { return q.term || '—'; } });
+    cols = cols.concat([
+      { h: '類別', left: true, v: function (q) { return q.category || '—'; } },
+      { h: '滿分', v: function (q) { return fmt(q.max) + (q.maxAssumed ? '*' : ''); } },
+      { h: '實考', v: function (q) { return q.n + (q.absent ? '（缺' + q.absent + '）' : ''); } },
+      { h: '平均', v: function (q) { return fmt(q.stats.mean); } },
+      { h: '得分率', extra: true, v: function (q) { return fmt(q.pctStats.mean) + '%'; } },
+      { h: '中位數', v: function (q) { return fmt(q.stats.median); } },
+      { h: '標準差', v: function (q) { return fmt(q.stats.sd); } },
+      { h: '最高', extra: true, v: function (q) { return fmt(q.stats.max); } },
+      { h: '最低', extra: true, v: function (q) { return fmt(q.stats.min); } },
+      { h: '頂標', v: function (q) { return fmt(q.tiers.top); } },
+      { h: '前標', v: function (q) { return fmt(q.tiers.front); } },
+      { h: '均標', extra: true, v: function (q) { return fmt(q.tiers.mid); } },
+      { h: '後標', extra: true, v: function (q) { return fmt(q.tiers.back); } },
+      { h: '底標', extra: true, v: function (q) { return fmt(q.tiers.bottom); } },
+      { h: '100分', band: true, v: function (q, b) { return String(b.b100); } },
+      { h: '90幾', band: true, v: function (q, b) { return String(b.b90); } },
+      { h: '80幾', band: true, v: function (q, b) { return String(b.b80); } },
+      { h: '70幾', band: true, v: function (q, b) { return String(b.b70); } },
+      { h: '60幾', band: true, v: function (q, b) { return String(b.b60); } },
+      { h: '不及格', band: true, v: function (q, b) { return String(b.fail); } },
+      { h: '及格率', extra: true, v: function (q) { return fmt(q.passRate, 0) + '%'; } }
+    ]).filter(function (col) { return more || !col.extra; });
+
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' });
-    var heads = ['項目'].concat(isAll ? ['學期'] : []).concat(['類別', '滿分', '實考', '平均', '得分率', '中位數', '標準差', '最高', '最低', '頂標', '前標', '均標', '後標', '底標', '及格率']);
     var thead = el('thead'), hr = el('tr');
-    heads.forEach(function (h) { hr.appendChild(el('th', { 'class': (h === '類別' || h === '學期') ? 'l' : '' }, h)); });
+    cols.forEach(function (col) {
+      var th = el('th', { 'class': col.left ? 'l' : '' }, col.h);
+      if (col.band) th.title = col.h === '不及格' ? '得分率 60% 以下（不含 60）的人數' : '落在這個分數段的人數';
+      hr.appendChild(th);
+    });
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
     qs.forEach(function (q, i) {
       var tr = el('tr', { 'class': 'row' + (i === st.pick ? ' pick' : '') });
-      var t = q.tiers, s2 = q.stats;
-      [q.name].concat(isAll ? [q.term || '—'] : []).concat([q.category || '—', fmt(q.max) + (q.maxAssumed ? '*' : ''), q.n + (q.absent ? '（缺' + q.absent + '）' : ''),
-        fmt(s2.mean), fmt(q.pctStats.mean) + '%', fmt(s2.median), fmt(s2.sd), fmt(s2.max), fmt(s2.min),
-        fmt(t.top), fmt(t.front), fmt(t.mid), fmt(t.back), fmt(t.bottom), fmt(q.passRate, 0) + '%'
-      ]).forEach(function (v, j) { tr.appendChild(el('td', { 'class': (isAll ? j === 1 || j === 2 : j === 1) ? 'l' : '' }, v)); });
+      var b = S.scoreBands(q.pcts);
+      cols.forEach(function (col) {
+        var td = el('td', { 'class': col.left ? 'l' : '' }, col.v(q, b));
+        if (col.h === '不及格' && b.fail > 0) td.className = 'down';
+        tr.appendChild(td);
+      });
       tr.onclick = function () { st.pick = i; renderMain(); var d = AX.$('detail'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
       body.appendChild(tr);
     });
