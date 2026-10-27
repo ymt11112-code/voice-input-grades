@@ -183,6 +183,20 @@
     .colResizer:hover::after, .colResizer.dragging::after { background: var(--forest-light); }
     .tableScroll { height: 480px; min-height: 200px; resize: vertical; overflow-y: auto; overflow-x: auto; border-radius: 10px; }
 
+    /* 項目清單：可直接編輯的表格、拖曳把手 */
+    .tblWrap { overflow-x: auto; }
+    table.itemTable { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    table.itemTable th, table.itemTable td { border: 1px solid var(--line); padding: 4px 6px; font-size: 13px; text-align: left; background: #fff; }
+    table.itemTable th { background: var(--mint-bg); }
+    table.itemTable td.narrow, table.itemTable th.narrow { width: 1%; white-space: nowrap; text-align: center; }
+    table.itemTable input[type=text], table.itemTable input[type=number], table.itemTable select { width: 100%; padding: 4px 6px; font-size: 13px; min-width: 70px; }
+    table.itemTable input[type=checkbox] { width: 18px; height: 18px; min-width: 0; }
+    .dragHandle { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; font-size: 20px; line-height: 1; color: var(--muted); padding: 6px 8px; display: inline-block; }
+    .dragHandle:active { cursor: grabbing; }
+    tr.dragging td, .list-item.dragging { background: var(--gold-tint) !important; opacity: .7; }
+    .bulkBar { background: var(--blue-tint); border-radius: 10px; padding: 8px 10px; margin: 8px 0; }
+    .bulkBar[hidden] { display: none; }
+
     /* 平板／小螢幕：語音輸入與成績表可以「分頁切換」，一次只顯示一欄、各佔滿整個寬度 */
     .layoutBar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
     .layoutBar button { padding: 5px 12px; font-size: 13px; }
@@ -277,6 +291,46 @@
     </div>
 
     <div class="card">
+      <div class="cardHeader" onclick="toggleCard('card-newterm')">
+        <b><span class="cardIcon tint-gold">🗂️</span> 新學期快速建立項目</b>
+        <span class="cardToggle" id="cardToggle-card-newterm">▾</span>
+      </div>
+      <div class="cardBody" id="card-newterm">
+        <p class="muted">新學期的項目通常和上學期差不多，不用重新一個一個建立。</p>
+        <div class="subpanel" style="margin-top:0">
+          <b>📋 從其他學期複製項目</b>
+          <p class="muted">只複製項目本身（類別、名稱、滿分），不含成績。目標學期已經有的同名項目會自動略過，所以重複按也不會重複建立。複製後再到下面的項目清單拖曳調整、改名都可以。</p>
+          <div class="row">
+            <span class="muted">從</span><select id="copyFromTerm"></select>
+            <span class="muted">複製到</span><select id="copyToTerm"></select>
+            <select id="copyScope">
+              <option value="all">全部科目</option>
+              <option value="current">只有目前科目</option>
+            </select>
+            <button onclick="onCopyItems()">複製項目</button>
+          </div>
+          <p class="muted" id="copyResult"></p>
+        </div>
+        <div class="subpanel">
+          <b>💾 項目範本：下載／載入</b>
+          <p class="muted">把目前全部科目的項目（不含成績和學生）存成檔案，下次、或換一份試算表時可以快速載入。</p>
+          <div class="row"><button class="secondary" onclick="onExportTemplate()">⬇️ 下載全部科目項目</button></div>
+          <div class="row">
+            <input type="file" id="tplFile" accept=".json,application/json" onchange="onTemplateFile(this)">
+          </div>
+          <p class="muted" id="tplInfo"></p>
+          <div class="row">
+            <select id="tplSourceTerm"><option value="*">範本裡全部的項目</option></select>
+            <span class="muted">放進</span><select id="tplTargetTerm"></select>
+            <label><input type="checkbox" id="tplCreate" checked> 試算表沒有的科目自動建立</label>
+            <button onclick="onImportTemplate()">載入範本</button>
+          </div>
+          <p class="muted" id="tplResult"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="cardHeader" onclick="toggleCard('card-subjects')">
         <b><span class="cardIcon tint-purple">📚</span> 科目管理</b>
         <span class="cardToggle" id="cardToggle-card-subjects">▾</span>
@@ -357,6 +411,18 @@
         </div>
 
         <h3>目前科目的項目清單</h3>
+        <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、改類別，或一次刪除。</p>
+        <div class="row">
+          <select id="sortMode">
+            <option value="">整理排序…</option>
+            <option value="cat">依類別（照「類別管理」清單的順序）</option>
+            <option value="name">依名稱（作業2 排在作業10 前面）</option>
+            <option value="catname">依類別，同類別再依名稱</option>
+          </select>
+          <button class="secondary" onclick="onSortItems()">套用排序</button>
+          <span class="muted">只整理畫面上看得到的項目（上方「學期」可切換）。類別的順序可以在「類別管理」拖曳調整。</span>
+        </div>
+        <div class="row bulkBar" id="bulkBar" hidden></div>
         <div id="itemList"></div>
       </div>
     </div>
@@ -1274,7 +1340,7 @@ function renderTermUI() {
   sel.value = state.viewTerm;
 
   // 新增項目時的學期下拉（預設＝目前學期，不是檢視學期）
-  ['newItemTerm', 'seriesTerm', 'domainTerm'].forEach(function (id) {
+  ['newItemTerm', 'seriesTerm', 'domainTerm', 'copyToTerm', 'tplTargetTerm'].forEach(function (id) {
     var s2 = document.getElementById(id);
     if (!s2) return;
     var keep = s2.value;
@@ -1286,6 +1352,17 @@ function renderTermUI() {
     });
     s2.value = state.terms.indexOf(keep) > -1 ? keep : (state.viewTerm || state.currentTerm);
   });
+
+  // 複製項目的來源學期：預設是目前學期的前一個學期
+  var cf = document.getElementById('copyFromTerm');
+  if (cf) {
+    cf.innerHTML = '';
+    state.terms.forEach(function (t) { var o = document.createElement('option'); o.value = t; o.textContent = t; cf.appendChild(o); });
+    var ci = state.terms.indexOf(state.currentTerm);
+    cf.value = ci > 0 ? state.terms[ci - 1] : (state.terms[0] || '');
+  }
+  var ct = document.getElementById('copyToTerm');
+  if (ct) ct.value = state.currentTerm;
 
   // 學期清單
   var box = document.getElementById('termList');
@@ -1322,8 +1399,25 @@ function renderTermUI() {
   var banner = document.getElementById('upgradeBanner');
   if (state.legacySubjects.length) {
     banner.hidden = false;
-    banner.textContent = '⚠️ 這些科目還是舊格式（沒有學期欄位）：' + state.legacySubjects.join('、') +
-      '。要比較不同學期的成績，請回到 Google 試算表上方選單「📊 登記分數 → 升級為學期格式（兩學年用）」。升級前系統會自動建立備份分頁；沒升級前這些科目照常可以登記，只是不分學期。';
+    banner.innerHTML = '';
+    var msg = document.createElement('div');
+    msg.textContent = '⚠️ 這些科目還是舊格式（沒有學期欄位）：' + state.legacySubjects.join('、') +
+      '。升級後每個項目才有學期，才能比較不同學期、跨學年的成績。升級前系統會先替每個科目自動建立隱藏的備份分頁，現有資料不會遺失。';
+    banner.appendChild(msg);
+    var line = document.createElement('div');
+    line.style.marginTop = '8px';
+    line.appendChild(document.createTextNode('現有的項目屬於哪個學期？ '));
+    var us = document.createElement('select');
+    us.id = 'upgradeTerm';
+    state.terms.forEach(function (t) { var o = document.createElement('option'); o.value = t; o.textContent = t; us.appendChild(o); });
+    us.value = state.currentTerm;
+    line.appendChild(us);
+    var ub = document.createElement('button');
+    ub.textContent = '立即升級';
+    ub.style.marginLeft = '8px';
+    ub.onclick = onUpgradeNow;
+    line.appendChild(ub);
+    banner.appendChild(line);
   } else {
     banner.hidden = true;
   }
@@ -1375,7 +1469,8 @@ function renderCategoryList() {
   state.categories.forEach(function (c) {
     var div = document.createElement('div');
     div.className = 'list-item';
-    div.innerHTML = '<span>' + escapeHtml(c) + '</span>';
+    div.dataset.id = c;
+    div.innerHTML = '<span><span class="dragHandle" title="按住拖曳，調整順序">⠿</span>' + escapeHtml(c) + '</span>';
     var delBtn = document.createElement('button');
     delBtn.className = 'danger';
     delBtn.textContent = '刪除';
@@ -1390,6 +1485,12 @@ function renderCategoryList() {
     };
     div.appendChild(delBtn);
     box.appendChild(div);
+  });
+  makeSortable_(box, '.list-item', '.dragHandle', function (order) {
+    call('reorderCategories', order).then(function (cats) {
+      state.categories = cats; renderCategoryList(); renderCategoryOptionsForItems(); renderItemList();
+      toast('已調整類別順序');
+    }).catch(function (e) { showError(e); renderCategoryList(); });
   });
 }
 
@@ -1580,68 +1681,310 @@ function onAddItemSeries() {
   }).catch(showError);
 }
 
+// ============================================================
+// 項目清單：直接編輯、拖曳排序、排序整理、批次操作
+// ============================================================
+var itemSel_ = {};   // 勾選中的項目（欄位編號 → true）
+
+// 通用的拖曳排序（滑鼠、觸控都能用）：在 box 裡按住「把手」拖曳整列，放開時呼叫 onDrop(新順序的 data-id 陣列)
+function makeSortable_(box, rowSel, handleSel, onDrop) {
+  box._onDrop = onDrop;
+  if (box._sortableInit) return;
+  box._sortableInit = true;
+  box.addEventListener('pointerdown', function (e) {
+    var h = e.target.closest(handleSel);
+    if (!h || !box.contains(h)) return;
+    var row = h.closest(rowSel);
+    if (!row) return;
+    e.preventDefault();
+    var parent = row.parentNode;
+    function rows() { return Array.prototype.slice.call(parent.children).filter(function (n) { return n.matches(rowSel); }); }
+    var before = rows().map(function (n) { return n.dataset.id; }).join('\u0001');
+    row.classList.add('dragging');
+    try { h.setPointerCapture(e.pointerId); } catch (x) { /* 忽略 */ }
+    function move(ev) {
+      var y = ev.clientY;
+      if (y < 70) window.scrollBy(0, -16); else if (y > window.innerHeight - 70) window.scrollBy(0, 16);   // 拖到邊緣自動捲動
+      var target = null, sib = rows().filter(function (n) { return n !== row; });
+      for (var i = 0; i < sib.length; i++) {
+        var b = sib[i].getBoundingClientRect();
+        if (y < b.top + b.height / 2) { target = sib[i]; break; }
+      }
+      if (target) { if (row.nextElementSibling !== target) parent.insertBefore(row, target); }
+      else if (parent.lastElementChild !== row) parent.appendChild(row);
+    }
+    function up() {
+      h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+      row.classList.remove('dragging');
+      var order = rows().map(function (n) { return n.dataset.id; });
+      if (order.join('\u0001') !== before && box._onDrop) box._onDrop(order);
+    }
+    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  });
+}
+
+function optSelect_(values, current, firstLabel) {
+  var sel = document.createElement('select');
+  if (firstLabel) { var f = document.createElement('option'); f.value = ''; f.textContent = firstLabel; sel.appendChild(f); }
+  var list = values.slice();
+  if (current !== undefined && current !== '' && list.indexOf(current) === -1) list.push(current);
+  if (current === '' && !firstLabel) list.unshift('');
+  list.forEach(function (v) {
+    var o = document.createElement('option');
+    o.value = v; o.textContent = v === '' ? '（未分類）' : v;
+    sel.appendChild(o);
+  });
+  if (current !== undefined && !firstLabel) sel.value = current;
+  return sel;
+}
+
+// 畫面上只有「目前檢視的學期」的項目可以拖曳；其他學期的項目欄位位置不動，
+// 被拖曳的項目依新順序填進原本這些項目所佔的位置
+function fullOrderAfterDrop_(visibleCols) {
+  var vis = visibleCols.slice(), out = [];
+  state.items.forEach(function (it) { out.push(inViewTerm_(it) ? vis.shift() : it.col); });
+  return out;
+}
+
+function commitOrder_(visibleCols) {
+  call('reorderItems', state.subject, fullOrderAfterDrop_(visibleCols)).then(function (items) {
+    state.items = items;
+    renderItemList();
+    toast('已調整順序');
+  }).catch(function (e) { showError(e); refreshItems(); });
+}
+
+function saveItem_(it, patch, rerender) {
+  var u = { col: it.col };
+  Object.keys(patch).forEach(function (k) { u[k] = patch[k]; });
+  call('updateItems', state.subject, [u]).then(function (items) {
+    Object.keys(patch).forEach(function (k) { it[k] = patch[k]; });
+    state.items = items;
+    if (rerender) renderItemList();
+    toast('已儲存');
+  }).catch(function (e) { showError(e); renderItemList(); });
+}
+
+function itemRow_(it) {
+  var tr = document.createElement('tr');
+  tr.dataset.id = it.col;
+  function cell(cls) { var td = document.createElement('td'); if (cls) td.className = cls; tr.appendChild(td); return td; }
+
+  var h = document.createElement('span');
+  h.className = 'dragHandle'; h.textContent = '⠿'; h.title = '按住拖曳，調整順序';
+  cell('narrow').appendChild(h);
+
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.className = 'itemChk'; cb.checked = !!itemSel_[it.col];
+  cb.onchange = function () { if (cb.checked) itemSel_[it.col] = true; else delete itemSel_[it.col]; renderBulkBar_(); };
+  cell('narrow').appendChild(cb);
+
+  var tdT = cell();
+  if (it.term) {
+    var st = optSelect_(state.terms, it.term);
+    st.onchange = function () { saveItem_(it, { term: st.value }, !!state.viewTerm && st.value !== state.viewTerm); };
+    tdT.appendChild(st);
+  } else { tdT.textContent = '—'; tdT.className = 'muted'; }
+
+  var sc = optSelect_(state.categories, it.category || '');
+  sc.onchange = function () { saveItem_(it, { category: sc.value }, false); };
+  cell().appendChild(sc);
+
+  var nm = document.createElement('input');
+  nm.type = 'text'; nm.value = it.name;
+  nm.onchange = function () {
+    var v = nm.value.trim();
+    if (!v) { nm.value = it.name; return toast('項目名稱不可為空', true); }
+    if (v !== String(it.name)) saveItem_(it, { name: v }, false);
+  };
+  cell().appendChild(nm);
+
+  var mx = document.createElement('input');
+  mx.type = 'number'; mx.step = 'any'; mx.min = '0'; mx.placeholder = '滿分'; mx.value = it.max === '' || it.max === null ? '' : it.max;
+  mx.onchange = function () { saveItem_(it, { max: mx.value === '' ? '' : Number(mx.value) }, false); };
+  cell().appendChild(mx);
+
+  var del = document.createElement('button');
+  del.className = 'danger'; del.textContent = '刪除';
+  del.onclick = function () {
+    if (!confirm('確定要刪除項目「' + it.name + '」嗎？此項目所有已登記的成績將一併刪除！')) return;
+    call('deleteItem', state.subject, it.col).then(function (items) {
+      state.items = items; delete itemSel_[it.col];
+      renderItemList();
+      toast('已刪除項目：' + it.name);
+    }).catch(showError);
+  };
+  cell('narrow').appendChild(del);
+  return tr;
+}
+
 function renderItemList() {
   var box = document.getElementById('itemList');
   box.innerHTML = '';
   var visible = state.items.filter(inViewTerm_);
+  var alive = {};
+  visible.forEach(function (it) { alive[it.col] = true; });
+  Object.keys(itemSel_).forEach(function (k) { if (!alive[k]) delete itemSel_[k]; });
   if (!visible.length) {
     box.innerHTML = '<p class="muted">' + (state.items.length ? '這個學期尚未建立任何項目（上方「學期」可切換）' : '尚未建立任何項目') + '</p>';
+    renderBulkBar_();
     return;
   }
-  visible.forEach(function (it, idx) {
-    var div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = '<span>' + (it.term ? '<span class="termTag">' + escapeHtml(it.term) + '</span>' : '') +
-      '[' + escapeHtml(it.category || '未分類') + '] ' +
-      escapeHtml(it.name) + (it.max ? '　滿分：' + it.max : '') + '</span>';
-    var btns = document.createElement('span');
-
-    var upBtn = document.createElement('button');
-    upBtn.className = 'secondary';
-    upBtn.textContent = '▲';
-    upBtn.disabled = idx === 0;
-    upBtn.onclick = function () { onMoveItem(it.col, -1, it.col - visible[idx - 1].col); };
-
-    var downBtn = document.createElement('button');
-    downBtn.className = 'secondary';
-    downBtn.style.marginLeft = '4px';
-    downBtn.textContent = '▼';
-    downBtn.disabled = idx === visible.length - 1;
-    downBtn.onclick = function () { onMoveItem(it.col, 1, visible[idx + 1].col - it.col); };
-
-    var delBtn = document.createElement('button');
-    delBtn.className = 'danger';
-    delBtn.style.marginLeft = '4px';
-    delBtn.textContent = '刪除';
-    delBtn.onclick = function () {
-      if (!confirm('確定要刪除項目「' + it.name + '」嗎？此項目所有已登記的成績將一併刪除！')) return;
-      call('deleteItem', state.subject, it.col).then(function (items) {
-        state.items = items;
-        renderItemList();
-        toast('已刪除項目：' + it.name);
-      }).catch(showError);
-    };
-
-    btns.appendChild(upBtn);
-    btns.appendChild(downBtn);
-    btns.appendChild(delBtn);
-    div.appendChild(btns);
-    box.appendChild(div);
-  });
+  var wrap = document.createElement('div');
+  wrap.className = 'tblWrap';
+  var tb = document.createElement('table');
+  tb.className = 'itemTable';
+  tb.innerHTML = '<thead><tr><th class="narrow"></th><th class="narrow"><input type="checkbox" id="itemSelAll" title="全選／取消全選"></th>' +
+    '<th>學期</th><th>類別</th><th>項目名稱</th><th style="width:96px">滿分</th><th class="narrow"></th></tr></thead>';
+  var body = document.createElement('tbody');
+  visible.forEach(function (it) { body.appendChild(itemRow_(it)); });
+  tb.appendChild(body);
+  wrap.appendChild(tb);
+  box.appendChild(wrap);
+  var all = document.getElementById('itemSelAll');
+  all.onchange = function () {
+    visible.forEach(function (it) { if (all.checked) itemSel_[it.col] = true; else delete itemSel_[it.col]; });
+    body.querySelectorAll('.itemChk').forEach(function (c) { c.checked = all.checked; });
+    renderBulkBar_();
+  };
+  makeSortable_(body, 'tr', '.dragHandle', function (order) { commitOrder_(order.map(Number)); });
+  renderBulkBar_();
 }
 
-// steps：要跨過幾欄（目前學期篩選下，相鄰兩個項目中間可能隔著其他學期的欄位，要連續互換幾次）
-function onMoveItem(col, direction, steps) {
-  if (!state.subject) return;
-  var p = Promise.resolve(null), cur = col;
-  for (var i = 0; i < (steps || 1); i++) {
-    (function (c) { p = p.then(function () { return call('moveItem', state.subject, c, direction); }); })(cur);
-    cur += direction;
-  }
-  p.then(function (items) {
-    state.items = items;
-    renderItemList();
-    toast('已調整順序');
+// 勾選多個項目時，出現批次操作列：一次改學期、改類別，或一次刪除
+function renderBulkBar_() {
+  var bar = document.getElementById('bulkBar');
+  if (!bar) return;
+  var cols = Object.keys(itemSel_).map(Number);
+  bar.innerHTML = '';
+  if (!cols.length) { bar.hidden = true; return; }
+  bar.hidden = false;
+  var txt = document.createElement('b');
+  txt.textContent = '已選 ' + cols.length + ' 項：';
+  bar.appendChild(txt);
+  var hasTerm = state.items.some(function (it) { return it.term; });
+  var ts = hasTerm ? optSelect_(state.terms, undefined, '（學期不變）') : null;
+  var cs = optSelect_(state.categories, undefined, '（類別不變）');
+  if (ts) bar.appendChild(ts);
+  bar.appendChild(cs);
+  var ok = document.createElement('button');
+  ok.textContent = '套用';
+  ok.onclick = function () {
+    var patch = {};
+    if (ts && ts.value) patch.term = ts.value;
+    if (cs.value) patch.category = cs.value;
+    if (!Object.keys(patch).length) return toast('請先選擇要改成的學期或類別', true);
+    var updates = cols.map(function (c) { var u = { col: c }; Object.keys(patch).forEach(function (k) { u[k] = patch[k]; }); return u; });
+    call('updateItems', state.subject, updates).then(function (items) {
+      state.items = items; itemSel_ = {}; renderItemList();
+      toast('已更新 ' + cols.length + ' 個項目');
+    }).catch(showError);
+  };
+  bar.appendChild(ok);
+  var del = document.createElement('button');
+  del.className = 'danger'; del.textContent = '刪除選取';
+  del.onclick = function () {
+    if (!confirm('確定要刪除選取的 ' + cols.length + ' 個項目嗎？這些項目所有已登記的成績將一併刪除，無法復原！')) return;
+    call('deleteItems', state.subject, cols).then(function (items) {
+      state.items = items; itemSel_ = {}; renderItemList();
+      toast('已刪除 ' + cols.length + ' 個項目');
+    }).catch(showError);
+  };
+  bar.appendChild(del);
+  var clr = document.createElement('button');
+  clr.className = 'secondary'; clr.textContent = '取消選取';
+  clr.onclick = function () { itemSel_ = {}; renderItemList(); };
+  bar.appendChild(clr);
+}
+
+// 一鍵整理排序（只整理目前畫面上看得到的項目）：依類別（照類別清單的順序）、依名稱（作業2 排在作業10 前面）
+function onSortItems() {
+  var mode = document.getElementById('sortMode').value;
+  if (!mode) return toast('請先選擇排序方式', true);
+  var vis = state.items.filter(inViewTerm_).map(function (it, i) { return { it: it, i: i }; });
+  function catIdx(c) { var k = state.categories.indexOf(c || ''); return k < 0 ? 999 : k; }
+  function byName(a, b) { return String(a.it.name).localeCompare(String(b.it.name), 'zh-Hant', { numeric: true }); }
+  vis.sort(function (a, b) {
+    if (mode === 'cat') return catIdx(a.it.category) - catIdx(b.it.category) || a.i - b.i;
+    if (mode === 'name') return byName(a, b) || a.i - b.i;
+    return catIdx(a.it.category) - catIdx(b.it.category) || byName(a, b) || a.i - b.i;
+  });
+  var order = vis.map(function (x) { return x.it.col; });
+  var cur = state.items.filter(inViewTerm_).map(function (it) { return it.col; });
+  if (order.join(',') === cur.join(',')) return toast('順序已經是這樣了');
+  commitOrder_(order);
+}
+
+// ============================================================
+// 新學期快速建立項目：複製、範本下載／載入
+// ============================================================
+function onCopyItems() {
+  var from = document.getElementById('copyFromTerm').value, to = document.getElementById('copyToTerm').value;
+  var scope = document.getElementById('copyScope').value;
+  if (!from || !to) return toast('請選擇來源學期和目標學期', true);
+  if (from === to) return toast('來源學期和目標學期不能相同', true);
+  if (scope !== 'all' && !state.subject) return toast('請先選擇科目', true);
+  if (!confirm('把「' + from + '」的項目複製到「' + to + '」？\n範圍：' + (scope === 'all' ? '全部科目' : '目前科目「' + state.subject + '」') +
+    '\n只複製項目（類別、名稱、滿分），不含成績；目標學期已有同名項目會略過。')) return;
+  call('copyItemsToTerm', scope === 'all' ? [] : [state.subject], from, to).then(function (report) {
+    document.getElementById('copyResult').textContent = '完成：' + report.map(function (r) { return r.subject + (r.skipped ? '（' + r.skipped + '）' : ' +' + r.added); }).join('、') +
+      '。要登記這個學期，請按學期清單的「設為目前學期」。';
+    refreshAllData();
+  }).catch(showError);
+}
+
+function onExportTemplate() {
+  call('exportItemTemplate').then(function (t) {
+    var blob = new Blob([JSON.stringify(t, null, 1)], { type: 'application/json;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '登記項目範本_' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    var n = 0; t.subjects.forEach(function (s) { n += s.items.length; });
+    toast('已下載：' + t.subjects.length + ' 個科目、' + n + ' 個項目');
+  }).catch(showError);
+}
+
+var tplData_ = null;
+function onTemplateFile(input) {
+  var f = input.files && input.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var t = JSON.parse(r.result);
+      if (!t || t.format !== 'score-items-v1' || !t.subjects) throw new Error('這不是「登記項目範本」檔案（要用本系統「下載全部科目項目」存出來的檔案）');
+      tplData_ = t;
+      var terms = [], n = 0;
+      t.subjects.forEach(function (s) { (s.items || []).forEach(function (it) { n++; if (it.term && terms.indexOf(it.term) === -1) terms.push(it.term); }); });
+      var sel = document.getElementById('tplSourceTerm');
+      sel.innerHTML = '<option value="*">範本裡全部的項目</option>';
+      terms.forEach(function (x) { var o = document.createElement('option'); o.value = x; o.textContent = '只載入「' + x + '」的項目'; sel.appendChild(o); });
+      document.getElementById('tplInfo').textContent = '範本內容：' + t.subjects.length + ' 個科目、' + n + ' 個項目' + (t.exportedAt ? '（匯出時間 ' + t.exportedAt + '）' : '') + '。';
+    } catch (e) { tplData_ = null; document.getElementById('tplInfo').textContent = ''; showError(e); }
+  };
+  r.readAsText(f);
+}
+
+function onImportTemplate() {
+  if (!tplData_) return toast('請先選擇範本檔案', true);
+  var src = document.getElementById('tplSourceTerm').value, tgt = document.getElementById('tplTargetTerm').value;
+  var create = document.getElementById('tplCreate').checked;
+  if (!tgt) return toast('請選擇要放進哪個學期', true);
+  if (!confirm('把範本的項目載入「' + tgt + '」？\n已經存在的同名項目會略過' + (create ? '；試算表沒有的科目會自動建立' : '；試算表沒有的科目會略過') + '。')) return;
+  call('importItemTemplate', tplData_, src, tgt, create).then(function (report) {
+    document.getElementById('tplResult').textContent = '完成：' + report.map(function (r) { return r.subject + (r.skipped ? '（' + r.skipped + '）' : ' +' + r.added); }).join('、');
+    refreshAllData();
+  }).catch(showError);
+}
+
+function onUpgradeNow() {
+  var term = document.getElementById('upgradeTerm').value;
+  if (!term) return toast('請選擇現有項目屬於哪個學期', true);
+  if (!confirm('要把這些科目升級成學期格式嗎？\n科目：' + state.legacySubjects.join('、') + '\n現有的所有項目會標成「' + term + '」。\n升級前會替每個科目自動建立隱藏的備份分頁（名稱以「備份_」開頭）。')) return;
+  call('upgradeToTermLayout', term).then(function (msg) {
+    alert(msg);
+    refreshAllData();
   }).catch(showError);
 }
 

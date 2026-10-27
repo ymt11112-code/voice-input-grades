@@ -310,7 +310,7 @@
     for (var i = 0; i < model.subjects.length; i++) if (model.subjects[i].name === name) return model.subjects[i];
     return null;
   }
-  function termLabel(t) { return t === '' ? '（未分學期）' : t; }
+  function termLabel(t) { return t; }
 
   // 學期預設值：目前學期若有資料就用它，否則取最後一個有資料的學期
   function defaultTerm(model, subject) {

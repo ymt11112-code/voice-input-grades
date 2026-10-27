@@ -80,6 +80,7 @@
 
   function load(keep) {
     AX.call('getAnalysisAll').then(function (raw) {
+      AX.normalizeRaw(raw);
       st.raw = raw; indexNotes(raw.missingNotes);
       buildFilters(keep); render();
     }).catch(AX.showError);

@@ -161,9 +161,18 @@
     }
   };
 
+  // 還沒升級成學期格式的科目，項目沒有學期。為了讓畫面上不會出現「未分學期」這種選項，
+  // 一律把沒有學期的項目視為屬於「目前學期」。（升級成學期格式後就是真正的學期了）
+  AX.normalizeRaw = function (raw) {
+    var cur = raw.currentTerm || (raw.terms && raw.terms.length ? raw.terms[raw.terms.length - 1] : '');
+    raw.subjects.forEach(function (d) { d.items.forEach(function (it) { if (!it.term) it.term = cur; }); });
+    return raw;
+  };
+
   // 讀回全部科目資料 → 建立分析模型。回傳 { raw, model }
   AX.load = function () {
     return AX.call('getAnalysisAll').then(function (raw) {
+      AX.normalizeRaw(raw);
       return { raw: raw, model: S.buildModel(raw, AX.getPass(), raw.weights) };
     });
   };
