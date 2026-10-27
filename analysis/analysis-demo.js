@@ -69,6 +69,7 @@
         });
         return { row: 5 + pi, seat: p.seat, name: p.name, scores: scores };
       });
+      items.forEach(function (it, i) { it.col = 3 + i; });
       return { subject: subj, layout: 2, items: items, students: students, kinds: {} };
     });
     // 學校系統匯出的「學期領域成績」：前面有標題列，欄位順序與老師的分數表不同，右邊還有老師自己算的名次欄
@@ -81,6 +82,7 @@
     });
     return {
       domains: { '114下': grid },
+      missingNotes: [],
       subjects: subjects, terms: TERMS.slice(), currentTerm: CURRENT,
       kinds: { '平時測驗': 'quiz', '作業': 'homework', '期中考': 'midterm', '期末考': 'final' },
       weights: { quiz: 30, homework: 10, midterm: 30, final: 30 },
@@ -95,6 +97,18 @@
     if (fn === 'setCategoryKind') { state.kinds[args[0]] = args[1]; return clone(state.kinds); }
     if (fn === 'setWeights') { state.weights = clone(args[0]); return clone(state.weights); }
     if (fn === 'createDomainSheet') return { name: '領域成績_' + args[0], term: args[0], gid: 0, existed: true };
+    if (fn === 'saveScores') {
+      var sj = state.subjects.filter(function (x) { return x.subject === args[0]; })[0];
+      var idx = -1; sj.items.forEach(function (it, i) { if (it.col === Number(args[1])) idx = i; });
+      args[2].forEach(function (e) { sj.students.forEach(function (s) { if (s.row === Number(e.row)) s.scores[idx] = e.score === '' ? null : Number(e.score); }); });
+      return true;
+    }
+    if (fn === 'setMissingNote') {
+      var a = args, list = state.missingNotes;
+      for (var i = list.length - 1; i >= 0; i--) { var n = list[i]; if (n.subject === a[0] && n.term === a[1] && n.item === a[2] && n.student === a[3]) list.splice(i, 1); }
+      if (a[4] || a[5]) list.push({ subject: a[0], term: a[1], item: a[2], student: a[3], reason: a[4] || '', note: a[5] || '' });
+      return clone(list);
+    }
     if (fn === 'writeAwardsSheet') return { name: '獎狀名單_系統產生', gid: 0 };
     if (fn === 'getSpreadsheetInfo') return { url: 'https://docs.google.com/spreadsheets/d/demo/edit', subjectGids: {} };
     throw new Error('示範模式不支援：' + fn);

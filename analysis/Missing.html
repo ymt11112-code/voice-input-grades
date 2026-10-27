@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>缺分紀錄</title>
+  <link rel="stylesheet" href="analysis-common.css">
+  <style>
+    table.stats td input[type=number] { width: 78px; padding: 4px 6px; text-align: right; }
+    table.stats td input.noteIn { width: 100%; min-width: 150px; padding: 4px 8px; }
+    table.stats td select { padding: 4px 6px; font-size: 13px; }
+    table.stats td.l { white-space: nowrap; }
+    table.stats td.cell { text-align: left; }
+    td button.fillBtn { padding: 4px 12px; font-size: 12.5px; }
+    .saved { color: var(--good); font-size: 12px; margin-left: 4px; }
+    .grpHead td { background: var(--soft); font-weight: 700; text-align: left; }
+    .doneRow { opacity: .5; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <span class="title">📊 成績分析</span>
+    <nav class="pages">
+      <a href="Dashboard.html">全班概況</a>
+      <a href="Personal.html">個人概況</a>
+      <a href="Report.html">家長報告</a>
+      <a href="Attention.html">關注名單</a>
+      <a href="Awards.html">獎狀名單</a>
+      <a class="on" href="Missing.html">缺分紀錄</a>
+    </nav>
+    <span class="spacer"></span>
+    <button id="connBtn">⚙️ 連線設定</button>
+  </div>
+
+  <div id="content" class="content">
+    <div class="bar">
+      <span class="grp"><span class="lbl">科目</span><select id="fSubject"></select></span>
+      <span class="grp"><span class="lbl">學期</span><select id="fTerm"></select></span>
+      <span class="grp"><span class="lbl">狀態</span>
+        <select id="fStatus">
+          <option value="*">全部</option>
+          <option value="none">尚未備註原因</option>
+          <option value="noted">已備註原因</option>
+        </select></span>
+      <span class="grp"><span class="lbl">排序</span>
+        <select id="fSort">
+          <option value="student">依座號</option>
+          <option value="item">依科目、項目（補登整份考卷）</option>
+        </select></span>
+      <span class="grp"><span class="lbl">找學生</span><input type="text" id="fName" placeholder="姓名或座號" style="width:120px"></span>
+      <span class="spacer"></span>
+      <button id="reloadBtn" title="在試算表直接改過成績時，按這裡重新讀取">🔄 重新讀取</button>
+    </div>
+    <div id="main"></div>
+  </div>
+</div>
+
+<script src="analysis-stats.js"></script>
+<script src="analysis-demo.js"></script>
+<script src="analysis-common.js"></script>
+<script>
+(function () {
+  var S = AX.stats, el = AX.el, fmt = S.fmt, ALL = '*';
+  // 原因選項：空白＝還沒決定。這些只是紀錄，不會改變成績計算（缺分仍視為缺考／缺交）
+  var REASONS = ['缺考', '請假', '作弊（不計分）', '補考中', '免計分', '其他'];
+  var st = { raw: null, notes: {}, list: [] };
+
+  AX.shell();
+
+  function noteKey(subject, term, item, student) { return [subject, term, item, student].join('\u0001'); }
+  function indexNotes(list) { st.notes = {}; (list || []).forEach(function (n) { st.notes[noteKey(n.subject, n.term, n.item, n.student)] = n; }); }
+
+  function load(keep) {
+    AX.call('getAnalysisAll').then(function (raw) {
+      st.raw = raw; indexNotes(raw.missingNotes);
+      buildFilters(keep); render();
+    }).catch(AX.showError);
+  }
+  load(false);
+  AX.$('reloadBtn').onclick = function () { load(true); };
+  ['fSubject', 'fTerm', 'fStatus', 'fSort'].forEach(function (id) { AX.$(id).onchange = render; });
+  AX.$('fName').oninput = render;
+
+  function buildFilters(keep) {
+    var raw = st.raw, fs = AX.$('fSubject'), ft = AX.$('fTerm');
+    var ps = keep ? fs.value : ALL, pt = keep ? ft.value : null;
+    AX.clear(fs); AX.clear(ft);
+    fs.appendChild(el('option', { value: ALL }, '全部科目'));
+    raw.subjects.forEach(function (d) { fs.appendChild(el('option', { value: d.subject }, d.subject)); });
+    fs.value = raw.subjects.some(function (d) { return d.subject === ps; }) ? ps : ALL;
+    ft.appendChild(el('option', { value: ALL }, '全部學期'));
+    var terms = (raw.terms || []).slice();
+    raw.subjects.forEach(function (d) { d.items.forEach(function (it) { var t = it.term || ''; if (terms.indexOf(t) === -1) terms.push(t); }); });
+    terms.forEach(function (t) { ft.appendChild(el('option', { value: t }, S.termLabel(t))); });
+    ft.value = pt != null && (pt === ALL || terms.indexOf(pt) > -1) ? pt : (terms.indexOf(raw.currentTerm) > -1 ? raw.currentTerm : ALL);
+  }
+
+  // 掃出所有缺分：已經登記過（全班至少有一人有成績）的項目裡，空白的格子。「不分析」類別略過。
+  function collect() {
+    var raw = st.raw, out = [];
+    raw.subjects.forEach(function (d, si) {
+      d.items.forEach(function (it, ii) {
+        var kind = (raw.kinds && raw.kinds[it.category]) || S.defaultKind(it.category);
+        if (kind === 'skip') return;
+        var any = d.students.some(function (s) { return s.scores[ii] != null; });
+        if (!any) return;
+        d.students.forEach(function (s, sIdx) {
+          if (s.scores[ii] != null) return;
+          out.push({ subject: d.subject, si: si, ii: ii, sIdx: sIdx, term: it.term || '', item: it.name, category: it.category, max: it.max, col: it.col,
+            row: s.row, seat: s.seat, name: s.name, kind: kind });
+        });
+      });
+    });
+    return out;
+  }
+
+  function filtered(all) {
+    var fs = AX.$('fSubject').value, ft = AX.$('fTerm').value, status = AX.$('fStatus').value, q = AX.$('fName').value.trim();
+    var list = all.filter(function (e) {
+      if (fs !== ALL && e.subject !== fs) return false;
+      if (ft !== ALL && e.term !== ft) return false;
+      var n = st.notes[noteKey(e.subject, e.term, e.item, e.name)], has = !!(n && (n.reason || n.note));
+      if (status === 'none' && has) return false;
+      if (status === 'noted' && !has) return false;
+      if (q && String(e.name).indexOf(q) === -1 && String(e.seat) !== q) return false;
+      return true;
+    });
+    var byItem = AX.$('fSort').value === 'item';
+    list.sort(function (a, b) {
+      if (byItem) return (a.si - b.si) || (a.term === b.term ? a.ii - b.ii : (a.term < b.term ? -1 : 1)) || ((Number(a.seat) || 0) - (Number(b.seat) || 0)) || (a.sIdx - b.sIdx);
+      return ((Number(a.seat) || 9999) - (Number(b.seat) || 9999)) || (a.sIdx - b.sIdx) || (a.si - b.si) || (a.ii - b.ii);
+    });
+    return list;
+  }
+
+  function render() {
+    var main = AX.$('main'); AX.clear(main);
+    var all = collect(), list = filtered(all);
+    st.list = list;
+
+    var unmarked = 0, reasonCount = {};
+    list.forEach(function (e) {
+      var n = st.notes[noteKey(e.subject, e.term, e.item, e.name)];
+      if (n && n.reason) reasonCount[n.reason] = (reasonCount[n.reason] || 0) + 1;
+      if (!(n && (n.reason || n.note))) unmarked++;
+    });
+    var uniqueStudents = {}; list.forEach(function (e) { uniqueStudents[e.name] = 1; });
+    var tiles = el('div', { 'class': 'tiles' });
+    tiles.appendChild(AX.tile('缺分筆數', String(list.length), '筆', '目前篩選條件下'));
+    tiles.appendChild(AX.tile('涉及學生', String(Object.keys(uniqueStudents).length), '人'));
+    tiles.appendChild(AX.tile('尚未備註原因', String(unmarked), '筆', unmarked ? '請選擇原因，或直接補登分數' : '全部都處理好了', unmarked ? 'down' : 'up'));
+    main.appendChild(tiles);
+
+    var rk = Object.keys(reasonCount);
+    if (rk.length) { var c0 = AX.card('原因統計'); c0.appendChild(AX.chips(rk.map(function (k) { return [k, reasonCount[k] + ' 筆']; }))); main.appendChild(c0); }
+
+    var card = AX.card('缺分總表',
+      '這裡列出所有「已經登記過、但這位同學還是空白」的項目（作業的空白＝缺交）。可以直接在右邊輸入分數補登，補登後這筆會從表中消失；沒有成績的同學可以選擇原因、加備註，原因只是紀錄，不會改變成績計算（缺分仍視為缺考／缺交）。');
+    if (!all.length) { card.appendChild(el('div', { 'class': 'empty' }, '目前沒有任何缺分，全班成績都登記完整 🎉')); main.appendChild(card); return; }
+    if (!list.length) { card.appendChild(el('div', { 'class': 'empty' }, '沒有符合篩選條件的缺分。')); main.appendChild(card); return; }
+
+    var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
+    [['學生', 'l'], ['科目', 'l'], ['學期', 'l'], ['項目（類別）', 'l'], ['補登分數', ''], ['原因', 'l'], ['備註', 'l']].forEach(function (h) { hr.appendChild(el('th', { 'class': h[1] }, h[0])); });
+    thead.appendChild(hr); tb.appendChild(thead);
+    var body = el('tbody'), lastGroup = null, byItem = AX.$('fSort').value === 'item';
+    list.forEach(function (e) {
+      if (byItem) {
+        var g = e.subject + '|' + e.term + '|' + e.item;
+        if (g !== lastGroup) {
+          lastGroup = g;
+          var gh = el('tr', { 'class': 'grpHead' });
+          gh.appendChild(el('td', { colspan: '7' }, e.subject + '　' + (e.term ? e.term + '　' : '') + e.item + '（' + (e.category || '未分類') + (e.max ? '，滿分 ' + e.max : '') + '）'));
+          body.appendChild(gh);
+        }
+      }
+      body.appendChild(row(e));
+    });
+    tb.appendChild(body); wrap.appendChild(tb); card.appendChild(wrap); main.appendChild(card);
+  }
+
+  function row(e) {
+    var tr = el('tr'), key = noteKey(e.subject, e.term, e.item, e.name), cur = st.notes[key] || { reason: '', note: '' };
+    tr.appendChild(el('td', { 'class': 'l' }, AX.seatLabel(e)));
+    tr.appendChild(el('td', { 'class': 'l' }, e.subject));
+    tr.appendChild(el('td', { 'class': 'l' }, e.term || '—'));
+    tr.appendChild(el('td', { 'class': 'l' }, e.item + '（' + (e.category || '未分類') + '）'));
+
+    // 補登分數
+    var tdFill = el('td'), inp = el('input', { type: 'number', min: '0', step: 'any', placeholder: e.max ? '≤' + e.max : '分數' });
+    var btn = el('button', { 'class': 'fillBtn' }, '補登');
+    function doFill() { fill(e, inp, btn); }
+    btn.onclick = doFill;
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') doFill(); });
+    tdFill.appendChild(inp); tdFill.appendChild(document.createTextNode(' ')); tdFill.appendChild(btn);
+    tr.appendChild(tdFill);
+
+    // 原因與備註（改了就自動存）
+    var tdR = el('td', { 'class': 'cell' }), sel = el('select');
+    sel.appendChild(el('option', { value: '' }, '（選擇原因）'));
+    REASONS.forEach(function (r) { var o = el('option', { value: r }, r); if (r === cur.reason) o.selected = true; sel.appendChild(o); });
+    tdR.appendChild(sel);
+    var tdN = el('td', { 'class': 'cell' }), note = el('input', { type: 'text', 'class': 'noteIn', placeholder: '備註（選填）', maxlength: '120' });
+    note.value = cur.note || '';
+    var mark = el('span', { 'class': 'saved' });
+    tdN.appendChild(note); tdN.appendChild(mark);
+    function save() {
+      AX.call('setMissingNote', e.subject, e.term, e.item, e.name, sel.value, note.value.trim()).then(function (list) {
+        indexNotes(list); mark.textContent = '✓ 已儲存'; setTimeout(function () { mark.textContent = ''; }, 1800);
+      }).catch(AX.showError);
+    }
+    sel.onchange = save; note.onchange = save;
+    tr.appendChild(tdR); tr.appendChild(tdN);
+    return tr;
+  }
+
+  // 補登：直接寫回試算表該項目欄位，成功後這筆從表中消失、備註一併清掉
+  function fill(e, inp, btn) {
+    var v = inp.value.trim();
+    if (v === '' || isNaN(Number(v))) { AX.toast('請輸入分數', true); inp.focus(); return; }
+    var n = Number(v);
+    if (n < 0) { AX.toast('分數不可以是負數', true); return; }
+    if (e.max && n > e.max && !confirm('「' + e.name + '」這個項目滿分是 ' + e.max + '，你輸入的是 ' + n + '，確定要登記嗎？')) return;
+    btn.disabled = true;
+    AX.call('saveScores', e.subject, e.col, [{ row: e.row, score: n }]).then(function () {
+      st.raw.subjects[e.si].students[e.sIdx].scores[e.ii] = n;
+      var key = noteKey(e.subject, e.term, e.item, e.name);
+      if (st.notes[key]) {
+        delete st.notes[key];
+        AX.call('setMissingNote', e.subject, e.term, e.item, e.name, '', '').catch(function () { /* 備註殘留不影響成績 */ });
+      }
+      AX.toast('已補登：' + e.name + '　' + e.subject + ' ' + e.item + ' → ' + n);
+      render();
+    }).catch(function (err) { btn.disabled = false; AX.showError(err); });
+  }
+})();
+</script>
+</body>
+</html>

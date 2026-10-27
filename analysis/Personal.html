@@ -16,6 +16,7 @@
       <a href="Report.html">家長報告</a>
       <a href="Attention.html">關注名單</a>
       <a href="Awards.html">獎狀名單</a>
+      <a href="Missing.html">缺分紀錄</a>
     </nav>
     <span class="spacer"></span>
     <button id="connBtn">⚙️ 連線設定</button>
@@ -143,8 +144,8 @@
       tiles.appendChild(AX.tile('學期成績', fmt(tr.score), '分', '全班平均 ' + fmt(tr.classMean) + '（' + sg(tr.diff) + '）' + (tr.partial ? '・缺部分成分' : ''), AX.cls(tr.diff)));
       tiles.appendChild(AX.tile('學期名次', String(tr.rank), '/ ' + tr.n + ' 人', '前 ' + S.topPercent(tr.rank, tr.n) + '%・' + tr.tier));
     } else if (qs.length) {
-      tiles.appendChild(AX.tile('累計平均得分率', me.avg == null ? '—' : fmt(me.avg), me.avg == null ? '' : '%',
-        me.avg == null ? '尚無成績' : '全班平均 ' + fmt(agg.stats.mean) + '%（' + sg(me.avg - agg.stats.mean) + '）', me.avg == null ? '' : AX.cls(me.avg - agg.stats.mean)));
+      tiles.appendChild(AX.tile('累計平均得分', me.avg == null ? '—' : fmt(me.avg), me.avg == null ? '' : '分',
+        me.avg == null ? '尚無成績' : '全班平均 ' + fmt(agg.stats.mean) + '（' + sg(me.avg - agg.stats.mean) + '）', me.avg == null ? '' : AX.cls(me.avg - agg.stats.mean)));
       tiles.appendChild(me.eligible ? AX.tile('累計名次', String(me.rank), '/ ' + agg.eligibleN + ' 人', '前 ' + S.topPercent(me.rank, agg.eligibleN) + '%・' + S.tierName(agg.tiers, me.avg))
         : AX.tile('累計名次', '—', '', '缺考過多，不列入排名'));
     }
@@ -152,17 +153,17 @@
     if (tr) { var ti = s.terms.indexOf(st.term); prevRow = ti > 0 ? S.termRow(s, s.terms[ti - 1], i) : null; }
     if (tr && prevRow) {
       var rel = tr.diff - prevRow.diff;
-      tiles.appendChild(AX.tile('較 ' + S.termLabel(prevRow.term), sg(tr.score - prevRow.score), '分', '相對班平均 ' + sg(rel) + ' 點・名次 ' + AX.rankMove(prevRow.rank, tr.rank), AX.cls(rel, 2)));
+      tiles.appendChild(AX.tile('較 ' + S.termLabel(prevRow.term), sg(tr.score - prevRow.score), '分', '相對班平均 ' + sg(rel) + ' 分・名次 ' + AX.rankMove(prevRow.rank, tr.rank), AX.cls(rel, 2)));
     }
     if (series.length) {
       var L = series[series.length - 1], P = series.length > 1 ? series[series.length - 2] : null;
-      tiles.appendChild(AX.tile('最近一次：' + L.q.name, fmt(L.score), '/ ' + fmt(L.q.max), '第 ' + L.rank + ' 名 / ' + L.n + ' 人' + (P ? '（' + AX.rankMove(P.rank, L.rank) + '）' : ''), P ? AX.cls(P.rank - L.rank, 0) : ''));
+      tiles.appendChild(AX.tile('最近一次：' + L.q.name, fmt(L.score), '分', '第 ' + L.rank + ' 名 / ' + L.n + ' 人' + (P ? '（' + AX.rankMove(P.rank, L.rank) + '）' : ''), P ? AX.cls(P.rank - L.rank, 0) : ''));
     }
     var tj = S.trendJudge(series);
-    tiles.appendChild(tj ? AX.tile('近期趨勢', tj.label, '', '最近 ' + tj.recentN + ' 次相對班平均 ' + sg(tj.delta) + ' 個百分點', tj.label === '進步' ? 'up' : (tj.label === '退步' ? 'down' : 'flat'))
+    tiles.appendChild(tj ? AX.tile('近期趨勢', tj.label, '', '最近 ' + tj.recentN + ' 次相對班平均 ' + sg(tj.delta) + ' 分', tj.label === '進步' ? 'up' : (tj.label === '退步' ? 'down' : 'flat'))
       : AX.tile('近期趨勢', '資料不足', '', '至少需要 2 次測驗'));
     A.homework.forEach(function (h) {
-      tiles.appendChild(AX.tile((h.category || '作業') + '總和', fmt(h.sums[i]), h.totalMax ? '/ ' + fmt(h.totalMax) : '分',
+      tiles.appendChild(AX.tile((h.category || '作業') + '總和', fmt(h.sums[i]), '分',
         '第 ' + h.ranks[i] + ' 名 / ' + N + ' 人・缺交 ' + h.missing[i] + ' 次', h.missing[i] > 0 ? 'down' : ''));
     });
     main.appendChild(tiles);
@@ -185,49 +186,49 @@
         '；名次第 ' + tr.rank + ' 名（共 ' + tr.n + ' 人，前 ' + S.topPercent(tr.rank, tr.n) + '%），落在「' + tr.tier + '」位置' + (tr.partial ? '（有缺考的成分，權重已重新分配）' : '') + '。');
       if (prevRow) {
         var rel = tr.diff - prevRow.diff, dsc = tr.score - prevRow.score;
-        add('與 ' + S.termLabel(prevRow.term) + ' 相比，學期成績' + (Math.abs(dsc) < 0.05 ? '相同' : (dsc > 0 ? '進步 ' : '退步 ') + fmt(Math.abs(dsc)) + ' 分') + '；扣除整體難易，相對班平均的差距由 ' + sg(prevRow.diff) + ' 變成 ' + sg(tr.diff) + ' 點（' +
+        add('與 ' + S.termLabel(prevRow.term) + ' 相比，學期成績' + (Math.abs(dsc) < 0.05 ? '相同' : (dsc > 0 ? '進步 ' : '退步 ') + fmt(Math.abs(dsc)) + ' 分') + '；扣除整體難易，相對班平均的差距由 ' + sg(prevRow.diff) + ' 變成 ' + sg(tr.diff) + ' 分（' +
           (rel >= 2 ? '相對班級進步' : (rel <= -2 ? '相對班級退步' : '相對班級大致持平')) + '）。');
       }
       if (T && tr.comp.midterm != null && tr.comp.final != null) {
         var cm = S.mean(S.nonNull(T.comp.midterm)), cf = S.mean(S.nonNull(T.comp.final));
         var d2 = (tr.comp.final - cf) - (tr.comp.midterm - cm);
-        add('期中考 ' + fmt(tr.comp.midterm) + '%（班平均 ' + fmt(cm) + '%）→ 期末考 ' + fmt(tr.comp.final) + '%（班平均 ' + fmt(cf) + '%），期末相對班平均' + (Math.abs(d2) < 2 ? '與期中差不多' : (d2 > 0 ? '比期中進步 ' : '比期中退步 ') + fmt(Math.abs(d2)) + ' 點') + '。');
+        add('期中考 ' + fmt(tr.comp.midterm) + ' 分（班平均 ' + fmt(cm) + '）→ 期末考 ' + fmt(tr.comp.final) + ' 分（班平均 ' + fmt(cf) + '），期末相對班平均' + (Math.abs(d2) < 2 ? '與期中差不多' : (d2 > 0 ? '比期中進步 ' : '比期中退步 ') + fmt(Math.abs(d2)) + ' 分') + '。');
       }
     } else if (me.avg != null) {
       var d = me.avg - agg.stats.mean;
-      add('累計平均得分率 ' + fmt(me.avg) + '%，' + (Math.abs(d) < 0.05 ? '與全班平均相同' : (d > 0 ? '高於' : '低於') + '全班平均 ' + fmt(Math.abs(d)) + ' 個百分點') +
+      add('累計平均 ' + fmt(me.avg) + ' 分，' + (Math.abs(d) < 0.05 ? '與全班平均相同' : (d > 0 ? '高於' : '低於') + '全班平均 ' + fmt(Math.abs(d)) + ' 分') +
         (me.eligible ? '；累計名次第 ' + me.rank + ' 名（共 ' + agg.eligibleN + ' 人，前 ' + S.topPercent(me.rank, agg.eligibleN) + '%），落在「' + S.tierName(agg.tiers, me.avg) + '」位置。' : '；因缺考超過一半，未列入排名。'));
     }
     if (!series.length) { add('這個範圍內還沒有任何測驗成績。'); c.appendChild(ul); main.appendChild(c); return; }
 
     var tj = S.trendJudge(series);
     if (tj) {
-      var msg = tj.label === '進步' ? '近期表現進步：最近 ' + tj.recentN + ' 次比之前的 ' + tj.earlierN + ' 次，相對班平均多了 ' + fmt(tj.delta) + ' 個百分點。'
-        : tj.label === '退步' ? '近期表現退步：最近 ' + tj.recentN + ' 次比之前的 ' + tj.earlierN + ' 次，相對班平均少了 ' + fmt(-tj.delta) + ' 個百分點，建議多關心。'
-        : '近期表現大致持平（最近 ' + tj.recentN + ' 次與之前相比，相對班平均只差 ' + sg(tj.delta) + ' 個百分點）。';
+      var msg = tj.label === '進步' ? '近期表現進步：最近 ' + tj.recentN + ' 次比之前的 ' + tj.earlierN + ' 次，相對班平均多了 ' + fmt(tj.delta) + ' 分。'
+        : tj.label === '退步' ? '近期表現退步：最近 ' + tj.recentN + ' 次比之前的 ' + tj.earlierN + ' 次，相對班平均少了 ' + fmt(-tj.delta) + ' 分，建議多關心。'
+        : '近期表現大致持平（最近 ' + tj.recentN + ' 次與之前相比，相對班平均只差 ' + sg(tj.delta) + ' 分）。';
       if (series.length < 4) msg += '（測驗次數還少，僅供參考）';
       add(msg);
     }
     if (series.length >= 2) {
       var L = series[series.length - 1], P = series[series.length - 2], dp = L.pct - P.pct;
-      add('最近一次「' + L.q.name + '」得分率 ' + fmt(L.pct) + '%，比前一次「' + P.q.name + '」' + (Math.abs(dp) < 0.05 ? '相同' : (dp > 0 ? '進步 ' : '退步 ') + fmt(Math.abs(dp)) + ' 個百分點') +
+      add('最近一次「' + L.q.name + '」得 ' + fmt(L.score) + ' 分，比前一次「' + P.q.name + '」' + (Math.abs(dp) < 0.05 ? '相同' : (dp > 0 ? '進步 ' : '退步 ') + fmt(Math.abs(dp)) + ' 分') +
         '；名次由第 ' + P.rank + ' 名' + (L.rank === P.rank ? '維持' : (L.rank < P.rank ? '進步' : '退到') + '第 ' + L.rank + ' 名') + '。');
       var best = series.slice().sort(function (a, b) { return a.diff - b.diff; }), hi = best[best.length - 1], lo = best[0];
-      add('相對班級最強的是「' + hi.q.name + '」（高於班平均 ' + fmt(hi.diff) + ' 點，第 ' + hi.rank + ' 名）；最弱的是「' + lo.q.name + '」（' + (lo.diff >= 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(lo.diff)) + ' 點，第 ' + lo.rank + ' 名）。');
+      add('相對班級最強的是「' + hi.q.name + '」（高於班平均 ' + fmt(hi.diff) + ' 分，第 ' + hi.rank + ' 名）；最弱的是「' + lo.q.name + '」（' + (lo.diff >= 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(lo.diff)) + ' 分，第 ' + lo.rank + ' 名）。');
     }
     if (series.length >= 3) {
       var sdv = S.sd(series.map(function (x) { return x.pct; }));
-      add('成績穩定度：得分率標準差 ' + fmt(sdv) + '，' + (sdv < 5 ? '表現很穩定' : (sdv < 10 ? '略有起伏' : '起伏較大')) + '。');
+      add('成績穩定度：得分標準差 ' + fmt(sdv) + '，' + (sdv < 5 ? '表現很穩定' : (sdv < 10 ? '略有起伏' : '起伏較大')) + '。');
     }
     var fails = series.filter(function (x) { return x.pct < A.passPct; });
-    if (fails.length) add('低於及格線（' + A.passPct + '%）的測驗：' + fails.map(function (x) { return x.q.name + '（' + fmt(x.pct) + '%）'; }).join('、') + '。');
+    if (fails.length) add('低於及格線（' + A.passPct + ' 分）的測驗：' + fails.map(function (x) { return x.q.name + '（' + fmt(x.pct) + ' 分）'; }).join('、') + '。');
     c.appendChild(ul); main.appendChild(c);
   }
 
   // ---------- 圖 ----------
   function renderCharts(main, qs, series, agg, i, sc) {
     var A = sc.A;
-    var c1 = AX.card('得分率與班級平均', '橘線是本人，藍線是班級平均，淡色帶是班上「後標～前標」的範圍。缺考的測驗線會中斷。');
+    var c1 = AX.card('得分與班級平均', '橘線是本人，藍線是班級平均，淡色帶是班上「後標～前標」的範圍。缺考的測驗線會中斷。' + (qs.some(function (q) { return q.max !== 100; }) ? '（滿分不是 100 的測驗，圖上已換算成百分制）' : ''));
     var b1 = el('div'); c1.appendChild(b1); main.appendChild(c1);
     var mine = qs.map(function (q) { return q.pcts[i]; });
     var means = qs.map(function (q) { return q.pctStats.mean; });
@@ -238,21 +239,21 @@
       qs.forEach(function (q, k) { var g = groups[groups.length - 1]; if (g && g.term === q.term) g.to = k; else groups.push({ term: q.term, label: S.termLabel(q.term), from: k, to: k }); });
     }
     AX.lineChart(b1, {
-      labels: qs.map(function (q) { return q.name; }), yMin: r.lo, yMax: r.hi, ticks: r.ticks, yFmt: function (v) { return v + '%'; }, groups: groups,
+      labels: qs.map(function (q) { return q.name; }), yMin: r.lo, yMax: r.hi, ticks: r.ticks, yFmt: function (v) { return String(v); }, groups: groups,
       series: [{ name: '本人', color: 'var(--series-2)', values: mine }, { name: '班級平均', color: 'var(--series-1)', values: means }],
-      band: { name: '後標～前標', color: 'var(--series-1)', lo: lo, hi: hi }, ariaLabel: '個人與班級平均得分率折線圖',
+      band: { name: '後標～前標', color: 'var(--series-1)', lo: lo, hi: hi }, ariaLabel: '個人與班級平均得分折線圖',
       tipRows: function (k) {
         var q = qs[k], rows = [];
-        if (q.scores[i] != null) rows.push({ color: 'var(--series-2)', name: '本人（' + fmt(q.scores[i]) + '/' + fmt(q.max) + '・第 ' + q.ranks[i] + ' 名）', value: fmt(q.pcts[i]) + '%' });
+        if (q.scores[i] != null) rows.push({ color: 'var(--series-2)', name: '本人（' + (q.max !== 100 ? '原始 ' + fmt(q.scores[i]) + '/' + fmt(q.max) + '・' : '') + '第 ' + q.ranks[i] + ' 名）', value: fmt(q.pcts[i]) });
         else rows.push({ name: '本人：缺考', value: '—' });
-        rows.push({ color: 'var(--series-1)', name: '班級平均', value: fmt(q.pctStats.mean) + '%' });
+        rows.push({ color: 'var(--series-1)', name: '班級平均', value: fmt(q.pctStats.mean) });
         return { title: (q.term ? q.term + ' ' : '') + q.name + '（' + (q.category || '未分類') + '）', rows: rows };
       }
     });
 
     var cols = el('div', { 'class': 'cols mb' });
     var c2 = AX.card('名次變化', '每次測驗在全班的名次，越往上名次越前面。');
-    var c3 = AX.card('我在全班的位置', sc.T ? '全班「學期成績」的分布，橘色是本人所在組距。' : '全班「累計平均得分率」的分布，橘色是本人所在組距。');
+    var c3 = AX.card('我在全班的位置', sc.T ? '全班「學期成績」的分布，橘色是本人所在組距。' : '全班「累計平均得分」的分布，橘色是本人所在組距。');
     var b2 = el('div'), b3 = el('div'); c2.appendChild(b2); c3.appendChild(b3);
     cols.appendChild(c2); cols.appendChild(c3); main.appendChild(cols);
     var ranks = qs.map(function (q) { return q.ranks[i]; });
@@ -271,7 +272,7 @@
     var vals = sc.T ? sc.T.scores : agg.rows.map(function (rw) { return rw.eligible ? rw.avg : null; });
     AX.barChart(b3, {
       bins: AX.pctBins(A.students, vals, vals[i] != null ? i : null), color: 'var(--series-1)', hiColor: 'var(--series-2)', name: '全班', hiName: '本人所在組距',
-      markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: sc.T ? '學期成績' : '累計平均得分率（%）', height: 230, ariaLabel: '全班成績分布，標示本人位置'
+      markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: sc.T ? '學期成績' : '累計平均得分', height: 230, ariaLabel: '全班成績分布，標示本人位置'
     });
   }
 
@@ -303,7 +304,7 @@
     var body = el('tbody');
     rows.forEach(function (r, k) {
       var tr = el('tr'), pv = k > 0 ? rows[k - 1] : null;
-      var cm = function (v) { return v == null ? '—' : fmt(v) + '%'; };
+      var cm = function (v) { return v == null ? '—' : fmt(v); };
       [S.termLabel(r.term), fmt(r.score) + (r.partial ? '*' : ''), fmt(r.classMean), sg(r.diff), r.rank + ' / ' + r.n, r.tier, pv ? sg(r.score - pv.score) + '（相對 ' + sg(r.diff - pv.diff) + '）' : '—',
         cm(r.comp.quiz), cm(r.comp.homework), cm(r.comp.midterm), cm(r.comp.final)].forEach(function (v, j) {
         var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
@@ -319,32 +320,34 @@
   }
 
   // ---------- 明細表 ----------
+  // 得分直接列（不寫滿分），班平均也是同樣的分數單位、不加百分比
   function renderTable(main, qs, i, isAll) {
-    var c = AX.card('每次測驗明細', '「較前次」是和上一次有參加的測驗相比：得分率差距（百分點）與名次變化。');
+    var c = AX.card('每次測驗明細', '「較前次」是和上一次有參加的測驗相比：得分差距與名次變化。');
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' });
-    var heads = ['項目'].concat(isAll ? ['學期'] : []).concat(['類別', '成績', '得分率', '班平均', '與班平均差', '名次', '所在位置', '較前次']);
+    var heads = ['項目'].concat(isAll ? ['學期'] : []).concat(['類別', '得分', '班平均', '與班平均差', '名次', '所在位置', '較前次']);
     var thead = el('thead'), hr = el('tr');
     heads.forEach(function (h) { hr.appendChild(el('th', { 'class': (h === '類別' || h === '學期') ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
-    var body = el('tbody'), prev = null, off = isAll ? 1 : 0;
+    var body = el('tbody'), prev = null;
     function left(j) { return j === 1 || (isAll && j === 2); }
     qs.forEach(function (q) {
       var tr = el('tr'), sc = q.scores[i];
       var pre = [q.name].concat(isAll ? [q.term || '—'] : []).concat([q.category || '—']);
       if (sc == null) {
-        pre.concat(['缺考', '—', fmt(q.pctStats.mean) + '%', '—', '—', '—', '—']).forEach(function (v, j) { tr.appendChild(el('td', { 'class': left(j) ? 'l' : '' }, v)); });
+        pre.concat(['缺考', fmt(q.stats.mean), '—', '—', '—', '—']).forEach(function (v, j) { tr.appendChild(el('td', { 'class': left(j) ? 'l' : '' }, v)); });
         body.appendChild(tr); return;
       }
-      var diff = q.pcts[i] - q.pctStats.mean;
-      var cells = pre.concat([fmt(sc) + ' / ' + fmt(q.max), fmt(q.pcts[i]) + '%', fmt(q.pctStats.mean) + '%', null, q.ranks[i] + ' / ' + q.n, S.tierName(q.tiers, sc), null]);
-      var diffAt = pre.length + 3, prevAt = pre.length + 6;
+      var diff = sc - q.stats.mean;
+      var cells = pre.concat([fmt(sc), fmt(q.stats.mean), null, q.ranks[i] + ' / ' + q.n, S.tierName(q.tiers, sc), null]);
+      var diffAt = pre.length + 2, prevAt = pre.length + 5;
       cells.forEach(function (v, j) {
         var td = el('td', { 'class': left(j) ? 'l' : '' }, v == null ? '' : v);
-        if (j === diffAt) { td.textContent = sg(diff) + ' 點'; td.className = AX.cls(diff); }
+        if (j === diffAt) { td.textContent = sg(diff) + ' 分'; td.className = AX.cls(diff); }
         if (j === prevAt) {
           if (prev) {
-            var dp = q.pcts[i] - prev.pct, dr = prev.rank - q.ranks[i];
-            td.appendChild(el('span', { 'class': AX.cls(dp) }, sg(dp) + ' 點'));
+            // 兩次滿分相同就直接比得分；滿分不同才換算成百分制比較
+            var dp = prev.max === q.max ? sc - prev.score : q.pcts[i] - prev.pct, dr = prev.rank - q.ranks[i];
+            td.appendChild(el('span', { 'class': AX.cls(dp) }, sg(dp) + ' 分'));
             td.appendChild(document.createTextNode('・'));
             td.appendChild(el('span', { 'class': AX.cls(dr, 0) }, AX.rankMove(prev.rank, q.ranks[i])));
           } else td.textContent = '—';
@@ -352,7 +355,7 @@
         tr.appendChild(td);
       });
       body.appendChild(tr);
-      prev = { pct: q.pcts[i], rank: q.ranks[i] };
+      prev = { score: sc, max: q.max, pct: q.pcts[i], rank: q.ranks[i] };
     });
     tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap); main.appendChild(c);
   }
@@ -367,7 +370,7 @@
       var c = AX.card((x.term ? S.termLabel(x.term) + ' ' : '') + (h.category || '作業') + '：總和', '作業只比較「總和」，空白視為缺交（以 0 分計）。');
       var miss = h.items.filter(function (it) { return stu.scores[it.k] == null; }).map(function (it) { return it.name; });
       var d = h.sums[i] - h.stats.mean, ul = el('ul', { 'class': 'insights' });
-      ul.appendChild(el('li', null, '總和 ' + fmt(h.sums[i]) + (h.totalMax ? ' / ' + fmt(h.totalMax) + ' 分（' + fmt(h.pcts[i]) + '%）' : ' 分') + '，' +
+      ul.appendChild(el('li', null, '總和 ' + fmt(h.sums[i]) + ' 分，' +
         (Math.abs(d) < 0.05 ? '與全班平均相同' : (d > 0 ? '高於' : '低於') + '全班平均 ' + fmt(Math.abs(d)) + ' 分（平均 ' + fmt(h.stats.mean) + '）') + '；總和名次第 ' + h.ranks[i] + ' 名 / ' + N + ' 人，落在「' + S.tierName(h.tiers, h.sums[i]) + '」位置。'));
       ul.appendChild(el('li', null, miss.length ? '缺交 ' + miss.length + ' / ' + h.nItems + ' 項：' + miss.join('、') + '。' : '全部 ' + h.nItems + ' 項都有繳交。'));
       c.appendChild(ul); main.appendChild(c);
