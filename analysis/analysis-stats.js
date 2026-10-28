@@ -567,9 +567,11 @@
   // ============================================================
   // 七、獎狀名單（前 N 名、進步獎、學期領域前 N 名）
   // ============================================================
-  // 期中階段＝第一次定期考查總成績（平時成績＋期中考）；期末階段＝學期成績（兩次定期考查各占設定的比例）
+  // 期中＝第一次定期考查總成績（平時成績＋期中考）；期末＝第二次定期考查總成績（平時成績＋期末考，不含期中）。
+  // 該次定期考查還沒完成（段考還沒有成績）時沒有成績。
   function stageScores(T, phase) {
-    return phase === 'midterm' ? T.periods[0].total.slice() : T.scores.slice();
+    var per = T.periods[phase === 'midterm' ? 0 : 1];
+    return per.complete ? per.total.slice() : per.total.map(function () { return null; });
   }
 
   // 取前 n 名；ties＝true 時，與第 n 名同分的人一併列入（獎狀常見做法）
@@ -671,8 +673,8 @@
   function awards(model, o) {
     var out = { subjects: [], missing: [], topUnique: [], progUnique: [], reg: null };
     function info(sm, idx) { var s = sm.data.students[idx]; return { key: sm.keys[idx], name: s.name, seat: s.seat }; }
-    // 進步獎用各階段成績（含匯入的歷史成績）比較；排名依據選「定期考查總成績」時用兩次定期考查的總成績，否則用段考分數
-    var M = o.noProgress ? null : stageMatrix(model, { basis: o.basis === 'term' ? 'term' : 'exam', scope: o.scope || 'cohort', partial: false });
+    // 進步獎只有期末考才有：和同學期的期中、或上一學期的期末比較。用各階段成績（含匯入的歷史成績）比較；排名依據選「定期考查總成績」時用兩次定期考查的總成績，否則用段考分數
+    var M = (o.noProgress || o.phase !== 'final') ? null : stageMatrix(model, { basis: o.basis === 'term' ? 'term' : 'exam', scope: o.scope || 'cohort', partial: false });
     model.subjects.forEach(function (sm) {
       if (o.subjects && o.subjects.indexOf(sm.name) === -1) return;
       var bt = sm.byTerm[o.term];

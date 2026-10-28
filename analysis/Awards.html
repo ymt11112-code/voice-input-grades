@@ -50,8 +50,8 @@
           <label class="chk"><input type="checkbox" id="optTies"> 同分一併列入</label>
           <span class="grp" id="basisGrp"><span class="lbl">排名依據</span>
             <select id="optBasis">
-              <option value="exam">只看這次考試分數</option>
-              <option value="term">定期考查總成績（平時成績＋段考；期末＝學期成績）</option>
+              <option value="exam">只看段考分數</option>
+              <option value="term">定期考查總成績（平時成績＋段考）</option>
             </select></span>
           <label class="chk"><input type="checkbox" id="optSeat"> 不重複名單依座號排列</label>
         </div>
@@ -181,8 +181,11 @@
     });
     AX.btnGroup(AX.$('phaseBtns'), [{ label: '期中考', value: 'midterm' }, { label: '期末考', value: 'final' }, { label: '學期總成績（各領域）', value: 'term' }], st.phase, function (v) { st.phase = v; renderBar(); render(); });
     var isTerm = st.phase === 'term';
-    AX.$('progBar').hidden = false;
-    AX.$('baseGrp').hidden = st.phase !== 'final';   // 期中考、學期總成績固定和「上一學期」比；期末考可以選和期中或上一學期期末比
+    AX.$('progBar').hidden = st.phase !== 'final';
+    AX.$('progHint').hidden = st.phase !== 'final';   // 進步獎只有期末考才有
+    var ob = AX.$('optBasis').options;
+    if (st.phase === 'midterm') { ob[0].textContent = '只看期中考分數'; ob[1].textContent = '第一次定期考查總成績（平時成績＋期中考）'; }
+    else { ob[0].textContent = '只看期末考分數'; ob[1].textContent = '第二次定期考查總成績（平時成績＋期末考）'; }
     AX.$('basisGrp').hidden = isTerm;
     AX.$('topLbl').textContent = isTerm ? '每領域前' : '每科前';
     AX.$('subjLbl').textContent = isTerm ? '納入的領域' : '納入的科目（期中、期末預設只算國語、數學、社會、自然）';
@@ -217,9 +220,9 @@
   // ---- 版面
   function render() {
     var main = AX.$('main'); AX.clear(main);
-    var o = Object.assign({}, st.o, { term: st.term, phase: st.phase, subjects: st.subjSel, domains: st.domSel, prevParsed: prevParsed(),
+    var o = Object.assign({}, st.o, { term: st.term, phase: st.phase, subjects: st.subjSel, domains: st.domSel, prevParsed: null, noProgress: st.phase !== 'final',
       excluded: function (kind, subject, key) { return !!st.ex[exKey(kind, subject, key)]; } });
-    var isFinal = true, R;   // 進步獎：期中考、期末考、學期總成績都有
+    var isFinal = st.phase === 'final', R;   // 進步獎只有期末考才有
 
     if (st.phase === 'term') {
       st.parsed = parsedForTerm();
@@ -257,7 +260,7 @@
     if (isFinal) Rr.appendChild(uniqueTable('進步獎名單', R.progUnique));
 
     // ---- 各科（各領域）明細，每位同學可勾選
-    var d = AX.card('各' + (st.phase === 'term' ? '領域' : '科') + '明細', '每一' + unit + '各自的名次與分數，製作獎狀時對照。取消勾選的同學不會出現在上面的不重複名單。' + '進步獎的數字是「比較基準 → 本次」與進步幅度' + (st.o.regress ? '（已考慮成績回歸）' : '') + '。' + (st.phase === 'term' ? '學期總成績的進步獎和上一學期貼上的領域成績比。' : (st.phase === 'midterm' ? '期中考的進步獎和上一學期的期末比（上一學期若是匯入的歷史成績，請把「排名依據」選成「定期考查總成績」）。' : '')));
+    var d = AX.card('各' + (st.phase === 'term' ? '領域' : '科') + '明細', '每一' + unit + '各自的名次與分數，製作獎狀時對照。取消勾選的同學不會出現在上面的不重複名單。' + (isFinal ? '進步獎的數字是「比較基準 → 期末」與進步幅度' + (st.o.regress ? '（已考慮成績回歸）' : '') + '。和上一學期的期末比時，若上一學期是匯入的歷史成績，請把「排名依據」選成「定期考查總成績」。' : ''));
     var grid = el('div', { 'class': 'grid2' }); d.appendChild(grid); main.appendChild(d);
     R.subjects.forEach(function (s) {
       var mini = el('div', { 'class': 'mini' });
@@ -362,7 +365,7 @@
 
   // ---- 輸出：與你原本表格一致的版面（序號｜姓名｜科目［｜進步獎姓名｜科目］）
   function tableRows() {
-    var R = st.last, isFinal = true;
+    var R = st.last, isFinal = st.phase === 'final';
     var n = Math.max(R.topUnique.length, isFinal ? R.progUnique.length : 0);
     var head = ['序號', '前' + st.o.topN + '名 不重複名單', '科目'].concat(isFinal ? ['進步獎 姓名', '科目'] : []);
     var rows = [head];

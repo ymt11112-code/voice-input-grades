@@ -255,52 +255,52 @@
     }
     body { font-family: "Huninn", "Microsoft JhengHei", "PingFang TC", sans-serif; background: #FFFCF6; font-size: 15px; line-height: 1.6; }
     .appTitle { display: inline-flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 400; color: var(--ink); }
-    .appVersion { border: 2px solid var(--ink); color: var(--ink); background: var(--green-soft, #E7F3DD); }
-    .analysisLink { border: var(--bw) solid var(--ink); font-weight: 400; background: var(--aqua); color: var(--ink); transition: transform .18s cubic-bezier(.3, 1.6, .5, 1); }
+    .appVersion { border: none; color: var(--ink); background: var(--green-soft, #E7F3DD); }
+    .analysisLink { border: 2px solid var(--ink); font-weight: 400; background: var(--aqua); color: var(--ink); transition: transform .18s cubic-bezier(.3, 1.6, .5, 1); }
     .analysisLink:hover { background: #E0F0F8; transform: translateY(-2px) rotate(-1deg); }
-    .upgradeBanner { border: 2.5px solid var(--ink); border-radius: 20px; background: #FDF0CD; color: #6B4E08; }
-    .termTag { border: 2px solid var(--ink); background: #E0F0F8; color: var(--ink); }
+    .upgradeBanner { border: none; border-radius: 20px; background: #FDF0CD; color: #6B4E08; }
+    .termTag { border: none; background: #E0F0F8; color: var(--ink); }
     .termNow { background: var(--yellow); color: var(--ink); }
-    .tab { border: var(--bw) solid var(--ink); background: #FFFCF6; color: var(--ink); font-weight: 400; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), background .15s; }
+    .tab { border: 2px solid var(--ink); background: #FFFCF6; color: var(--ink); font-weight: 400; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), background .15s; }
     .tab:hover { background: #E0F0F8; transform: translateY(-2px); }
     .tab.active { background: var(--yellow); color: var(--ink); border-color: var(--ink); animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
-    .subjectBar { border: var(--bw) solid var(--ink); border-radius: 26px; box-shadow: none; }
-    .subjectBar select, input[type=text], input[type=number], select, textarea { border: 2.5px solid var(--ink); border-radius: 14px; background: #FFFCF6; }
+    .subjectBar { border: none; background: #FAF3E3; border-radius: 26px; box-shadow: none; }
+    .subjectBar select, input[type=text], input[type=number], select, textarea { border: 2px solid var(--ink); border-radius: 14px; background: #FFFCF6; }
     .panel { border: var(--bw) solid var(--ink); border-radius: 30px; box-shadow: none; animation: rise .5s cubic-bezier(.25, .9, .3, 1) both; }
     h3 { color: var(--ink); font-weight: 400; font-size: 16px; }
-    button { border: var(--bw) solid var(--ink); background: var(--yellow); color: var(--ink); font-weight: 400; transition: transform .15s cubic-bezier(.3, 1.6, .5, 1), background .15s; }
+    button { border: 2px solid var(--ink); background: var(--yellow); color: var(--ink); font-weight: 400; transition: transform .15s cubic-bezier(.3, 1.6, .5, 1), background .15s; }
     button:hover { background: #FBE6A8; transform: translateY(-1px); }
     button:active { transform: scale(.93); }
-    button.secondary { background: #FFFCF6; color: var(--ink); border: var(--bw) solid var(--ink); }
+    button.secondary { background: #FFFCF6; color: var(--ink); border: 2px solid var(--ink); }
     button.secondary:hover { background: #E0F0F8; }
     button.danger { background: var(--coral); color: var(--ink); }
     button.gold { background: var(--yellow); color: var(--ink); }
     th { background: #FDF0CD; color: var(--ink); font-weight: 400; }
-    th, td { border: 2px solid #E6DCCB; }
+    th, td { border: 1.5px solid #EBE2D2; }
     table { border-radius: 14px; }
-    .list-item { border: 2.5px solid var(--ink); border-radius: 18px; background: #FFFCF6; }
-    .toast { color: var(--ink); border: var(--bw) solid var(--ink); border-radius: 18px; box-shadow: none; }
+    .list-item { border: none; border-radius: 18px; background: #FAF3E3; }
+    .toast { color: var(--ink); border: 2px solid var(--ink); border-radius: 18px; box-shadow: none; }
     .toast.ok { background: var(--green); animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
     .toast.err { background: var(--coral); }
     .tokenGate { background: rgba(62, 58, 57, .42); }
     .tokenGate .box { border: var(--bw) solid var(--ink); border-radius: 30px; box-shadow: none; animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
-    .subpanel { border: 2.5px dashed var(--ink); border-radius: 22px; }
-    .log { border: 2.5px solid var(--ink); border-radius: 16px; }
+    .subpanel { border: 2px dashed #CDBFA6; border-radius: 22px; }
+    .log { border: 2px solid #CDBFA6; border-radius: 16px; }
     .log .ok { color: #3B7D34; }
-    .pill { border: 2px solid var(--ink); background: #E0F0F8; color: var(--ink); }
-    .card { border: var(--bw) solid var(--ink); border-radius: 26px; }
+    .pill { border: none; background: #E0F0F8; color: var(--ink); }
+    .card { border: 2px solid var(--ink); border-radius: 26px; }
     .cardHeader { background: #FDF0CD; }
     .cardHeader b { color: var(--ink); font-weight: 400; }
     .cardBody { animation: rise .4s cubic-bezier(.25, .9, .3, 1) both; }
     .cardBody[hidden] { animation: none; }
-    .cardIcon { border: 2px solid var(--ink); border-radius: 12px; }
+    .cardIcon { border: none; border-radius: 12px; }
     .cardIcon.tint-gold { background: #FDF0CD; } .cardIcon.tint-purple { background: #FCE4DE; }
     .cardIcon.tint-blue { background: #E0F0F8; } .cardIcon.tint-teal { background: #E7F3DD; }
-    .subjectBtn { background: #FFFCF6; color: var(--ink); border: var(--bw) solid var(--ink); padding: 4px 14px; display: inline-flex; align-items: center; gap: 4px; }
+    .subjectBtn { background: #FFFCF6; color: var(--ink); border: 2px solid var(--ink); padding: 4px 14px; display: inline-flex; align-items: center; gap: 4px; }
     .subjectBtn.active { background: var(--yellow); color: var(--ink); border-color: var(--ink); animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
-    table.itemTable th, table.itemTable td { border: 2px solid #E6DCCB; }
+    table.itemTable th, table.itemTable td { border: 1.5px solid #EBE2D2; }
     table.itemTable th { background: #FDF0CD; }
-    .bulkBar { border: 2.5px solid var(--ink); border-radius: 18px; background: #E0F0F8; }
+    .bulkBar { border: none; border-radius: 18px; background: #E0F0F8; }
     .layoutBar button.on { background: var(--yellow); color: var(--ink); border-color: var(--ink); }
     #studentScoreTable td.seqNum { color: var(--ink); font-weight: 400; }
     input[type=checkbox] { accent-color: var(--coral); }
