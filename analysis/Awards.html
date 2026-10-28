@@ -88,7 +88,7 @@
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt;
   var st = { raw: null, model: null, term: null, phase: 'final', last: null, parsed: null, ex: {}, subjSel: null, domSel: null,
-    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true, regress: false } };
+    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true, regress: false, termSource: 'auto', tol: 1, domainMap: {} } };
   var PHASE_NAME = { midterm: '期中考', final: '期末考', term: '學期總成績' };
 
   AX.shell();
@@ -168,6 +168,14 @@
     var pt = null; for (var k = i - 1; k >= 0; k--) if (st.raw.domains && st.raw.domains[terms[k]]) { pt = terms[k]; break; }
     return pt ? S.parseDomainSheet(st.raw.domains[pt]) : null;
   }
+  // 學期總成績：資料來源（學校匯出的領域成績，或系統依各科權重自己算）
+  function termInfo() {
+    var parsed = parsedForTerm(), hasSchool = !!(parsed && !parsed.error);
+    var D = S.semesterByDomain(st.model, st.term, st.o.domainMap), hasSys = D.domains.length > 0;
+    var src = st.o.termSource === 'system' ? 'system' : (st.o.termSource === 'school' ? 'school' : (hasSchool ? 'school' : 'system'));
+    var P = src === 'school' ? (hasSchool ? parsed : null) : (hasSys ? S.domainParsedFromSystem(D) : null);
+    return { parsed: parsed, hasSchool: hasSchool, D: D, hasSys: hasSys, src: src, P: P, names: P ? P.domains.map(function (d) { return d.name; }) : [] };
+  }
   function parsedForTerm() {
     var vals = st.raw.domains && st.raw.domains[st.term];
     if (!vals) return null;
@@ -191,10 +199,10 @@
     AX.$('subjLbl').textContent = isTerm ? '納入的領域' : '納入的科目（期中、期末預設只算國語、數學、社會、自然）';
     var box = AX.$('subjChecks'); AX.clear(box);
     if (isTerm) {
-      st.parsed = parsedForTerm();
-      if (!st.parsed || st.parsed.error) { box.appendChild(el('span', { 'class': 'muted small' }, '貼上學校匯出的成績後，這裡會列出領域')); return; }
-      var names = st.parsed.domains.map(function (d) { return d.name; });
-      if (!st.domSel) st.domSel = names.slice();
+      var ti = termInfo(); st.parsed = ti.parsed;
+      if (!ti.P) { box.appendChild(el('span', { 'class': 'muted small' }, '貼上學校匯出的成績，或等科目登記好成績後，這裡會列出領域')); return; }
+      var names = ti.names;
+      if (!st.domSel || st.domSel.some(function (x) { return names.indexOf(x) === -1; }) || !st.domSel.length) st.domSel = names.slice();
       names.forEach(function (n) {
         var lab = el('label', { 'class': 'chk' }), cb = el('input', { type: 'checkbox' });
         cb.checked = st.domSel.indexOf(n) > -1;
@@ -225,11 +233,16 @@
     var isFinal = st.phase === 'final', R;   // 進步獎只有期末考才有
 
     if (st.phase === 'term') {
-      st.parsed = parsedForTerm();
-      if (!st.parsed) { renderPasteGuide(main); return; }
-      if (st.parsed.error) { renderPasteGuide(main, st.parsed.error); return; }
-      R = S.domainAwards(st.parsed, o);
-      main.appendChild(statusCard());
+      var ti = termInfo(); st.parsed = ti.parsed; st.ti = ti;
+      main.appendChild(termSourceCard(ti));
+      if (ti.hasSchool && ti.hasSys) renderTermCheck(main, ti);
+      if (!ti.P) {
+        if (ti.src === 'school') renderPasteGuide(main, ti.parsed && ti.parsed.error ? ti.parsed.error : '');
+        else main.appendChild(el('div', { 'class': 'card empty' }, '系統裡還沒有這個學期的成績可以計算，請先登記成績，或改用「學校匯出」。'));
+        return;
+      }
+      o.domains = st.domSel;
+      R = S.domainAwards(ti.P, o);
     } else {
       R = S.awards(st.model, o);
       if (R.missing.length) main.appendChild(el('div', { 'class': 'note noprint' }, '這些科目沒有可用的成績，未列入名單：' + R.missing.map(function (x) { return x.subject + '（' + x.why + '）'; }).join('、') +
@@ -329,6 +342,98 @@
       var gid = info.subjectGids && info.subjectGids[sheetName()];
       a.href = info.url + (gid !== undefined ? '#gid=' + gid : ''); a.hidden = false;
     }).catch(function () { /* 連結只是方便 */ });
+  }
+  // ---- 學期總成績：名單依據（學校匯出／系統自算）與科目領域對應
+  function termSourceCard(ti) {
+    var c = AX.card('學期總成績：名單依據', '學校匯出的領域成績是正式的結算；系統自算是用你登記的成績、各科權重算出來的。兩份都有的時候，下面會自動對照，幫你找出可能輸入錯誤的地方。');
+    c.className += ' noprint';
+    var bar = el('div', { 'class': 'bar' }); bar.style.marginBottom = '8px';
+    var grp = el('span', { 'class': 'grp' }); bar.appendChild(el('span', { 'class': 'lbl' }, '前五名依據')); bar.appendChild(grp);
+    AX.btnGroup(grp, [{ label: '學校匯出' + (ti.hasSchool ? '' : '（還沒貼上）'), value: 'school' }, { label: '系統自算' + (ti.hasSys ? '' : '（還沒有成績）'), value: 'system' }], ti.src, function (v) { st.o.termSource = v; st.domSel = null; persist(); renderBar(); render(); });
+    c.appendChild(bar);
+    var notes = [];
+    if (ti.hasSchool) notes.push('學校匯出：已讀到「' + sheetName() + '」，' + ti.parsed.students.length + ' 位學生、' + ti.parsed.domains.length + ' 個領域（' + ti.parsed.domains.map(function (d) { return d.name; }).join('、') + '）。');
+    else notes.push('學校匯出：還沒有貼上（貼上後就能對照）。');
+    if (ti.hasSys) notes.push('系統自算：' + ti.D.domains.map(function (d) { return d.name + '＝' + d.subjects.map(function (s) { return s.name + '×' + s.w; }).join('＋'); }).join('；') + '。');
+    c.appendChild(el('p', { 'class': 'small', style: 'margin:4px 0' }, notes.join(' ')));
+    if (ti.D.incomplete.length) c.appendChild(el('div', { 'class': 'note' }, '這些科目的兩次定期考查還沒有全部完成，學期成績目前是暫算：' + ti.D.incomplete.join('、') + '。'));
+    // 科目與領域的對應（節數）
+    if (ti.hasSys) {
+      var det = el('details'); det.appendChild(el('summary', { style: 'cursor:pointer' }, '科目與領域對應、節數（系統自算用，可修改）'));
+      det.appendChild(el('p', { 'class': 'muted small' }, '領域成績＝該領域底下各科學期成績，依「節數」加權平均。預設語文＝國語 5 節＋英語 2 節（和學校匯出表標題的 語文 7.0 一致）。領域名稱要和學校匯出的一致，才能對照。'));
+      var tb = el('table', { 'class': 'stats' }), hr = el('tr');
+      ['科目', '屬於的領域', '節數'].forEach(function (h, i) { hr.appendChild(el('th', { 'class': i === 0 ? 'l' : '' }, h)); });
+      var th = el('thead'); th.appendChild(hr); tb.appendChild(th);
+      var body = el('tbody');
+      ti.D.subjects.forEach(function (s) {
+        var tr = el('tr'), dIn = el('input', { type: 'text', style: 'width:90px' }), wIn = el('input', { type: 'number', min: '0.5', step: '0.5', style: 'width:70px' });
+        dIn.value = s.domain; wIn.value = s.w;
+        function save() { st.o.domainMap[s.name] = { domain: dIn.value.trim() || s.name, w: Number(wIn.value) > 0 ? Number(wIn.value) : 1 }; st.domSel = null; persist(); renderBar(); render(); }
+        dIn.onchange = save; wIn.onchange = save;
+        tr.appendChild(el('td', { 'class': 'l' }, s.name));
+        var t1 = el('td'); t1.appendChild(dIn); tr.appendChild(t1);
+        var t2 = el('td'); t2.appendChild(wIn); tr.appendChild(t2);
+        body.appendChild(tr);
+      });
+      tb.appendChild(body);
+      var wrap = el('div', { 'class': 'tbl-wrap' }); wrap.appendChild(tb); det.appendChild(wrap);
+      var rb = el('button', null, '還原預設對應'); rb.style.marginTop = '8px';
+      rb.onclick = function () { st.o.domainMap = {}; st.domSel = null; persist(); renderBar(); render(); };
+      det.appendChild(rb);
+      c.appendChild(det);
+    }
+    return c;
+  }
+  // ---- 檢核：系統自算 vs 學校匯出
+  function renderTermCheck(main, ti) {
+    var cmp = S.compareDomainScores(ti.parsed, ti.D, st.o.tol);
+    var c = AX.card('檢核：系統自算 vs 學校匯出', '逐領域、逐位同學比較。先算出全班「整體差多少」（多半是四捨五入或節數權重的差別），再看每個人偏離這個整體差距多少；偏離超過容許差距的，可能是成績登記或貼上時輸入錯誤，請回頭核對原始考卷。');
+    c.className += ' noprint';
+    var bar = el('div', { 'class': 'bar' }); bar.style.marginBottom = '8px';
+    var g = el('span', { 'class': 'grp' }); g.appendChild(el('span', { 'class': 'lbl' }, '容許差距'));
+    var tin = el('input', { type: 'number', min: '0.1', step: '0.1' }); tin.value = st.o.tol;
+    tin.onchange = function () { var v = Number(tin.value); st.o.tol = v > 0 ? v : 1; persist(); render(); };
+    g.appendChild(tin); g.appendChild(el('span', { 'class': 'lbl' }, '分（偏離整體差距超過這個數字才標示）'));
+    bar.appendChild(g); c.appendChild(bar);
+    var tot = 0; cmp.domains.forEach(function (d) { tot += d.flagged.length; });
+    c.appendChild(AX.chips([['已對照領域', cmp.domains.map(function (d) { return d.name; }).join('、') || '—'], ['需要核對', tot + ' 筆'], ['學校有、系統沒有的領域', cmp.onlySchool.join('、') || '無'], ['系統有、學校沒有的領域', cmp.onlySystem.join('、') || '無']]));
+    if (cmp.unmatched.length) c.appendChild(el('p', { 'class': 'small down' }, '學校匯出裡有這些姓名，在系統名單找不到（可能是姓名寫法不同、已轉出）：' + cmp.unmatched.join('、') + '。'));
+    var wrap = el('div', { 'class': 'tbl-wrap' }); wrap.style.marginTop = '10px';
+    var tb = el('table', { 'class': 'stats' }), hr = el('tr');
+    ['領域', '對照人數', '整體差距（系統−學校）', '最大偏離', '需要核對', '判斷'].forEach(function (h, i) { hr.appendChild(el('th', { 'class': i === 0 || i === 5 ? 'l' : '' }, h)); });
+    var th = el('thead'); th.appendChild(hr); tb.appendChild(th);
+    var body = el('tbody');
+    cmp.domains.forEach(function (d) {
+      var judge = d.flagged.length ? '有 ' + d.flagged.length + ' 筆需要核對' : (Math.abs(d.median) > 0.5 ? '整體有固定差距，不像輸入錯誤，請確認節數或四捨五入' : '一致');
+      var tr = el('tr');
+      [d.name, String(d.compared) + ' / ' + d.n, S.signed(d.median, 2), fmt(d.maxAbs, 2), String(d.flagged.length), judge].forEach(function (v, i) {
+        var td = el('td', { 'class': i === 0 || i === 5 ? 'l' : '' }, v);
+        if (i === 4 && d.flagged.length) td.className = 'down';
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap);
+    // 需要核對的明細
+    var any = false;
+    cmp.domains.forEach(function (d) {
+      if (!d.flagged.length) return;
+      any = true;
+      var h = el('div', { 'class': 'h3' }, d.name + '：需要核對（' + d.flagged.length + ' 筆）'); h.style.marginTop = '12px'; c.appendChild(h);
+      var D = ti.D.domains.filter(function (x) { return x.name === d.name; })[0];
+      var ul = el('ul', { 'class': 'list' });
+      d.flagged.forEach(function (r) {
+        var li = el('li'); li.appendChild(el('span', { 'class': 'rk' }, r.seat == null ? '' : String(r.seat)));
+        li.appendChild(el('span', { 'class': 'nm' }, r.name));
+        var parts = D ? D.subjects.map(function (s) { return s.name + ' ' + fmt(s.vals[r.idx], 1); }).join('、') : '';
+        var txt = r.diff == null ? r.why : '學校 ' + fmt(r.school, 2) + ' ／ 系統 ' + fmt(r.sys, 2) + '（差 ' + S.signed(r.diff, 2) + '，偏離整體 ' + S.signed(r.dev, 2) + '）';
+        li.appendChild(el('span', { 'class': 'vl small' }, txt + (parts ? '　各科學期成績：' + parts : '')));
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+    });
+    if (!any) c.appendChild(el('p', { 'class': 'small up', style: 'margin-top:10px' }, '所有領域的系統自算和學校匯出都對得上，沒有發現可能的輸入錯誤。'));
+    main.appendChild(c);
   }
   function renderPasteGuide(main, error) {
     var c = AX.card('學期總成績：貼上學校匯出的成績', '學期總成績的各領域（語文、數學、社會、自然、健體、藝術、綜合、藝才…）以學校系統匯出的「學期領域成績」為準。');

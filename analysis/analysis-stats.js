@@ -992,7 +992,87 @@
     return out;
   }
 
+  // ---------- 學期總成績：系統自算（各科學期成績 → 領域），並和學校匯出的領域成績對照 ----------
+  // 各科的學期成績＝系統依各科權重算出的學期成績（第一次、第二次定期考查總成績依比例合成）。
+  // 領域成績＝該領域底下各科的學期成績，依「節數」加權平均（例如語文＝國語 5 節＋英語 2 節）。節數可以在畫面上修改。
+  function defaultDomainOf(subject) {
+    var n = String(subject);
+    if (/英/.test(n)) return { domain: '語文', w: 2 };
+    if (/本土|閩|客|族語/.test(n)) return { domain: '語文', w: 1 };
+    if (/國|語文|文$/.test(n)) return { domain: '語文', w: 5 };
+    if (/數/.test(n)) return { domain: '數學', w: 4 };
+    if (/社|地理|歷史|公民/.test(n)) return { domain: '社會', w: 3 };
+    if (/自然|科學|生活科技/.test(n)) return { domain: '自然', w: 3 };
+    if (/健|體/.test(n)) return { domain: '健體', w: 3 };
+    if (/藝|美|音/.test(n)) return { domain: '藝術', w: 3 };
+    if (/綜合/.test(n)) return { domain: '綜合', w: 1 };
+    return { domain: n, w: 1 };
+  }
+  // map：{科目: {domain, w}}（使用者改過的對應，沒有的用預設）
+  function semesterByDomain(model, term, map) {
+    var roster = model.roster, subs = [];
+    model.subjects.forEach(function (sm) {
+      var bt = sm.byTerm[term];
+      if (!bt) return;
+      var T = bt.T, vals = roster.map(function (r) { var ix = sm.index[r.key]; return ix === undefined ? null : T.scores[ix]; });
+      if (!vals.some(function (v) { return v != null; })) return;
+      var dm = map && map[sm.name] && map[sm.name].domain ? map[sm.name] : defaultDomainOf(sm.name);
+      var w = Number(dm.w); if (!(w > 0)) w = 1;
+      subs.push({ name: sm.name, domain: dm.domain, w: w, vals: vals, complete: T.periods[0].complete && T.periods[1].complete });
+    });
+    var by = {}, order = [];
+    subs.forEach(function (s) { if (!by[s.domain]) { by[s.domain] = { name: s.domain, subjects: [] }; order.push(s.domain); } by[s.domain].subjects.push(s); });
+    var domains = order.map(function (n) {
+      var D = by[n];
+      D.vals = roster.map(function (_, r) {
+        var num = 0, den = 0, ok = true;
+        D.subjects.forEach(function (s) { var v = s.vals[r]; if (v == null) ok = false; else { num += s.w * v; den += s.w; } });
+        return ok && den > 0 ? num / den : null;      // 領域底下有任何一科沒有成績，就不算這位同學的領域成績
+      });
+      return D;
+    });
+    domains.sort(function (a, b) { var ia = DOMAIN_ORDER.indexOf(a.name), ib = DOMAIN_ORDER.indexOf(b.name); return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib); });
+    return { roster: roster, subjects: subs, domains: domains, incomplete: subs.filter(function (s) { return !s.complete; }).map(function (s) { return s.name; }) };
+  }
+  // 把系統自算的領域成績整理成跟「學校匯出」相同的格式，這樣前五名的運算可以共用
+  function domainParsedFromSystem(D) {
+    var students = D.roster.map(function (r, i) { return { name: r.name, seat: r.seat, key: r.key, scores: D.domains.map(function (d) { return d.vals[i]; }) }; })
+      .filter(function (s) { return s.scores.some(function (v) { return v != null; }); });
+    return { domains: D.domains.map(function (d, i) { return { name: d.name, idx: i }; }), students: students, headerRow: 0 };
+  }
+  // 系統自算 vs 學校匯出：逐領域、逐位同學比較。tol＝容許的差距（分）。
+  // 先找出「整體差多少」（中位數，多半是四捨五入或節數權重的差別），再看每個人偏離這個整體差距多少；偏離超過 tol 的才標示為可能輸入錯誤。
+  function compareDomainScores(P, D, tol) {
+    tol = tol == null ? 1 : tol;
+    var byName = {}, out = { domains: [], unmatched: [], onlySchool: [], onlySystem: [], tol: tol };
+    D.roster.forEach(function (r, i) { byName[r.name] = i; });
+    P.students.forEach(function (s) { if (byName[s.name] === undefined) out.unmatched.push(s.name); });
+    D.domains.forEach(function (d) {
+      var pd = P.domains.filter(function (x) { return x.name === d.name; })[0];
+      if (!pd) { out.onlySystem.push(d.name); return; }
+      var rows = [];
+      P.students.forEach(function (s) {
+        var i = byName[s.name]; if (i === undefined) return;
+        var sch = s.scores[pd.idx], sys = d.vals[i];
+        if (sch == null && sys == null) return;
+        rows.push({ name: s.name, seat: s.seat, idx: i, school: sch, sys: sys, diff: sch != null && sys != null ? sys - sch : null });
+      });
+      var diffs = rows.filter(function (r) { return r.diff != null; }).map(function (r) { return r.diff; });
+      var med = diffs.length ? median(diffs) : 0;
+      rows.forEach(function (r) {
+        r.dev = r.diff == null ? null : r.diff - med;
+        r.why = r.diff == null ? (r.school == null ? '學校匯出沒有這項成績' : '系統算不出這項成績（有科目缺成績）') : '';
+        r.flag = r.diff == null || Math.abs(r.dev) > tol;
+      });
+      var flagged = rows.filter(function (r) { return r.flag; }).sort(function (a, b) { return (b.dev == null ? 99 : Math.abs(b.dev)) - (a.dev == null ? 99 : Math.abs(a.dev)); });
+      out.domains.push({ name: d.name, n: rows.length, compared: diffs.length, median: med, maxAbs: diffs.length ? Math.max.apply(null, diffs.map(function (x) { return Math.abs(x - med); })) : 0, flagged: flagged, subjects: d.subjects.map(function (s) { return s.name; }) });
+    });
+    P.domains.forEach(function (pd) { if (!D.domains.some(function (d) { return d.name === pd.name; })) out.onlySchool.push(pd.name); });
+    return out;
+  }
+
   AX.stats = {
+    defaultDomainOf: defaultDomainOf, semesterByDomain: semesterByDomain, domainParsedFromSystem: domainParsedFromSystem, compareDomainScores: compareDomainScores,
     sum: sum, mean: mean, median: median, sd: sd, describe: describe, scoreBands: scoreBands, nonNull: nonNull, tiers: tiers, tierName: tierName,
     TIER_DEFS: TIER_DEFS, compRank: compRank, topPercent: topPercent, histogram: histogram, fmt: fmt, signed: signed,
     DEFAULT_PASS: DEFAULT_PASS, DEFAULT_WEIGHTS: DEFAULT_WEIGHTS, DEFAULT_ALERT: DEFAULT_ALERT, KIND_LABEL: KIND_LABEL, TEST_KINDS: TEST_KINDS,

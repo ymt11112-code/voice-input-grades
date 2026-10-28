@@ -102,7 +102,7 @@
         });
       });
     });
-    return {
+    var out = {
       history: history,
       domains: { '114下': grid },
       missingNotes: [],
@@ -112,6 +112,18 @@
       subjectWeights: (function () { var o = {}; SUBJECTS.forEach(function (n) { o[n] = defaultWeightsFor(n); }); return o; })(),
       layout: { v1: [], v2: SUBJECTS.slice() }
     };
+    // 學校匯出的語文、數學、社會、自然：用系統算出來的學期成績（四捨五入到小數 2 位），再刻意埋 3 個「輸入錯誤」，方便看檢核效果
+    if (AX.stats && AX.stats.semesterByDomain) {
+      var M = AX.stats.buildModel(out, 60), D = AX.stats.semesterByDomain(M, '114下', {}), colOf = { '語文': 3, '數學': 5, '社會': 6, '自然': 8 };
+      var byName = {}; M.roster.forEach(function (r, i) { byName[r.name] = i; });
+      D.domains.forEach(function (dm) {
+        if (colOf[dm.name] == null) return;
+        grid.slice(3).forEach(function (row) { var i = byName[row[2]], v = i == null ? null : dm.vals[i]; if (v != null) row[colOf[dm.name]] = Math.round(v * 100) / 100; });
+      });
+      var typo = [[6, '數學', 5, -3.4], [17, '自然', 8, 2.7], [22, '語文', 3, -1.9]];
+      typo.forEach(function (t) { grid.slice(3).forEach(function (row) { if (Number(row[1]) === t[0] && typeof row[t[2]] === 'number') row[t[2]] = Math.round((row[t[2]] + t[3]) * 100) / 100; }); });
+    }
+    return out;
   }
 
   AX.demoCall = function (fn, args) {
