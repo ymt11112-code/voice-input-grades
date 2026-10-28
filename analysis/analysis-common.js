@@ -155,6 +155,13 @@
       if (DEMO) { btn.textContent = '示範資料（離開）'; btn.onclick = function () { location.search = ''; }; }
       else btn.onclick = AX.openGate;
     }
+    if (root.AXArt) {
+      var pg = (location.pathname.split('/').pop() || '').replace(/\.html.*$/, '').toLowerCase();
+      var top = document.querySelector('.top'), hero = AXArt.hero(pg);
+      if (top && hero) top.parentNode.insertBefore(hero, top.nextSibling);
+      var ttl = document.querySelector('.top .title');
+      if (ttl) { ttl.textContent = ''; ttl.appendChild(AXArt.icon('bars', 32)); ttl.appendChild(document.createTextNode('成績分析')); }
+    }
     if (DEMO) {
       document.querySelectorAll('.pages a').forEach(function (a) { a.href += '?demo=1'; });
       app.insertBefore(el('div', { 'class': 'note noprint' }, '目前顯示的是系統產生的示範資料，不是真實成績。'), $('content'));
@@ -240,6 +247,7 @@
     clear(box);
     items.forEach(function (it) {
       var b = el('button', { 'class': it.value === on ? 'on' : '' }, it.label);
+      if (box.id === 'subjectBtns' && root.AXArt) b.insertBefore(AXArt.subject(it.label, 20), b.firstChild);   // 科目按鈕前面放一個小圖示
       b.onclick = function () { onPick(it.value); };
       box.appendChild(b);
     });

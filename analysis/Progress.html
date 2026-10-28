@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>成績歷程</title>
-  <link rel="stylesheet" href="analysis-common.css">
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="analysis-common.css?v=20261029">
 </head>
 <body>
 <div class="app">
@@ -36,14 +40,15 @@
   </div>
 </div>
 
-<script src="analysis-stats.js"></script>
-<script src="analysis-demo.js"></script>
-<script src="analysis-common.js"></script>
+<script src="analysis-stats.js?v=20261029"></script>
+<script src="analysis-demo.js?v=20261029"></script>
+<script src="analysis-art.js?v=20261029"></script>
+<script src="analysis-common.js?v=20261029"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed;
   // 科目固定配色（顏色跟著科目走，不會因為勾選的科目變動而改變）
-  var PALETTE = ['#2a78d6', '#eb6834', '#2a9d6a', '#8a5fd0', '#c99a12', '#d6459b', '#0e9aa7', '#7a8b99'];
+  var PALETTE = ['#3F8FBA', '#DE6B58', '#5EA34A', '#D6A21C', '#6F6A68', '#9A86C2', '#2FA3A0', '#B07A5B'];
   var st = { raw: null, model: null, M: null, tab: 'person', basis: 'term', scope: 'cohort', partial: false, subs: null, key: null, cmpIdx: null, k: 1.5, sort: 'seat' };
 
   AX.shell();
@@ -101,6 +106,7 @@
     var box = AX.$('subjBtns'); AX.clear(box);
     st.M.subjects.forEach(function (n) {
       var on = !st.effSubs || st.effSubs.indexOf(n) > -1, b = el('button', { 'class': on ? 'on' : '' }, n);
+      if (window.AXArt) b.insertBefore(AXArt.subject(n, 20), b.firstChild);
       b.onclick = function () {
         var cur = st.effSubs ? st.effSubs.slice() : st.M.subjects.slice(), i = cur.indexOf(n);
         if (i > -1) { if (cur.length > 1) cur.splice(i, 1); } else cur.push(n);
@@ -288,7 +294,7 @@
       return tr;
     }
     J.bySubject.forEach(function (b) {
-      var nz = M.subjNoise[b.name];
+      var nz = M.subjNoise ? M.subjNoise[b.name] : null;
       bd2.appendChild(rankRow(b.name, function (x) { var c = x.subj[b.name]; return c ? c.rank : null; }, function (x) { var c = x.subj[b.name]; return c ? [c.v, c.mean] : [null, null]; }, nz ? nz.sigma : 0, colorOf(b.name), false));
     });
     bd2.appendChild(rankRow('總平均名次', function (x) { return x.rank; }, function (x) { return [x.avg, x.classMean]; }, M.noise ? M.noise.sigma : 0, null, true));
@@ -446,7 +452,7 @@
       var flag = x.c == null ? (x.rank == null || x.prevRank == null ? '缺考／缺成績' : '') : (x.sig ? (x.c > 0 ? '進步明顯' : '退步明顯') : '');
       tr.appendChild(el('td', { 'class': flag === '進步明顯' ? 'up' : (flag === '退步明顯' ? 'down' : 'muted') }, flag));
       subs.forEach(function (nm) {
-        var m2 = moveCell(prv.ranks[nm][x.r], cur.ranks[nm][x.r]), nz = M.subjNoise[nm];
+        var m2 = moveCell(prv.ranks[nm][x.r], cur.ranks[nm][x.r]), nz = M.subjNoise ? M.subjNoise[nm] : null;
         var cs2 = relChange(prv.vals[nm][x.r], prv.classMean[nm], cur.vals[nm][x.r], cur.classMean[nm]), sg2 = nz && isSig(cs2, nz.sigma);
         tr.appendChild(el('td', { 'class': sg2 ? (cs2 > 0 ? 'up' : 'down') : 'muted' }, m2.text));
       });

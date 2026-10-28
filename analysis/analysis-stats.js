@@ -584,32 +584,69 @@
     return chosen.map(function (i) { return { idx: i, value: values[i], rank: compRank(all, values[i]) }; });
   }
 
-  function progressList(sm, term, o, excludeIdx) {
-    var T = sm.byTerm[term].T, cur = T.comp.final, base;
-    if (o.progressBase === 'prevFinal') {
-      var ti = sm.terms.indexOf(term), pt = ti > 0 ? sm.terms[ti - 1] : null;
-      if (pt == null) return { list: [], note: '沒有上一學期的期末考可以比較' };
-      base = sm.byTerm[pt].T.comp.final;
-    } else base = T.comp.midterm;
-    var curVals = nonNull(cur), baseVals = nonNull(base);
-    if (!curVals.length || !baseVals.length) return { list: [], note: '缺少期中考或期末考成績，無法比較' };
-    var mc = mean(curVals), mb = mean(baseVals), rows = [];
-    cur.forEach(function (c, i) {
-      var b = base[i];
-      if (c == null || b == null) return;
-      var gain = o.progressMetric === 'rank' ? compRank(baseVals, b) - compRank(curVals, c)
-        : (o.progressMetric === 'relative' ? (c - mc) - (b - mb) : c - b);
-      rows.push({ idx: i, base: b, cur: c, gain: gain, baseRank: compRank(baseVals, b), curRank: compRank(curVals, c) });
+  // 進步名單。curVals／baseVals 依同一批同學排列（null＝沒有成績）。
+  // o.progressMetric：'score'＝分數進步、'relative'＝相對班平均進步（扣除考卷難易）、'rank'＝名次進步。
+  // o.regress：true＝考慮「成績回歸」。上次考得特別低的人，下次本來就容易回升（上次特別高的人容易回落），這不是真的進步或退步。
+  //   做法：用全班「上次 → 這次」的關係畫一條迴歸線，算出每個人「依上次成績本來預期會考幾分」，進步幅度＝實際成績 − 預期成績。
+  //   開啟後以這個幅度為準（單位：分），上面的進步算法不再使用。回傳 reg＝{ slope, r, n }，供畫面說明。
+  function progressRows(curVals, baseVals, o, excludeIdx) {
+    var idxs = [], i;
+    for (i = 0; i < curVals.length; i++) if (curVals[i] != null && baseVals[i] != null) idxs.push(i);
+    var curAll = nonNull(curVals), baseAll = nonNull(baseVals);
+    if (!idxs.length) return { list: [], note: '缺少可以比較的成績', reg: null };
+    var mc = mean(curAll), mb = mean(baseAll), reg = null, a0 = 0, b1 = 1;
+    if (o.regress) {
+      var cv = idxs.map(function (k) { return curVals[k]; }), bv = idxs.map(function (k) { return baseVals[k]; });
+      var mcv = mean(cv), mbv = mean(bv), sxy = 0, sxx = 0, syy = 0;
+      for (i = 0; i < idxs.length; i++) { sxy += (bv[i] - mbv) * (cv[i] - mcv); sxx += (bv[i] - mbv) * (bv[i] - mbv); syy += (cv[i] - mcv) * (cv[i] - mcv); }
+      if (idxs.length >= 5 && sxx > 0) {
+        b1 = sxy / sxx; a0 = mcv - b1 * mbv;
+        reg = { slope: b1, r: syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0, n: idxs.length };
+      } else { b1 = 1; a0 = mcv - mbv; }   // 人數太少或沒有差異，無法估計：退回「相對班平均」的算法
+    }
+    var rows = idxs.map(function (k) {
+      var bb = baseVals[k], cc = curVals[k], expect = null, gain;
+      if (o.regress) { expect = a0 + b1 * bb; gain = cc - expect; }
+      else if (o.progressMetric === 'rank') gain = compRank(baseAll, bb) - compRank(curAll, cc);
+      else if (o.progressMetric === 'relative') gain = (cc - mc) - (bb - mb);
+      else gain = cc - bb;
+      return { idx: k, base: bb, cur: cc, expect: expect, gain: gain, baseRank: compRank(baseAll, bb), curRank: compRank(curAll, cc) };
     });
     var minGain = o.minGain == null ? 0 : o.minGain;
     rows = rows.filter(function (r) { return r.gain >= minGain - 1e-9 && r.gain > 0 && !(excludeIdx && excludeIdx.indexOf(r.idx) > -1); });
-    rows.sort(function (a, b) { return (b.gain - a.gain) || (b.cur - a.cur) || (a.idx - b.idx); });
+    rows.sort(function (x, y) { return (y.gain - x.gain) || (y.cur - x.cur) || (x.idx - y.idx); });
     var n = o.progressN;
     if (rows.length > n) {
       var cut = rows[n - 1].gain;
       rows = o.ties ? rows.filter(function (r) { return r.gain >= cut - 1e-9; }) : rows.slice(0, n);
     }
-    return { list: rows, note: '' };
+    return { list: rows, note: '', reg: reg };
+  }
+
+  // 某一科（依 stageMatrix 的各階段成績）在 o.term 的進步名單：本次＝期中或期末的階段，比較基準＝同學期期中，或上一個學期的期末（包含匯入的歷史成績）
+  function progressForSubject(M, sm, o, excludeKeys) {
+    var cur = null, base = null, i;
+    for (i = 0; i < M.stages.length; i++) if (M.stages[i].term === o.term && M.stages[i].p === (o.phase === 'midterm' ? 1 : 2)) cur = M.stages[i];
+    if (!cur) return { list: [], note: '這個階段還沒有可以比較的成績', reg: null };
+    if (o.phase === 'final' && o.progressBase !== 'prevFinal') {
+      for (i = 0; i < M.stages.length; i++) if (M.stages[i].term === o.term && M.stages[i].p === 1) base = M.stages[i];
+      if (!base) return { list: [], note: '缺少同學期期中的成績，無法比較', reg: null };
+    } else {
+      for (i = 0; i < M.stages.length; i++) if (M.stages[i].p === 2 && termKey(M.stages[i].term) < termKey(o.term)) base = M.stages[i];   // 最近的上一個期末
+      if (!base) return { list: [], note: '沒有上一學期的期末成績可以比較' + (o.basis === 'term' ? '（可以到「成績歷程」匯入前幾學年的歷史成績）' : '（若上一學期是匯入的歷史成績，請把「排名依據」改成「定期考查總成績」）'), reg: null };
+    }
+    if (!cur.vals[sm.name] || !base.vals[sm.name]) return { list: [], note: '這一科缺少' + (!base.vals[sm.name] ? base.label : cur.label) + '的成績', reg: null };
+    var roster = M.roster, curV = [], baseV = [], map = [], ex = [];
+    roster.forEach(function (r, ri) {
+      var ix = sm.index[r.key];
+      if (ix === undefined) return;
+      map.push(ix); curV.push(cur.vals[sm.name][ri]); baseV.push(base.vals[sm.name][ri]);
+      if (excludeKeys && excludeKeys.indexOf(r.key) > -1) ex.push(map.length - 1);
+    });
+    var pr = progressRows(curV, baseV, o, ex);
+    pr.list.forEach(function (x) { x.idx = map[x.idx]; });
+    pr.baseLabel = base.label; pr.curLabel = cur.label;
+    return pr;
   }
 
   // 手動調整：o.excluded(kind, 科目, 學生key) 回傳 true 的人不列入不重複名單（但仍顯示在明細，讓老師可以勾回來）
@@ -632,8 +669,10 @@
   // o = { term, phase:'midterm'|'final', topN, ties, basis:'exam'|'term', progressN, progressMetric:'score'|'relative'|'rank',
   //       progressBase:'midterm'|'prevFinal', minGain, excludeTop, subjects:[科目名]|null, sortBySeat, excluded:function }
   function awards(model, o) {
-    var out = { subjects: [], missing: [], topUnique: [], progUnique: [] };
+    var out = { subjects: [], missing: [], topUnique: [], progUnique: [], reg: null };
     function info(sm, idx) { var s = sm.data.students[idx]; return { key: sm.keys[idx], name: s.name, seat: s.seat }; }
+    // 進步獎用各階段成績（含匯入的歷史成績）比較；排名依據選「定期考查總成績」時用兩次定期考查的總成績，否則用段考分數
+    var M = o.noProgress ? null : stageMatrix(model, { basis: o.basis === 'term' ? 'term' : 'exam', scope: o.scope || 'cohort', partial: false });
     model.subjects.forEach(function (sm) {
       if (o.subjects && o.subjects.indexOf(sm.name) === -1) return;
       var bt = sm.byTerm[o.term];
@@ -642,14 +681,14 @@
       var vals = o.basis === 'term' ? stageScores(T, o.phase) : (o.phase === 'midterm' ? T.comp.midterm : T.comp.final);
       if (!nonNull(vals).length) { out.missing.push({ subject: sm.name, why: o.phase === 'midterm' ? '沒有期中考成績' : '沒有期末考成績' }); return; }
       var top = pickTop(vals, o.topN, o.ties).map(function (x) { var r = info(sm, x.idx); r.value = x.value; r.rank = x.rank; r.idx = x.idx; return r; });
-      var prog = [], progNote = '';
-      if (o.phase === 'final') {
-        var pr = progressList(sm, o.term, o, o.excludeTop ? top.map(function (x) { return x.idx; }) : null);
-        progNote = pr.note;
-        prog = pr.list.map(function (x) { var r = info(sm, x.idx); r.base = x.base; r.cur = x.cur; r.gain = x.gain; r.baseRank = x.baseRank; r.curRank = x.curRank; r.idx = x.idx; return r; });
+      var prog = [], progNote = '', reg = null, labels = null;
+      if (M) {
+        var pr = progressForSubject(M, sm, o, o.excludeTop ? top.map(function (x) { return x.key; }) : null);
+        progNote = pr.note; reg = pr.reg; labels = pr.baseLabel ? [pr.baseLabel, pr.curLabel] : null;
+        prog = pr.list.map(function (x) { var r = info(sm, x.idx); r.base = x.base; r.cur = x.cur; r.expect = x.expect; r.gain = x.gain; r.baseRank = x.baseRank; r.curRank = x.curRank; r.idx = x.idx; return r; });
       }
       markExcluded(top, 'top', sm.name, o); markExcluded(prog, 'prog', sm.name, o);
-      out.subjects.push({ name: sm.name, top: top, prog: prog, progNote: progNote, n: nonNull(vals).length });
+      out.subjects.push({ name: sm.name, top: top, prog: prog, progNote: progNote, reg: reg, labels: labels, n: nonNull(vals).length });
     });
     out.topUnique = uniqueOf(out.subjects, 'top', o.sortBySeat);
     out.progUnique = uniqueOf(out.subjects, 'prog', o.sortBySeat);
@@ -930,9 +969,24 @@
         return { key: s.key, name: s.name, seat: s.seat, value: x.value, rank: x.rank, idx: x.idx };
       });
       markExcluded(top, 'top', d.name, o);
-      out.subjects.push({ name: d.name, top: top, prog: [], progNote: '', n: nonNull(vals).length });
+      var prog = [], progNote = '', reg = null;
+      if (!o.prevParsed || o.prevParsed.error) progNote = '沒有上一學期的領域成績可以比較（請先建立並貼上上一學期的「領域成績」）';
+      else {
+        var pd = o.prevParsed.domains.filter(function (x) { return x.name === d.name; })[0];
+        if (!pd) progNote = '上一學期的領域成績裡沒有「' + d.name + '」';
+        else {
+          var prevByKey = {}; o.prevParsed.students.forEach(function (s) { prevByKey[s.key] = s.scores[pd.idx]; });
+          var baseV = P.students.map(function (s) { return prevByKey[s.key] == null ? null : prevByKey[s.key]; });
+          var pr = progressRows(vals, baseV, o, o.excludeTop ? top.map(function (x) { return x.idx; }) : null);
+          progNote = pr.note; reg = pr.reg;
+          prog = pr.list.map(function (x) { var s = P.students[x.idx]; return { key: s.key, name: s.name, seat: s.seat, base: x.base, cur: x.cur, expect: x.expect, gain: x.gain, baseRank: x.baseRank, curRank: x.curRank, idx: x.idx }; });
+        }
+      }
+      markExcluded(prog, 'prog', d.name, o);
+      out.subjects.push({ name: d.name, top: top, prog: prog, progNote: progNote, reg: reg, n: nonNull(vals).length });
     });
     out.topUnique = uniqueOf(out.subjects, 'top', o.sortBySeat);
+    out.progUnique = uniqueOf(out.subjects, 'prog', o.sortBySeat);
     return out;
   }
 
@@ -943,7 +997,7 @@
     defaultKind: defaultKind, analyze: analyze, studentAgg: studentAgg, studentSeries: studentSeries, trendJudge: trendJudge,
     termSummary: termSummary, buildModel: buildModel, subjectOf: subjectOf, termLabel: termLabel, defaultTerm: defaultTerm,
     termRow: termRow, chronoTests: chronoTests, alertsFor: alertsFor, studentProfile: studentProfile,
-    awards: awards, stageScores: stageScores, pickTop: pickTop, stageMatrix: stageMatrix, studentJourney: studentJourney, parseHistory: parseHistory, termKey: termKey, yearOf: yearOf, zOf: zOf,
+    awards: awards, progressRows: progressRows, stageScores: stageScores, pickTop: pickTop, stageMatrix: stageMatrix, studentJourney: studentJourney, parseHistory: parseHistory, termKey: termKey, yearOf: yearOf, zOf: zOf,
     parseDomainSheet: parseDomainSheet, domainAwards: domainAwards, DOMAIN_ORDER: DOMAIN_ORDER
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = AX;

@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>獎狀名單</title>
-  <link rel="stylesheet" href="analysis-common.css">
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="analysis-common.css?v=20261029">
   <style>
     .list li.off { opacity: .45; text-decoration: line-through; }
     .list li label { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 0; cursor: pointer; }
@@ -53,13 +57,14 @@
         </div>
         <div class="bar" id="progBar">
           <span class="grp"><span class="lbl">進步獎每科</span><input type="number" id="optProgN" min="1" max="30"><span class="lbl">人</span></span>
+          <label class="chk" title="上次考得特別低的同學，下次本來就容易回升；上次特別高的，容易回落。勾選後，進步幅度＝實際成績 − 依上次成績預期會考的分數（用全班「上次→這次」的關係估計），避免把「自然回升」當成進步。"><input type="checkbox" id="optRegress"> 考慮成績回歸（扣除自然回升）</label>
           <span class="grp"><span class="lbl">進步算法</span>
             <select id="optMetric">
               <option value="score">分數進步（期末 − 比較基準）</option>
               <option value="relative">相對班平均進步（扣除考卷難易）</option>
               <option value="rank">名次進步</option>
             </select></span>
-          <span class="grp"><span class="lbl">比較基準</span>
+          <span class="grp" id="baseGrp"><span class="lbl">比較基準</span>
             <select id="optBase">
               <option value="midterm">同學期的期中考</option>
               <option value="prevFinal">上一學期的期末考</option>
@@ -67,6 +72,7 @@
           <span class="grp"><span class="lbl">至少進步</span><input type="number" id="optMin" min="1"><span class="lbl" id="minUnit">分</span></span>
           <label class="chk"><input type="checkbox" id="optExcl"> 已得該科前幾名者不重複領進步獎</label>
         </div>
+        <p class="muted small" id="progHint" style="margin:2px 0 8px"></p>
         <div class="bar"><span class="lbl" id="subjLbl">納入的科目</span><span id="subjChecks" class="grp"></span></div>
       </div>
     </div>
@@ -74,14 +80,15 @@
   </div>
 </div>
 
-<script src="analysis-stats.js"></script>
-<script src="analysis-demo.js"></script>
-<script src="analysis-common.js"></script>
+<script src="analysis-stats.js?v=20261029"></script>
+<script src="analysis-demo.js?v=20261029"></script>
+<script src="analysis-art.js?v=20261029"></script>
+<script src="analysis-common.js?v=20261029"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt;
   var st = { raw: null, model: null, term: null, phase: 'final', last: null, parsed: null, ex: {}, subjSel: null, domSel: null,
-    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true } };
+    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true, regress: false } };
   var PHASE_NAME = { midterm: '期中考', final: '期末考', term: '學期總成績' };
 
   AX.shell();
@@ -92,20 +99,29 @@
   function exKey(kind, subject, key) { return [st.term, st.phase, kind, subject, key].join('|'); }
 
   // ---- 條件欄位
-  var F = { topN: AX.$('optTopN'), ties: AX.$('optTies'), basis: AX.$('optBasis'), seat: AX.$('optSeat'), progN: AX.$('optProgN'), metric: AX.$('optMetric'), base: AX.$('optBase'), min: AX.$('optMin'), excl: AX.$('optExcl') };
+  var F = { topN: AX.$('optTopN'), ties: AX.$('optTies'), basis: AX.$('optBasis'), seat: AX.$('optSeat'), progN: AX.$('optProgN'), metric: AX.$('optMetric'), base: AX.$('optBase'), min: AX.$('optMin'), excl: AX.$('optExcl'), reg: AX.$('optRegress') };
   function loadFields() {
     F.topN.value = st.o.topN; F.ties.checked = st.o.ties; F.basis.value = st.o.basis; F.seat.checked = st.o.sortBySeat;
-    F.progN.value = st.o.progressN; F.metric.value = st.o.progressMetric; F.base.value = st.o.progressBase; F.min.value = st.o.minGain; F.excl.checked = st.o.excludeTop;
-    AX.$('minUnit').textContent = st.o.progressMetric === 'rank' ? '名' : '分';
+    F.progN.value = st.o.progressN; F.metric.value = st.o.progressMetric; F.base.value = st.o.progressBase; F.min.value = st.o.minGain; F.excl.checked = st.o.excludeTop; F.reg.checked = !!st.o.regress;
+    syncProg();
   }
   function readFields() {
     var n = Number(F.topN.value); st.o.topN = n >= 1 ? Math.floor(n) : 5;
     st.o.ties = F.ties.checked; st.o.basis = F.basis.value; st.o.sortBySeat = F.seat.checked;
     var p = Number(F.progN.value); st.o.progressN = p >= 1 ? Math.floor(p) : 3;
     st.o.progressMetric = F.metric.value; st.o.progressBase = F.base.value;
-    var mg = Number(F.min.value); st.o.minGain = mg > 0 ? mg : 1; st.o.excludeTop = F.excl.checked;
-    AX.$('minUnit').textContent = st.o.progressMetric === 'rank' ? '名' : '分';
+    var mg = Number(F.min.value); st.o.minGain = mg > 0 ? mg : 1; st.o.excludeTop = F.excl.checked; st.o.regress = F.reg.checked;
+    syncProg();
     persist(); render();
+  }
+  // 進步獎的欄位連動：考慮成績回歸時，進步幅度以「高出預期的分數」為準，不再使用上面的「進步算法」
+  function syncProg() {
+    var rg = !!st.o.regress;
+    F.metric.disabled = rg;
+    AX.$('minUnit').textContent = rg || st.o.progressMetric !== 'rank' ? '分' : '名';
+    AX.$('progHint').textContent = rg
+      ? '已考慮成績回歸：進步幅度＝實際成績 − 依上次成績預期的分數（每一科用全班「上次→這次」的關係各自估計），上次考得特別低而自然回升的部分不算進步。「至少進步」＝至少高出預期幾分。'
+      : '目前沒有考慮成績回歸：上次考得特別低的同學，下次容易自然回升而排在進步獎前面；勾選「考慮成績回歸」可以改成只計算「高出預期」的部分。';
   }
   Object.keys(F).forEach(function (k) { F[k].onchange = readFields; });
   F.metric.addEventListener('change', function () { F.min.value = F.metric.value === 'rank' ? 3 : 5; readFields(); });
@@ -145,6 +161,13 @@
   function hasFinal() {
     return st.model.subjects.some(function (sm) { var bt = sm.byTerm[st.term]; return bt && bt.T.comp.final.some(function (v) { return v != null; }); });
   }
+  // 上一學期的領域成績（學期總成績的進步獎要和它比）
+  function prevParsed() {
+    if (st.phase !== 'term') return null;
+    var terms = (st.raw.terms || []).slice().sort(function (a, b) { return S.termKey(a) - S.termKey(b); }), i = terms.indexOf(st.term);
+    var pt = null; for (var k = i - 1; k >= 0; k--) if (st.raw.domains && st.raw.domains[terms[k]]) { pt = terms[k]; break; }
+    return pt ? S.parseDomainSheet(st.raw.domains[pt]) : null;
+  }
   function parsedForTerm() {
     var vals = st.raw.domains && st.raw.domains[st.term];
     if (!vals) return null;
@@ -158,7 +181,8 @@
     });
     AX.btnGroup(AX.$('phaseBtns'), [{ label: '期中考', value: 'midterm' }, { label: '期末考', value: 'final' }, { label: '學期總成績（各領域）', value: 'term' }], st.phase, function (v) { st.phase = v; renderBar(); render(); });
     var isTerm = st.phase === 'term';
-    AX.$('progBar').hidden = st.phase !== 'final';
+    AX.$('progBar').hidden = false;
+    AX.$('baseGrp').hidden = st.phase !== 'final';   // 期中考、學期總成績固定和「上一學期」比；期末考可以選和期中或上一學期期末比
     AX.$('basisGrp').hidden = isTerm;
     AX.$('topLbl').textContent = isTerm ? '每領域前' : '每科前';
     AX.$('subjLbl').textContent = isTerm ? '納入的領域' : '納入的科目（期中、期末預設只算國語、數學、社會、自然）';
@@ -193,9 +217,9 @@
   // ---- 版面
   function render() {
     var main = AX.$('main'); AX.clear(main);
-    var o = Object.assign({}, st.o, { term: st.term, phase: st.phase, subjects: st.subjSel, domains: st.domSel,
+    var o = Object.assign({}, st.o, { term: st.term, phase: st.phase, subjects: st.subjSel, domains: st.domSel, prevParsed: prevParsed(),
       excluded: function (kind, subject, key) { return !!st.ex[exKey(kind, subject, key)]; } });
-    var isFinal = st.phase === 'final', R;
+    var isFinal = true, R;   // 進步獎：期中考、期末考、學期總成績都有
 
     if (st.phase === 'term') {
       st.parsed = parsedForTerm();
@@ -233,20 +257,23 @@
     if (isFinal) Rr.appendChild(uniqueTable('進步獎名單', R.progUnique));
 
     // ---- 各科（各領域）明細，每位同學可勾選
-    var d = AX.card('各' + (st.phase === 'term' ? '領域' : '科') + '明細', '每一' + unit + '各自的名次與分數，製作獎狀時對照。取消勾選的同學不會出現在上面的不重複名單。' + (isFinal ? '進步獎的數字是「比較基準 → 期末考」與進步幅度。' : ''));
+    var d = AX.card('各' + (st.phase === 'term' ? '領域' : '科') + '明細', '每一' + unit + '各自的名次與分數，製作獎狀時對照。取消勾選的同學不會出現在上面的不重複名單。' + '進步獎的數字是「比較基準 → 本次」與進步幅度' + (st.o.regress ? '（已考慮成績回歸）' : '') + '。' + (st.phase === 'term' ? '學期總成績的進步獎和上一學期貼上的領域成績比。' : (st.phase === 'midterm' ? '期中考的進步獎和上一學期的期末比（上一學期若是匯入的歷史成績，請把「排名依據」選成「定期考查總成績」）。' : '')));
     var grid = el('div', { 'class': 'grid2' }); d.appendChild(grid); main.appendChild(d);
     R.subjects.forEach(function (s) {
       var mini = el('div', { 'class': 'mini' });
-      mini.appendChild(el('h3', null, s.name));
-      mini.appendChild(el('div', { 'class': 'h3 muted' }, '前 ' + st.o.topN + ' 名（' + s.top.length + ' 人）'));
+      var h3 = el('h3', null, s.name); if (window.AXArt) h3.insertBefore(AXArt.subject(s.name, 26), h3.firstChild); mini.appendChild(h3);
+      var th3 = el('div', { 'class': 'h3 muted' }, '前 ' + st.o.topN + ' 名（' + s.top.length + ' 人）'); if (window.AXArt) th3.insertBefore(AXArt.icon('trophy', 20), th3.firstChild); mini.appendChild(th3);
       if (s.top.length > st.o.topN) mini.appendChild(el('div', { 'class': 'tieNote' }, '⚠ 同分 ' + s.top.length + ' 人超出 ' + st.o.topN + ' 個名額，請勾選要列入的人（或取消勾選「同分一併列入」只取前 ' + st.o.topN + ' 位）'));
       mini.appendChild(entryList(s.top, 'top', s.name, function (x) { return fmt(x.value) + unitOf(); }, true));
       if (isFinal) {
-        var h = el('div', { 'class': 'h3 muted' }, '進步獎（' + s.prog.length + ' 人）'); h.style.marginTop = '10px'; mini.appendChild(h);
+        var h = el('div', { 'class': 'h3 muted' }, '進步獎（' + s.prog.length + ' 人）'); h.style.marginTop = '10px'; if (window.AXArt) h.insertBefore(AXArt.icon('rosette', 20), h.firstChild); mini.appendChild(h);
         if (s.prog.length) mini.appendChild(entryList(s.prog, 'prog', s.name, function (x) {
+          if (st.o.regress && x.expect != null) return fmt(x.base) + ' → ' + fmt(x.cur) + '（預期 ' + fmt(x.expect) + '，高出 +' + fmt(x.gain) + '）';
           return st.o.progressMetric === 'rank' ? '第 ' + x.baseRank + ' → 第 ' + x.curRank + ' 名（+' + fmt(x.gain, 0) + '）' : fmt(x.base) + ' → ' + fmt(x.cur) + '（+' + fmt(x.gain) + '）';
         }, false));
         else mini.appendChild(el('div', { 'class': 'muted small' }, s.progNote || '沒有符合條件的同學（可以調低「至少進步」）'));
+        if (st.o.regress && s.reg) mini.appendChild(el('div', { 'class': 'muted small' }, '兩次成績相關 r＝' + fmt(s.reg.r, 2) + '；預期＝依上次成績的全班迴歸線（斜率 ' + fmt(s.reg.slope, 2) + '，斜率越小，回歸的影響越大）。'));
+        else if (s.labels && s.prog.length) mini.appendChild(el('div', { 'class': 'muted small' }, '比較：' + s.labels[0] + ' → ' + s.labels[1]));
       }
       grid.appendChild(mini);
     });
@@ -335,7 +362,7 @@
 
   // ---- 輸出：與你原本表格一致的版面（序號｜姓名｜科目［｜進步獎姓名｜科目］）
   function tableRows() {
-    var R = st.last, isFinal = st.phase === 'final';
+    var R = st.last, isFinal = true;
     var n = Math.max(R.topUnique.length, isFinal ? R.progUnique.length : 0);
     var head = ['序號', '前' + st.o.topN + '名 不重複名單', '科目'].concat(isFinal ? ['進步獎 姓名', '科目'] : []);
     var rows = [head];
