@@ -92,7 +92,18 @@
       var ab = p.ability + 12;
       grid.push(['413', p.seat < 10 ? '0' + p.seat : String(p.seat), p.name, g(ab, 14), g(93, 8, true), g(ab - 2, 18), g(ab, 14), g(92, 10), g(ab, 14), g(94, 6, true), g(94, 8), '', '', '', 9, 9, 9, 9, 9, 9, 9, 9]);
     });
+    // 前一學年（113 學年）的歷史成績：學校算好的定期考查總成績，只有國數社自；當時班上還有兩位後來轉出的同學
+    var hr = rng(913), history = [], HNAMES = people.map(function (q) { return { name: q.name, ability: q.ability }; }).concat([{ name: '陳轉出', ability: 80 }, { name: '林轉出', ability: 70 }]);
+    [['113上', 1], ['113上', 2], ['113下', 1], ['113下', 2]].forEach(function (st) {
+      ['國語', '數學', '自然', '社會'].forEach(function (sj) {
+        HNAMES.forEach(function (q) {
+          var v = q.ability + (hr() - 0.5) * 12 + (hr() - 0.5) * 6;
+          history.push({ term: st[0], p: st[1], name: q.name, subject: sj, score: Math.round(Math.max(45, Math.min(100, v)) * 10) / 10 });
+        });
+      });
+    });
     return {
+      history: history,
       domains: { '114下': grid },
       missingNotes: [],
       subjects: subjects, terms: TERMS.slice(), currentTerm: CURRENT,
@@ -118,6 +129,13 @@
     if (fn === 'setCategoryKind') { state.kinds[args[0]] = args[1]; return clone(state.kinds); }
     if (fn === 'setWeights') { state.weights = clone(args[0]); return clone(state.weights); }
     if (fn === 'setSubjectWeights') { state.subjectWeights[args[0]] = args[1] === null ? defaultWeightsFor(args[0]) : clone(args[1]); return true; }
+    if (fn === 'importHistory') {
+      var keyOf = function (h) { return h.term + '|' + h.p; }, incoming = {};
+      args[0].forEach(function (h) { incoming[keyOf(h)] = true; });
+      state.history = state.history.filter(function (h) { return !incoming[keyOf(h)]; }).concat(clone(args[0]));
+      return { imported: args[0].length, stages: Object.keys(incoming).length, history: clone(state.history) };
+    }
+    if (fn === 'deleteHistoryStage') { state.history = state.history.filter(function (h) { return !(h.term === args[0] && Number(h.p) === Number(args[1])); }); return clone(state.history); }
     if (fn === 'createDomainSheet') return { name: '領域成績_' + args[0], term: args[0], gid: 0, existed: true };
     if (fn === 'saveScores') {
       var sj = state.subjects.filter(function (x) { return x.subject === args[0]; })[0];

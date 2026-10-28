@@ -380,7 +380,7 @@
       });
     });
     var terms = Object.keys(allTerms).sort(function (a, b) { return termIdx(a) - termIdx(b); });
-    return { terms: terms, subjects: subjects, roster: roster, passPct: passPct, weights: weights, kinds: kinds, termOrder: termOrder, currentTerm: raw.currentTerm };
+    return { terms: terms, subjects: subjects, roster: roster, passPct: passPct, weights: weights, kinds: kinds, termOrder: termOrder, currentTerm: raw.currentTerm, history: raw.history || [] };
   }
 
   function subjectOf(model, name) {
@@ -656,6 +656,159 @@
     return out;
   }
 
+  // ============================================================
+  // 八、成績歷程：各階段（每學期的期中、期末）× 各科的分數與名次
+  // ============================================================
+  // 階段成績有兩種來源：(1) 系統裡登記的學期（定期考查總成績或段考分數）；(2) 匯入的「歷史成績」（學校算好的定期考查總成績，只在 basis='term' 時納入）。
+  // o.basis：'term'＝定期考查總成績（平時成績＋段考）；'exam'＝只看段考分數（得分率）。
+  // o.subjects：納入「總平均」的科目（預設全部）。總平均＝納入科目的平均；缺任何一科的同學該階段不排名。
+  // 歷史階段的名次是「當時全班」（含已轉出的同學）的名次，所以匯入的資料要包含當時全部同學。
+  function termKey(t) { var m = /^(\d+)\s*(上|下)$/.exec(t); return m ? Number(m[1]) * 2 + (m[2] === '下' ? 1 : 0) : 99999; }
+  function yearOf(t) { var m = /^(\d+)/.exec(t); return m ? m[1] : t; }
+
+  // 回傳 { roster, subjects:[科目名], stages:[{label, term, p, hist, subjects, vals, ranks, classMean, sd, n, overall:{avg, rank, n, classMean, sd, names}}], basis, histSubjects }
+  function stageMatrix(model, o) {
+    o = o || {};
+    var basis = o.basis === 'exam' ? 'exam' : 'term';
+    var roster = model.roster, R = roster.length, stages = [], subjSeen = {}, sysKey = {};
+    function overallOf(st, incl) {
+      var avg = [];
+      for (var r = 0; r < R; r++) {
+        var vs = incl.map(function (n) { return st.vals[n][r]; });
+        avg.push(incl.length && vs.every(function (v) { return v != null; }) ? mean(vs) : null);
+      }
+      var an = nonNull(avg);
+      return { names: incl, avg: avg, rank: avg.map(function (v) { return v == null ? null : compRank(an, v); }), n: an.length, classMean: mean(an), sd: sd(an) };
+    }
+    // --- 系統登記的學期
+    model.terms.forEach(function (t) {
+      [1, 2].forEach(function (p) {
+        var vals = {}, any = false;
+        model.subjects.forEach(function (sm) {
+          var bt = sm.byTerm[t];
+          if (!bt) return;
+          var T = bt.T, arr;
+          if (basis === 'exam') arr = p === 1 ? T.comp.midterm : T.comp.final;
+          else { if (!T.periods[p - 1].complete) return; arr = T.periods[p - 1].total; }
+          if (!arr.some(function (v) { return v != null; })) return;
+          vals[sm.name] = roster.map(function (r) { var ix = sm.index[r.key]; return ix === undefined ? null : arr[ix]; });
+          subjSeen[sm.name] = true; any = true;
+        });
+        if (!any) return;
+        var st = { term: t, p: p, hist: false, label: t + (p === 1 ? '中' : '末'), subjects: [], vals: vals, ranks: {}, classMean: {}, sd: {}, n: {} };
+        Object.keys(vals).forEach(function (n) {
+          var nn = nonNull(vals[n]);
+          st.ranks[n] = vals[n].map(function (v) { return v == null ? null : compRank(nn, v); });
+          st.classMean[n] = mean(nn); st.sd[n] = sd(nn); st.n[n] = nn.length;
+        });
+        sysKey[t + '|' + p] = true;
+        stages.push(st);
+      });
+    });
+    // --- 匯入的歷史成績
+    var histSubjects = [];
+    if (basis === 'term' && model.history && model.history.length) {
+      var groups = {}, order = [];
+      model.history.forEach(function (h) {
+        var k = h.term + '|' + h.p;
+        if (sysKey[k]) return;                    // 系統已有同一階段，以系統為準
+        if (!groups[k]) { groups[k] = { term: h.term, p: h.p, by: {} }; order.push(k); }
+        (groups[k].by[h.subject] = groups[k].by[h.subject] || {})[h.name] = h.score;
+        if (histSubjects.indexOf(h.subject) === -1) histSubjects.push(h.subject);
+      });
+      order.forEach(function (k) {
+        var g = groups[k], names = Object.keys(g.by);
+        var st = { term: g.term, p: g.p, hist: true, label: g.term + (g.p === 1 ? '中' : '末'), subjects: [], vals: {}, ranks: {}, classMean: {}, sd: {}, n: {}, allByName: g.by };
+        names.forEach(function (n) {
+          var m = g.by[n], all = Object.keys(m).map(function (nm) { return m[nm]; });
+          st.vals[n] = roster.map(function (r) { return m[r.name] === undefined ? null : m[r.name]; });
+          st.ranks[n] = st.vals[n].map(function (v) { return v == null ? null : compRank(all, v); });
+          st.classMean[n] = mean(all); st.sd[n] = sd(all); st.n[n] = all.length;
+          subjSeen[n] = true;
+        });
+        stages.push(st);
+      });
+    }
+    stages.sort(function (a, b) { return (termKey(a.term) - termKey(b.term)) || (a.p - b.p); });
+    // 科目順序：系統科目在前，歷史才有的科目在後
+    var subjectOrder = model.subjects.map(function (s) { return s.name; });
+    Object.keys(subjSeen).forEach(function (n) { if (subjectOrder.indexOf(n) === -1) subjectOrder.push(n); });
+    stages.forEach(function (st) {
+      st.subjects = subjectOrder.filter(function (n) { return st.vals[n]; });
+      var incl = st.subjects.filter(function (n) { return !o.subjects || o.subjects.indexOf(n) > -1; });
+      if (!st.hist) { st.overall = overallOf(st, incl); return; }
+      // 歷史階段：總平均與名次以「當時全班」計（包含已轉出、不在目前名單的同學）
+      var names = {}; incl.forEach(function (n) { Object.keys(st.allByName[n]).forEach(function (nm) { names[nm] = true; }); });
+      var avgByName = {}, allAvg = [];
+      Object.keys(names).forEach(function (nm) {
+        var vs = incl.map(function (n) { return st.allByName[n][nm]; });
+        if (incl.length && vs.every(function (v) { return v !== undefined; })) { avgByName[nm] = mean(vs); allAvg.push(avgByName[nm]); }
+      });
+      var avg = roster.map(function (r) { return avgByName[r.name] === undefined ? null : avgByName[r.name]; });
+      st.overall = { names: incl, avg: avg, rank: avg.map(function (v) { return v == null ? null : compRank(allAvg, v); }), n: allAvg.length, classMean: mean(allAvg), sd: sd(allAvg) };
+    });
+    return { roster: roster, subjects: subjectOrder.filter(function (n) { return subjSeen[n]; }), stages: stages, basis: basis, histSubjects: histSubjects };
+  }
+
+  // 標準分：離全班平均幾個標準差（0＝全班平均，+1 約在前 16%，−1 約在後 16%）
+  function zOf(v, m, s) { return v == null || m == null || !(s > 0) ? null : (v - m) / s; }
+
+  // 某位同學（roster 索引 r）的歷程：每個階段的總平均／名次／標準分、各科分數／名次／標準分，並整理出各科平均
+  function studentJourney(M, r) {
+    var rows = M.stages.map(function (st) {
+      var subj = {};
+      st.subjects.forEach(function (n) { subj[n] = { v: st.vals[n][r], rank: st.ranks[n][r], mean: st.classMean[n], n: st.n[n], z: zOf(st.vals[n][r], st.classMean[n], st.sd[n]) }; });
+      var o = st.overall;
+      return { label: st.label, term: st.term, p: st.p, hist: st.hist, avg: o.avg[r], rank: o.rank[r], n: o.n, classMean: o.classMean, z: zOf(o.avg[r], o.classMean, o.sd), subj: subj };
+    });
+    var bySubject = M.subjects.map(function (n) {
+      var vs = [], rk = [], cm = [], zs = [];
+      rows.forEach(function (row) { var c = row.subj[n]; if (c && c.v != null) { vs.push(c.v); rk.push(c.rank); cm.push(c.mean); if (c.z != null) zs.push(c.z); } });
+      return { name: n, avg: vs.length ? mean(vs) : null, classAvg: cm.length ? mean(cm) : null, rankAvg: rk.length ? mean(rk) : null, zAvg: zs.length ? mean(zs) : null, count: vs.length };
+    });
+    return { rows: rows, bySubject: bySubject };
+  }
+
+  // 解析貼上的歷史成績（從 Excel／學校表格複製）。要有含「姓名」的標題列；其他標題是科目（數字欄）。
+  // 可選的「學期」「階段」欄（階段：中／末／期中／期末／1／2）；沒有的話用 defTerm、defP。分數 0 或空白視為沒有成績。
+  var HIST_SKIP_COLS = ['座號', '姓名', '學期', '階段', '班級', '學號', '總分', '平均', '名次', '排名', '班排', '加權平均', '總平均', '職務'];
+  function parseHistory(text, defTerm, defP) {
+    var lines = String(text || '').split(/\r?\n/), head = null, rows = [], stages = {}, errors = [], skipped = 0;
+    function cells(l) { return l.split(/\t|,|，/).map(function (c) { return c.trim(); }); }
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i]; if (!l.trim()) continue;
+      var c = cells(l);
+      if (!head) {
+        var ni = c.map(function (x) { return x.replace(/\s+/g, ''); }).indexOf('姓名');
+        if (ni > -1) {
+          head = { name: ni, term: -1, p: -1, subj: [] };
+          c.forEach(function (x, k) {
+            var h = x.replace(/\s+/g, '').replace(/\(.*\)$/, '');
+            if (h === '學期') head.term = k; else if (h === '階段') head.p = k;
+            else if (h && HIST_SKIP_COLS.indexOf(h) === -1 && !/^\d+$/.test(h)) head.subj.push({ k: k, name: h });
+          });
+        }
+        continue;
+      }
+      var name = (c[head.name] || '').replace(/\s+/g, '');
+      if (!name) { skipped++; continue; }
+      var term = head.term > -1 ? (c[head.term] || '').trim() : (defTerm || ''), pv = head.p > -1 ? (c[head.p] || '').trim() : defP;
+      var pn = /末|2/.test(String(pv)) && !/中/.test(String(pv)) ? 2 : (/中|1/.test(String(pv)) ? 1 : 0);
+      if (!term || !pn) { errors.push('第 ' + (i + 1) + ' 列（' + name + '）缺少學期或階段'); continue; }
+      var got = 0;
+      head.subj.forEach(function (s) {
+        var v = Number(c[s.k]);
+        if (c[s.k] === '' || c[s.k] === undefined || !isFinite(v) || v <= 0) return;
+        rows.push({ term: term, p: pn, name: name, subject: s.name, score: v }); got++;
+        stages[term + '|' + pn] = true;
+      });
+      if (!got) skipped++;
+    }
+    if (!head) errors.push('找不到含「姓名」的標題列');
+    else if (!head.subj.length) errors.push('標題列裡沒有科目欄位');
+    return { rows: rows, stages: Object.keys(stages).length, subjects: head ? head.subj.map(function (s) { return s.name; }) : [], skipped: skipped, errors: errors };
+  }
+
   // ---------- 學期領域成績（學校系統匯出的表） ----------
   var DOMAIN_ORDER = ['語文', '數學', '社會', '自然', '健體', '藝術', '綜合', '藝才'];
   var DOMAIN_ALIAS = { '自然科學': '自然', '自然與生活科技': '自然', '健康與體育': '健體', '藝術與人文': '藝術', '綜合活動': '綜合', '藝術才能': '藝才', '國語': '語文', '國語文': '語文', '本國語文': '語文' };
@@ -741,7 +894,7 @@
     defaultKind: defaultKind, analyze: analyze, studentAgg: studentAgg, studentSeries: studentSeries, trendJudge: trendJudge,
     termSummary: termSummary, buildModel: buildModel, subjectOf: subjectOf, termLabel: termLabel, defaultTerm: defaultTerm,
     termRow: termRow, chronoTests: chronoTests, alertsFor: alertsFor, studentProfile: studentProfile,
-    awards: awards, stageScores: stageScores, pickTop: pickTop,
+    awards: awards, stageScores: stageScores, pickTop: pickTop, stageMatrix: stageMatrix, studentJourney: studentJourney, parseHistory: parseHistory, termKey: termKey, yearOf: yearOf, zOf: zOf,
     parseDomainSheet: parseDomainSheet, domainAwards: domainAwards, DOMAIN_ORDER: DOMAIN_ORDER
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = AX;

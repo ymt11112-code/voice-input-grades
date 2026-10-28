@@ -433,7 +433,7 @@
     });
 
     var step = Math.max(1, Math.ceil(n / Math.max(1, Math.floor((pw - 2 * padX) / 52))));
-    var maxChars = (pw / n) > 64 ? 7 : 4;
+    var maxChars = (pw / n) > 64 ? 7 : 5;
     o.labels.forEach(function (lb, i) {
       if (i % step !== 0) return;
       svg.appendChild(sv('text', { x: X(i), y: m.t + ph + 16, 'text-anchor': 'middle', 'class': 'ax-text' }, shortLabel(lb, maxChars)));

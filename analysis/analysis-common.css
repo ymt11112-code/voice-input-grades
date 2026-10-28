@@ -234,3 +234,6 @@ button.chip.on { background: var(--forest); color: var(--on-forest); border-colo
 button.chip.on b { color: inherit; }
 
 .stats th.grp-h { text-align: center; border-bottom: 1px solid var(--line); }
+
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+table.stats tr.tot td { font-weight: 600; border-top: 1px solid var(--line); }
