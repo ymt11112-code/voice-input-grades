@@ -169,7 +169,7 @@
 
   // ---------- 學期成績 ----------
   function renderTermScore(main, A, T, term) {
-    var s = sm(), w = T.weights, parts = [['quiz', '平時測驗'], ['homework', '作業'], ['midterm', '期中考'], ['final', '期末考']];
+    var s = sm(), w = T.weights, parts = [['quiz', '平時測驗'], ['homework', '作業'], ['other', '課堂表現'], ['midterm', '期中考'], ['final', '期末考']];
     var used = parts.filter(function (p) { return T.used.indexOf(p[0]) > -1; });
     var c = AX.card(S.termLabel(st.term) + ' 學期成績', '依權重合成：' + used.map(function (p) { return p[1] + ' ' + w[p[0]]; }).join('、') +
       '。' + (parts.length > used.length ? '（' + parts.filter(function (p) { return T.used.indexOf(p[0]) === -1; }).map(function (p) { return p[1]; }).join('、') + '還沒有資料或權重為 0，未計入）' : '') +
@@ -233,6 +233,7 @@
     if (isAll) cols.push({ h: '學期', left: true, v: function (q) { return q.term || '—'; } });
     cols = cols.concat([
       { h: '類別', left: true, v: function (q) { return q.category || '—'; } },
+      { h: '難度', v: function (q) { return q.difficulty || '易'; } },
       { h: '滿分', v: function (q) { return fmt(q.max) + (q.maxAssumed ? '*' : ''); } },
       { h: '實考', v: function (q) { return q.n + (q.absent ? '（缺' + q.absent + '）' : ''); } },
       { h: '平均', v: function (q) { return fmt(q.stats.mean); } },
@@ -376,14 +377,15 @@
     });
     var wrap = el('div', { 'class': 'tbl-wrap' }); wrap.style.marginTop = '10px';
     var tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
-    ['學期', '學期成績', '較上學期', '平時測驗', '作業', '期中考', '期末考', '標準差', '及格率', '人數'].forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
+    var hasOther = rows.some(function (r) { return S.nonNull(r.T.comp.other).length > 0; });
+    ['學期', '學期成績', '較上學期', '平時測驗', '作業'].concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考', '標準差', '及格率', '人數']).forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
     rows.forEach(function (r, i) {
       var T = r.T, tr = el('tr'), cm = function (k) { var v = S.nonNull(T.comp[k]); return v.length ? fmt(S.mean(v)) + '%' : '—'; };
       var ok = T.scores.filter(function (v) { return v != null; });
       var vals = [S.termLabel(r.t), T.stats.n ? fmt(T.stats.mean) : '—', i > 0 && means[i] != null && means[i - 1] != null ? sg(means[i] - means[i - 1]) : '—',
-        cm('quiz'), cm('homework'), cm('midterm'), cm('final'), fmt(T.stats.sd), ok.length ? fmt(ok.filter(function (v) { return v >= pass; }).length / ok.length * 100, 0) + '%' : '—', String(T.stats.n)];
+        cm('quiz'), cm('homework')].concat(hasOther ? [cm('other')] : []).concat([cm('midterm'), cm('final'), fmt(T.stats.sd), ok.length ? fmt(ok.filter(function (v) { return v >= pass; }).length / ok.length * 100, 0) + '%' : '—', String(T.stats.n)]);
       vals.forEach(function (v, j) {
         var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
         if (j === 2 && v !== '—') td.className = AX.cls(means[i] - means[i - 1]);

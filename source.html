@@ -273,12 +273,12 @@
   <!-- 科目設定（科目／類別／項目，合併頁籤，用可收合卡片區分） -->
   <div class="panel" id="panel-setup" hidden>
     <div class="upgradeBanner" id="upgradeBanner" hidden></div>
-    <div class="card">
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-terms')">
-        <b><span class="cardIcon tint-teal">🗓️</span> 學期管理</b>
+        <b><span class="cardIcon tint-teal">🗓️</span> 學期管理與新學期快速建立</b>
         <span class="cardToggle" id="cardToggle-card-terms">▾</span>
       </div>
-      <div class="cardBody" id="card-terms">
+      <div class="cardBody" id="card-terms" hidden>
         <p class="muted">每個登記項目都屬於一個學期，之後才能比較上學期／下學期、跨學年的進退步。新增項目時預設放在「目前學期」，畫面上方「學期」下拉可以切換要檢視／登記哪一學期（也可選「全部學期」）。學期名稱建議用「114上」「114下」這種格式，系統會依學年與上下學期自動排序。</p>
         <h3>新增學期</h3>
         <div class="row">
@@ -287,19 +287,12 @@
         </div>
         <h3>學期清單</h3>
         <div id="termList"></div>
-      </div>
-    </div>
 
-    <div class="card">
-      <div class="cardHeader" onclick="toggleCard('card-newterm')">
-        <b><span class="cardIcon tint-gold">🗂️</span> 新學期快速建立項目</b>
-        <span class="cardToggle" id="cardToggle-card-newterm">▾</span>
-      </div>
-      <div class="cardBody" id="card-newterm">
+        <h3 style="margin-top:18px">新學期快速建立項目</h3>
         <p class="muted">新學期的項目通常和上學期差不多，不用重新一個一個建立。</p>
         <div class="subpanel" style="margin-top:0">
           <b>📋 從其他學期複製項目</b>
-          <p class="muted">只複製項目本身（類別、名稱、滿分），不含成績。目標學期已經有的同名項目會自動略過，所以重複按也不會重複建立。複製後再到下面的項目清單拖曳調整、改名都可以。</p>
+          <p class="muted">只複製項目本身（類別、名稱、滿分、難度），不含成績。目標學期已經有的同名項目會自動略過，所以重複按也不會重複建立。複製後再到下面的項目清單拖曳調整、改名都可以。</p>
           <div class="row">
             <span class="muted">從</span><select id="copyFromTerm"></select>
             <span class="muted">複製到</span><select id="copyToTerm"></select>
@@ -330,12 +323,12 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-subjects')">
         <b><span class="cardIcon tint-purple">📚</span> 科目管理</b>
         <span class="cardToggle" id="cardToggle-card-subjects">▾</span>
       </div>
-      <div class="cardBody" id="card-subjects">
+      <div class="cardBody" id="card-subjects" hidden>
         <h3>新增科目</h3>
         <div class="row">
           <input type="text" id="newSubjectName" placeholder="例如：數學、英文、自然">
@@ -346,6 +339,7 @@
           <p class="muted">不是你自己登記、但名單或分析需要用到的科目，可以在這裡建立一個貼上區：系統會建一張跟其他科目格式相同的工作表，自動帶入座號姓名，並預先建好「平時成績、期中考、期末考」三欄（淡黃色區域）。把老師給的成績依座號順序貼進去就好，之後分析頁面和獎狀名單都會自動納入。</p>
           <div class="row">
             <input type="text" id="externalSubjectName" value="自然" placeholder="科目名稱，例如：自然">
+            <select id="externalTerm" title="這份成績屬於哪個學期"></select>
             <button class="secondary" onclick="onCreateExternalSubject()">建立貼上區</button>
           </div>
           <p class="muted" id="externalSubjectResult"></p>
@@ -364,12 +358,25 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card collapsed">
+      <div class="cardHeader" onclick="toggleCard('card-weights')">
+        <b><span class="cardIcon tint-purple">⚖️</span> 學期成績權重（各科目）</b>
+        <span class="cardToggle" id="cardToggle-card-weights">▾</span>
+      </div>
+      <div class="cardBody" id="card-weights" hidden>
+        <p class="muted">學期成績＝<b>定期考查</b>（期中考＝第一次段考、期末考＝第二次段考）＋<b>平時考查</b>（平時測驗＝紙筆測驗、作業＝習作／學習單、課堂表現＝發言／參與／口試）。下面的數字是各成分占學期成績的百分比，預設依學校公布的評量方式：定期考查 50%、平時考查 50%；綜合活動、健康與體育、本土語沒有段考，平時考查就是 100%。</p>
+        <p class="muted">數字可以直接修改，改完離開欄位就自動儲存；比例不用剛好是 100，系統會自動換算。某個成分還沒有資料（例如期末考還沒考）時，會自動略過並重新分配其餘權重。項目屬於哪個成分，是看「類別」：名稱含「作業、習作、學習單」＝作業；含「期中、期末」＝段考；含「課堂、參與、發言、討論、表現、口試」＝課堂表現；其他＝平時測驗（可以在分析頁面的設定改）。</p>
+        <div class="tblWrap"><table class="itemTable" id="weightTable"></table></div>
+        <div class="row" style="margin-top:8px"><button class="secondary" onclick="onResetAllWeights()">全部科目還原預設</button></div>
+      </div>
+    </div>
+
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-categories')">
         <b><span class="cardIcon tint-gold">🏷️</span> 類別管理</b>
         <span class="cardToggle" id="cardToggle-card-categories">▾</span>
       </div>
-      <div class="cardBody" id="card-categories">
+      <div class="cardBody" id="card-categories" hidden>
         <h3>新增成績類別</h3>
         <div class="row">
           <input type="text" id="newCategoryName" placeholder="例如：考卷、作業、期中考試卷">
@@ -381,12 +388,12 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-items')">
         <b><span class="cardIcon tint-blue">📝</span> 項目管理</b>
         <span class="cardToggle" id="cardToggle-card-items">▾</span>
       </div>
-      <div class="cardBody" id="card-items">
+      <div class="cardBody" id="card-items" hidden>
         <h3>新增登記項目（例如：第一次段考、第3次作業）</h3>
         <div class="row">
           <select id="newItemTerm" title="項目所屬學期"></select>
@@ -411,13 +418,14 @@
         </div>
 
         <h3>目前科目的項目清單</h3>
-        <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、改類別，或一次刪除。</p>
+        <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、難度、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、類別、難度，或一次刪除。</p>
         <div class="row">
           <select id="sortMode">
             <option value="">整理排序…</option>
             <option value="cat">依類別（照「類別管理」清單的順序）</option>
             <option value="name">依名稱（作業2 排在作業10 前面）</option>
             <option value="catname">依類別，同類別再依名稱</option>
+            <option value="diff">依難度（易 → 中 → 難）</option>
           </select>
           <button class="secondary" onclick="onSortItems()">套用排序</button>
           <span class="muted">只整理畫面上看得到的項目（上方「學期」可切換）。類別的順序可以在「類別管理」拖曳調整。</span>
@@ -1002,7 +1010,7 @@ document.querySelectorAll('.tab').forEach(function (btn) {
     document.querySelectorAll('.panel').forEach(function (p) { p.hidden = true; });
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).hidden = false;
-    if (btn.dataset.tab === 'setup') refreshItems();
+    if (btn.dataset.tab === 'setup') { refreshItems(); loadWeights_(); }
     if (btn.dataset.tab === 'students') refreshStudents();
     if (btn.dataset.tab === 'system') renderTextCorrectionList();
     if (btn.dataset.tab === 'scores') refreshScoreItemSelect();
@@ -1213,7 +1221,8 @@ function onAddSubject() {
 function onCreateExternalSubject() {
   var name = document.getElementById('externalSubjectName').value.trim();
   if (!name) return toast('請輸入科目名稱', true);
-  call('createExternalSubject', name, state.currentTerm).then(function (res) {
+  var extTerm = document.getElementById('externalTerm').value || state.currentTerm;
+  call('createExternalSubject', name, extTerm).then(function (res) {
     var box = document.getElementById('externalSubjectResult');
     box.textContent = '已建立「' + res.name + '」工作表（' + res.term + '，帶入 ' + res.students + ' 位學生）。請到試算表該工作表，把老師提供的成績依座號順序貼進淡黃色區域：C 欄＝平時成績、D 欄＝期中考、E 欄＝期末考（還沒有的留空）。 ';
     spreadsheetInfo = null;
@@ -1340,7 +1349,7 @@ function renderTermUI() {
   sel.value = state.viewTerm;
 
   // 新增項目時的學期下拉（預設＝目前學期，不是檢視學期）
-  ['newItemTerm', 'seriesTerm', 'domainTerm', 'copyToTerm', 'tplTargetTerm'].forEach(function (id) {
+  ['newItemTerm', 'seriesTerm', 'domainTerm', 'copyToTerm', 'tplTargetTerm', 'externalTerm'].forEach(function (id) {
     var s2 = document.getElementById(id);
     if (!s2) return;
     var keep = s2.value;
@@ -1685,6 +1694,7 @@ function onAddItemSeries() {
 // 項目清單：直接編輯、拖曳排序、排序整理、批次操作
 // ============================================================
 var itemSel_ = {};   // 勾選中的項目（欄位編號 → true）
+var DIFFICULTIES_ = ['易', '中', '難'];
 
 // 通用的拖曳排序（滑鼠、觸控都能用）：在 box 裡按住「把手」拖曳整列，放開時呼叫 onDrop(新順序的 data-id 陣列)
 function makeSortable_(box, rowSel, handleSel, onDrop) {
@@ -1799,6 +1809,11 @@ function itemRow_(it) {
   };
   cell().appendChild(nm);
 
+  var df = optSelect_(DIFFICULTIES_, it.difficulty || '易');
+  df.title = '這個項目的難度（預設「易」）';
+  df.onchange = function () { saveItem_(it, { difficulty: df.value }, false); };
+  cell().appendChild(df);
+
   var mx = document.createElement('input');
   mx.type = 'number'; mx.step = 'any'; mx.min = '0'; mx.placeholder = '滿分'; mx.value = it.max === '' || it.max === null ? '' : it.max;
   mx.onchange = function () { saveItem_(it, { max: mx.value === '' ? '' : Number(mx.value) }, false); };
@@ -1835,7 +1850,7 @@ function renderItemList() {
   var tb = document.createElement('table');
   tb.className = 'itemTable';
   tb.innerHTML = '<thead><tr><th class="narrow"></th><th class="narrow"><input type="checkbox" id="itemSelAll" title="全選／取消全選"></th>' +
-    '<th>學期</th><th>類別</th><th>項目名稱</th><th style="width:96px">滿分</th><th class="narrow"></th></tr></thead>';
+    '<th>學期</th><th>類別</th><th>項目名稱</th><th style="width:74px">難度</th><th style="width:96px">滿分</th><th class="narrow"></th></tr></thead>';
   var body = document.createElement('tbody');
   visible.forEach(function (it) { body.appendChild(itemRow_(it)); });
   tb.appendChild(body);
@@ -1865,15 +1880,18 @@ function renderBulkBar_() {
   var hasTerm = state.items.some(function (it) { return it.term; });
   var ts = hasTerm ? optSelect_(state.terms, undefined, '（學期不變）') : null;
   var cs = optSelect_(state.categories, undefined, '（類別不變）');
+  var ds = optSelect_(DIFFICULTIES_, undefined, '（難度不變）');
   if (ts) bar.appendChild(ts);
   bar.appendChild(cs);
+  bar.appendChild(ds);
   var ok = document.createElement('button');
   ok.textContent = '套用';
   ok.onclick = function () {
     var patch = {};
     if (ts && ts.value) patch.term = ts.value;
     if (cs.value) patch.category = cs.value;
-    if (!Object.keys(patch).length) return toast('請先選擇要改成的學期或類別', true);
+    if (ds.value) patch.difficulty = ds.value;
+    if (!Object.keys(patch).length) return toast('請先選擇要改成的學期、類別或難度', true);
     var updates = cols.map(function (c) { var u = { col: c }; Object.keys(patch).forEach(function (k) { u[k] = patch[k]; }); return u; });
     call('updateItems', state.subject, updates).then(function (items) {
       state.items = items; itemSel_ = {}; renderItemList();
@@ -1905,6 +1923,7 @@ function onSortItems() {
   function catIdx(c) { var k = state.categories.indexOf(c || ''); return k < 0 ? 999 : k; }
   function byName(a, b) { return String(a.it.name).localeCompare(String(b.it.name), 'zh-Hant', { numeric: true }); }
   vis.sort(function (a, b) {
+    if (mode === 'diff') return DIFFICULTIES_.indexOf(a.it.difficulty || '易') - DIFFICULTIES_.indexOf(b.it.difficulty || '易') || a.i - b.i;
     if (mode === 'cat') return catIdx(a.it.category) - catIdx(b.it.category) || a.i - b.i;
     if (mode === 'name') return byName(a, b) || a.i - b.i;
     return catIdx(a.it.category) - catIdx(b.it.category) || byName(a, b) || a.i - b.i;
@@ -1976,6 +1995,81 @@ function onImportTemplate() {
     document.getElementById('tplResult').textContent = '完成：' + report.map(function (r) { return r.subject + (r.skipped ? '（' + r.skipped + '）' : ' +' + r.added); }).join('、');
     refreshAllData();
   }).catch(showError);
+}
+
+// ============================================================
+// 各科目學期成績權重
+// ============================================================
+var weightRows_ = [];
+var WEIGHT_COLS_ = [['quiz', '平時測驗'], ['homework', '作業'], ['other', '課堂表現'], ['midterm', '期中考'], ['final', '期末考']];
+
+function loadWeights_() {
+  call('getSubjectWeights').then(function (rows) { weightRows_ = rows; renderWeightTable_(); }).catch(showError);
+}
+
+function weightSums_(w) {
+  var daily = (Number(w.quiz) || 0) + (Number(w.homework) || 0) + (Number(w.other) || 0);
+  var exam = (Number(w.midterm) || 0) + (Number(w.final) || 0);
+  return { daily: daily, exam: exam, total: daily + exam };
+}
+
+function renderWeightTable_() {
+  var tb = document.getElementById('weightTable');
+  if (!tb) return;
+  tb.innerHTML = '';
+  var thead = document.createElement('thead'), hr = document.createElement('tr');
+  ['科目', '平時測驗（紙筆）', '作業', '課堂表現', '期中考', '期末考', '平時考查合計', '定期考查合計', '總和', ''].forEach(function (t) {
+    var th = document.createElement('th'); th.textContent = t; hr.appendChild(th);
+  });
+  thead.appendChild(hr); tb.appendChild(thead);
+  var body = document.createElement('tbody');
+  weightRows_.forEach(function (row) {
+    var tr = document.createElement('tr'), inputs = {};
+    var tdN = document.createElement('td'); tdN.textContent = row.subject; tdN.style.whiteSpace = 'nowrap';
+    if (row.custom) { var tag = document.createElement('span'); tag.className = 'termTag'; tag.textContent = '已自訂'; tag.style.marginLeft = '6px'; tdN.appendChild(tag); }
+    tr.appendChild(tdN);
+    var sumCells = { daily: document.createElement('td'), exam: document.createElement('td'), total: document.createElement('td') };
+    function refreshSums() {
+      var w = {}; WEIGHT_COLS_.forEach(function (c) { w[c[0]] = inputs[c[0]].value; });
+      var s = weightSums_(w);
+      sumCells.daily.textContent = s.daily; sumCells.exam.textContent = s.exam; sumCells.total.textContent = s.total;
+      sumCells.total.style.color = Math.abs(s.total - 100) < 0.001 ? '' : 'var(--gold-ink)';
+    }
+    WEIGHT_COLS_.forEach(function (c) {
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.min = '0'; inp.step = 'any'; inp.value = row.weights[c[0]]; inp.style.minWidth = '60px';
+      inputs[c[0]] = inp;
+      inp.oninput = refreshSums;
+      inp.onchange = function () {
+        var w = {};
+        WEIGHT_COLS_.forEach(function (x) { w[x[0]] = inputs[x[0]].value === '' ? 0 : Number(inputs[x[0]].value); });
+        call('setSubjectWeights', row.subject, w).then(function (rows) {
+          weightRows_ = rows;
+          refreshSums();
+          toast('已儲存「' + row.subject + '」的權重');
+        }).catch(function (e) { showError(e); loadWeights_(); });
+      };
+      var td = document.createElement('td'); td.appendChild(inp); tr.appendChild(td);
+    });
+    ['daily', 'exam', 'total'].forEach(function (k) { sumCells[k].style.textAlign = 'center'; tr.appendChild(sumCells[k]); });
+    refreshSums();
+    var tdR = document.createElement('td'), rb = document.createElement('button');
+    rb.className = 'secondary'; rb.textContent = '還原預設';
+    rb.onclick = function () {
+      call('setSubjectWeights', row.subject, null).then(function (rows) { weightRows_ = rows; renderWeightTable_(); toast('已還原「' + row.subject + '」的預設權重'); }).catch(showError);
+    };
+    tdR.appendChild(rb); tr.appendChild(tdR);
+    body.appendChild(tr);
+  });
+  tb.appendChild(body);
+  if (!weightRows_.length) tb.innerHTML = '<tbody><tr><td class="muted">還沒有任何科目</td></tr></tbody>';
+}
+
+function onResetAllWeights() {
+  if (!confirm('確定要把所有科目的權重都還原成預設值嗎？自訂過的數字會被覆蓋。')) return;
+  var chain = Promise.resolve();
+  weightRows_.forEach(function (r) { if (r.custom) chain = chain.then(function () { return call('setSubjectWeights', r.subject, null); }); });
+  chain.then(function () { loadWeights_(); toast('已還原預設'); }).catch(showError);
 }
 
 function onUpgradeNow() {

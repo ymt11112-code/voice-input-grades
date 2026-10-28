@@ -120,9 +120,10 @@
     function rel(s) { return st.compare ? s.cur.diff : s.cur.score - ownAvg; }
 
     // ---- 各科成績概況
-    var c1 = AX.card('各科學期成績', '學期成績由平時測驗、作業、期中考、期末考依比重合成（滿分 100）。' + (P.subjects.some(function (s) { return s.cur && s.cur.partial; }) ? ' 有「*」的科目缺少部分成分（例如缺考），已依其餘成分計算。' : ''));
+    var c1 = AX.card('各科學期成績', '學期成績由平時測驗、作業、課堂表現、期中考、期末考依比重合成（滿分 100）。' + (P.subjects.some(function (s) { return s.cur && s.cur.partial; }) ? ' 有「*」的科目缺少部分成分（例如缺考），已依其餘成分計算。' : ''));
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
-    var heads = ['科目', '學期成績'].concat(st.compare ? ['全班平均', '所在位置'] : []).concat(st.rank ? ['全班名次'] : []).concat(['較上學期', '平時測驗', '作業', '期中考', '期末考']);
+    var hasOther = subs.some(function (s) { return s.cur.comp.other != null; });
+    var heads = ['科目', '學期成績'].concat(st.compare ? ['全班平均', '所在位置'] : []).concat(st.rank ? ['全班名次'] : []).concat(['較上學期', '平時測驗', '作業']).concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考']);
     heads.forEach(function (h) { hr.appendChild(el('th', { 'class': h === '科目' ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
@@ -134,7 +135,7 @@
         change = sg(ds) + ' 分'; cc = AX.cls(st.compare ? dr : ds, 2);
       }
       var vals = [s.name, fmt(c.score) + (c.partial ? '*' : '')].concat(st.compare ? [fmt(c.classMean), c.tier] : []).concat(st.rank ? [c.rank + ' / ' + c.n] : [])
-        .concat([change, cm(c.comp.quiz), cm(c.comp.homework), cm(c.comp.midterm), cm(c.comp.final)]);
+        .concat([change, cm(c.comp.quiz), cm(c.comp.homework)]).concat(hasOther ? [cm(c.comp.other)] : []).concat([cm(c.comp.midterm), cm(c.comp.final)]);
       var changeAt = 2 + (st.compare ? 2 : 0) + (st.rank ? 1 : 0);
       vals.forEach(function (v, j) { var td = el('td', { 'class': j === 0 ? 'l' : '' }, v); if (j === changeAt && cc) td.className = cc; tr.appendChild(td); });
       body.appendChild(tr);

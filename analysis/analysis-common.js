@@ -173,7 +173,7 @@
   AX.load = function () {
     return AX.call('getAnalysisAll').then(function (raw) {
       AX.normalizeRaw(raw);
-      return { raw: raw, model: S.buildModel(raw, AX.getPass(), raw.weights) };
+      return { raw: raw, model: S.buildModel(raw, AX.getPass()) };   // 權重用各科目自己的設定（raw.subjectWeights）
     });
   };
 
@@ -268,14 +268,14 @@
     raw.subjects.forEach(function (d) { d.items.forEach(function (it) { if (cats.indexOf(it.category) === -1) cats.push(it.category); }); });
     var g1 = el('div', { 'class': 'setgrp' });
     g1.appendChild(el('div', { 'class': 'h3' }, '類別怎麼分析'));
-    g1.appendChild(el('p', { 'class': 'muted small' }, '平時測驗／期中考／期末考＝逐次分析；作業＝只看總和；不分析＝略過。期中考、期末考、平時測驗、作業各占一份學期成績的權重。設定存在試算表，所有分析頁面共用。'));
+    g1.appendChild(el('p', { 'class': 'muted small' }, '平時測驗／期中考／期末考／課堂表現＝逐次分析；作業＝只看總和；不分析＝略過。這五種成分各占一份學期成績的權重（見下方各科目權重）。設定存在試算表，所有分析頁面共用。'));
     var row1 = el('div', { 'class': 'bar' });
     if (!cats.length) row1.appendChild(el('span', { 'class': 'muted small' }, '還沒有登記項目'));
     cats.forEach(function (c) {
       var g = el('span', { 'class': 'grp' });
       g.appendChild(el('span', { 'class': 'lbl' }, c || '（未分類）'));
       var sel = el('select');
-      ['quiz', 'midterm', 'final', 'homework', 'skip'].forEach(function (k) {
+      ['quiz', 'midterm', 'final', 'homework', 'other', 'skip'].forEach(function (k) {
         var o = el('option', { value: k }, S.KIND_LABEL[k]);
         if ((kinds[c] || S.defaultKind(c)) === k) o.selected = true;
         sel.appendChild(o);
@@ -289,24 +289,35 @@
     g1.appendChild(row1);
     box.appendChild(g1);
 
-    // 權重
+    // 各科目學期成績權重
     var g2 = el('div', { 'class': 'setgrp' });
-    g2.appendChild(el('div', { 'class': 'h3' }, '學期成績權重'));
-    g2.appendChild(el('p', { 'class': 'muted small' }, '學期成績＝各成分得分率依權重加權平均（數字是比例，不一定要加起來剛好 100）。某個成分全班都還沒有資料（例如期末考還沒考），會自動略過並重新分配其餘權重。'));
-    var row2 = el('div', { 'class': 'bar' }), w = raw.weights, inputs = {};
-    [['quiz', '平時測驗'], ['homework', '作業'], ['midterm', '期中考'], ['final', '期末考']].forEach(function (p) {
-      var g = el('span', { 'class': 'grp' });
-      g.appendChild(el('span', { 'class': 'lbl' }, p[1]));
-      var inp = el('input', { type: 'number', min: '0', step: '1' }); inp.value = w[p[0]];
-      inputs[p[0]] = inp; g.appendChild(inp); row2.appendChild(g);
+    g2.appendChild(el('div', { 'class': 'h3' }, '各科目學期成績權重（%）'));
+    g2.appendChild(el('p', { 'class': 'muted small' }, '學期成績＝定期考查（期中考、期末考）＋平時考查（平時測驗、作業、課堂表現）。各科預設依學校公布的評量方式：定期考查 50%、平時考查 50%（綜合、健體、本土語沒有段考，平時考查就是 100%）。數字可以直接修改，改完離開欄位就自動儲存；比例不用剛好是 100，會自動換算。某個成分沒有資料（例如期末考還沒考）時會自動略過並重新分配。'));
+    var wtb = el('table', { 'class': 'stats' }), wh = el('tr');
+    ['科目', '平時測驗', '作業', '課堂表現', '期中考', '期末考', '合計', ''].forEach(function (h, i) { wh.appendChild(el('th', { 'class': i === 0 ? 'l' : '' }, h)); });
+    var wthead = el('thead'); wthead.appendChild(wh); wtb.appendChild(wthead);
+    var wbody = el('tbody'), KEYS = ['quiz', 'homework', 'other', 'midterm', 'final'];
+    raw.subjects.forEach(function (d) {
+      var w = (raw.subjectWeights && raw.subjectWeights[d.subject]) || S.DEFAULT_WEIGHTS, tr = el('tr'), inputs = {}, sumCell = el('td');
+      tr.appendChild(el('td', { 'class': 'l' }, d.subject));
+      function sum() { var t = 0; KEYS.forEach(function (k) { t += Number(inputs[k].value) || 0; }); sumCell.textContent = fmt(t); }
+      KEYS.forEach(function (k) {
+        var inp = el('input', { type: 'number', min: '0', step: 'any' }); inp.value = w[k]; inp.style.width = '70px'; inputs[k] = inp;
+        inp.onchange = function () {
+          var nw = {}; KEYS.forEach(function (x) { nw[x] = Number(inputs[x].value) || 0; });
+          AX.call('setSubjectWeights', d.subject, nw).then(function () { toast('已儲存「' + d.subject + '」的權重'); ctx.onChange(true); }).catch(showError);
+        };
+        var td = el('td'); td.appendChild(inp); tr.appendChild(td);
+      });
+      sum(); tr.appendChild(sumCell);
+      var rb = el('button', null, '還原預設');
+      rb.onclick = function () { AX.call('setSubjectWeights', d.subject, null).then(function () { toast('已還原「' + d.subject + '」的預設權重'); ctx.onChange(true); }).catch(showError); };
+      var tdb = el('td'); tdb.appendChild(rb); tr.appendChild(tdb);
+      wbody.appendChild(tr);
     });
-    var save = el('button', { 'class': 'primary' }, '儲存權重');
-    save.onclick = function () {
-      var nw = {}; for (var k in inputs) nw[k] = Number(inputs[k].value);
-      AX.call('setWeights', nw).then(function () { toast('已儲存權重'); ctx.onChange(true); }).catch(showError);
-    };
-    row2.appendChild(save);
-    g2.appendChild(row2);
+    wtb.appendChild(wbody);
+    var wwrap = el('div', { 'class': 'tbl-wrap' }); wwrap.appendChild(wtb);
+    g2.appendChild(wwrap);
     box.appendChild(g2);
 
     // 及格線與警示門檻（只存在這個瀏覽器）

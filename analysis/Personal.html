@@ -312,14 +312,15 @@
     }
     var wrap = el('div', { 'class': 'tbl-wrap' }); wrap.style.marginTop = '10px';
     var tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
-    ['學期', '學期成績', '班平均', '相對班平均', '名次', '所在位置', '較上學期', '平時測驗', '作業', '期中考', '期末考'].forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
+    var hasOther = rows.some(function (r) { return r.comp.other != null; });
+    ['學期', '學期成績', '班平均', '相對班平均', '名次', '所在位置', '較上學期', '平時測驗', '作業'].concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考']).forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
     rows.forEach(function (r, k) {
       var tr = el('tr'), pv = k > 0 ? rows[k - 1] : null;
       var cm = function (v) { return v == null ? '—' : fmt(v); };
       [S.termLabel(r.term), fmt(r.score) + (r.partial ? '*' : ''), fmt(r.classMean), sg(r.diff), r.rank + ' / ' + r.n, r.tier, pv ? sg(r.score - pv.score) + '（相對 ' + sg(r.diff - pv.diff) + '）' : '—',
-        cm(r.comp.quiz), cm(r.comp.homework), cm(r.comp.midterm), cm(r.comp.final)].forEach(function (v, j) {
+        cm(r.comp.quiz), cm(r.comp.homework)].concat(hasOther ? [cm(r.comp.other)] : []).concat([cm(r.comp.midterm), cm(r.comp.final)]).forEach(function (v, j) {
         var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
         if (j === 3) td.className = AX.cls(r.diff);
         if (j === 6 && pv) td.className = AX.cls(r.diff - pv.diff, 2);

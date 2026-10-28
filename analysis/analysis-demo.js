@@ -23,6 +23,15 @@
 
   var state = null;
 
+  // 各科預設權重（與後端 Code.gs 的 defaultWeightsFor_ 相同）
+  function defaultWeightsFor(n) {
+    if (/英/.test(n)) return { quiz: 20, homework: 20, other: 10, midterm: 25, final: 25 };
+    if (/自然/.test(n)) return { quiz: 20, homework: 25, other: 5, midterm: 25, final: 25 };
+    if (/綜合|健|體/.test(n)) return { quiz: 40, homework: 35, other: 25, midterm: 0, final: 0 };
+    if (/本土|閩|客|原住民|族語/.test(n)) return { quiz: 40, homework: 30, other: 30, midterm: 0, final: 0 };
+    return { quiz: 20, homework: 17.5, other: 12.5, midterm: 25, final: 25 };
+  }
+
   function build() {
     var rand = rng(20261021);
     function gauss(r) { r = r || rand; return (r() + r() + r() + r() - 2) * 1.7; }
@@ -69,7 +78,7 @@
         });
         return { row: 5 + pi, seat: p.seat, name: p.name, scores: scores };
       });
-      items.forEach(function (it, i) { it.col = 3 + i; });
+      items.forEach(function (it, i) { it.col = 3 + i; it.difficulty = it.category === '期末考' ? '難' : (it.category === '期中考' ? '中' : '易'); });
       return { subject: subj, layout: 2, items: items, students: students, kinds: {} };
     });
     // 學校系統匯出的「學期領域成績」：前面有標題列，欄位順序與老師的分數表不同，右邊還有老師自己算的名次欄
@@ -85,7 +94,8 @@
       missingNotes: [],
       subjects: subjects, terms: TERMS.slice(), currentTerm: CURRENT,
       kinds: { '平時測驗': 'quiz', '作業': 'homework', '期中考': 'midterm', '期末考': 'final' },
-      weights: { quiz: 30, homework: 10, midterm: 30, final: 30 },
+      weights: { quiz: 20, homework: 17.5, other: 12.5, midterm: 25, final: 25 },
+      subjectWeights: (function () { var o = {}; SUBJECTS.forEach(function (n) { o[n] = defaultWeightsFor(n); }); return o; })(),
       layout: { v1: [], v2: SUBJECTS.slice() }
     };
   }
@@ -104,6 +114,7 @@
     }
     if (fn === 'setCategoryKind') { state.kinds[args[0]] = args[1]; return clone(state.kinds); }
     if (fn === 'setWeights') { state.weights = clone(args[0]); return clone(state.weights); }
+    if (fn === 'setSubjectWeights') { state.subjectWeights[args[0]] = args[1] === null ? defaultWeightsFor(args[0]) : clone(args[1]); return true; }
     if (fn === 'createDomainSheet') return { name: '領域成績_' + args[0], term: args[0], gid: 0, existed: true };
     if (fn === 'saveScores') {
       var sj = state.subjects.filter(function (x) { return x.subject === args[0]; })[0];

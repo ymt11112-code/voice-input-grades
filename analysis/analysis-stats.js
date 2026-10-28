@@ -95,15 +95,17 @@
   // 二、單科單期分析（一個科目、一組項目）
   // ============================================================
   var DEFAULT_PASS = 60;
-  var TEST_KINDS = { quiz: 1, midterm: 1, final: 1 };
-  var KIND_LABEL = { quiz: '平時測驗', midterm: '期中考', final: '期末考', homework: '作業', skip: '不分析' };
-  var DEFAULT_WEIGHTS = { quiz: 30, homework: 10, midterm: 30, final: 30 };
+  var TEST_KINDS = { quiz: 1, midterm: 1, final: 1, other: 1 };
+  var KIND_LABEL = { quiz: '平時測驗', midterm: '期中考', final: '期末考', homework: '作業', other: '課堂表現', skip: '不分析' };
+  // 預設：定期考查（期中考、期末考）50%＋平時考查 50%（平時測驗 20、作業 17.5、課堂表現 12.5）。實際權重依各科目設定。
+  var DEFAULT_WEIGHTS = { quiz: 20, homework: 17.5, other: 12.5, midterm: 25, final: 25 };
 
   function defaultKind(cat) {
     var c = String(cat);
-    if (c.indexOf('作業') > -1) return 'homework';
-    if (c.indexOf('期中') > -1) return 'midterm';
-    if (c.indexOf('期末') > -1) return 'final';
+    if (/作業|習作|習題|學習單/.test(c)) return 'homework';
+    if (c.indexOf('期中') > -1 || c.indexOf('第一次段考') > -1) return 'midterm';
+    if (c.indexOf('期末') > -1 || c.indexOf('第二次段考') > -1) return 'final';
+    if (/課堂|參與|發言|討論|表現|出席|口試/.test(c)) return 'other';
     return 'quiz';
   }
 
@@ -142,7 +144,7 @@
     var raw = [], pv = [];
     col.forEach(function (v, i) { if (v != null) { raw.push(v); pv.push(pcts[i]); } });
     return {
-      k: k, name: it.name, category: it.category, max: mx, maxAssumed: maxAssumed,
+      k: k, name: it.name, category: it.category, difficulty: it.difficulty || '易', max: mx, maxAssumed: maxAssumed,
       scores: col, pcts: pcts, n: raw.length, absent: nS - raw.length,
       stats: describe(raw), pctStats: describe(pv), tiers: tiers(raw), tiersPct: tiers(pv),
       passRate: pv.filter(function (p) { return p >= passPct; }).length / pv.length * 100,
@@ -221,8 +223,8 @@
   // 個別學生缺某個成分（例如缺考期中考）也是同樣處理，但會標記 partial。
   function termSummary(A, weights) {
     weights = weights || DEFAULT_WEIGHTS;
-    var n = A.students.length, comp = { quiz: [], homework: [], midterm: [], final: [] }, i;
-    ['quiz', 'midterm', 'final'].forEach(function (kind) {
+    var n = A.students.length, comp = { quiz: [], homework: [], other: [], midterm: [], final: [] }, i;
+    ['quiz', 'other', 'midterm', 'final'].forEach(function (kind) {
       var qs = A.quiz.filter(function (q) { return q.kind === kind; });
       for (i = 0; i < n; i++) {
         var ps = [];
@@ -265,9 +267,9 @@
   // raw = getAnalysisAll() 的結果。回傳：
   //   { terms:[出現過資料的學期，依時間順序], subjects:[{name, data, terms:[…], byTerm:{學期:{A,T}}, all:A, index:{key:idx}}], roster:[{key,name,seat}] }
   // 學生跨科比對用「姓名」（同一科內若有同名，才改用「姓名（座號）」區分）。
-  function buildModel(raw, passPct, weights) {
+  function buildModel(raw, passPct, weightsOverride) {
     passPct = passPct == null ? DEFAULT_PASS : passPct;
-    weights = weights || raw.weights || DEFAULT_WEIGHTS;
+    var weights = weightsOverride || raw.weights || DEFAULT_WEIGHTS;
     var kinds = raw.kinds || {};
     var termOrder = (raw.terms || []).slice();
     function termIdx(t) { var i = termOrder.indexOf(t); return i === -1 ? (t === '' ? 9999 : 9000) : i; }
@@ -289,7 +291,7 @@
       termsHere.forEach(function (t) {
         var A = analyze(d, kinds, passPct, { terms: [t] });
         if (!A.quiz.length && !A.homework.length) return;
-        byTerm[t] = { A: A, T: termSummary(A, weights) };
+        byTerm[t] = { A: A, T: termSummary(A, weightsOverride || (raw.subjectWeights && raw.subjectWeights[d.subject]) || weights) };
         termsWithData.push(t); allTerms[t] = true;
       });
       // 全部學期合併時，測驗依「學期→登記順序」排列（之後才補登的舊學期項目也會排回正確位置）
@@ -330,7 +332,7 @@
       term: term, score: sc, partial: T.partial[idx], rank: T.ranks[idx], n: T.stats.n,
       classMean: m, diff: sc - m, z: s > 0 ? (sc - m) / s : 0,
       tier: tierName(T.tiers, sc), comp: {
-        quiz: T.comp.quiz[idx], homework: T.comp.homework[idx], midterm: T.comp.midterm[idx], final: T.comp.final[idx]
+        quiz: T.comp.quiz[idx], homework: T.comp.homework[idx], other: T.comp.other[idx], midterm: T.comp.midterm[idx], final: T.comp.final[idx]
       }
     };
   }
@@ -491,7 +493,7 @@
   // ============================================================
   // 期中階段／期末階段的「學期成績」：只納入該階段已經有的成分（期中階段不含期末考）
   function stageScores(T, phase) {
-    var keys = phase === 'midterm' ? ['quiz', 'homework', 'midterm'] : ['quiz', 'homework', 'midterm', 'final'];
+    var keys = phase === 'midterm' ? ['quiz', 'homework', 'other', 'midterm'] : ['quiz', 'homework', 'other', 'midterm', 'final'];
     var used = keys.filter(function (k) { return T.used.indexOf(k) > -1; });
     return T.scores.map(function (_, i) {
       var num = 0, den = 0;
