@@ -268,7 +268,7 @@
     raw.subjects.forEach(function (d) { d.items.forEach(function (it) { if (cats.indexOf(it.category) === -1) cats.push(it.category); }); });
     var g1 = el('div', { 'class': 'setgrp' });
     g1.appendChild(el('div', { 'class': 'h3' }, '類別怎麼分析'));
-    g1.appendChild(el('p', { 'class': 'muted small' }, '平時測驗／期中考／期末考／課堂表現＝逐次分析；作業＝只看總和；不分析＝略過。這五種成分各占一份學期成績的權重（見下方各科目權重）。設定存在試算表，所有分析頁面共用。'));
+    g1.appendChild(el('p', { 'class': 'muted small' }, '平時測驗（紙筆測驗）／課堂表現＝逐次分析並算進平時成績；作業＝只看總和、算進平時成績；期中考、期末考＝逐次分析，分別是第一次、第二次定期考查的段考分數；不分析＝略過。各項比例見下方各科目權重。設定存在試算表，所有分析頁面共用。'));
     var row1 = el('div', { 'class': 'bar' });
     if (!cats.length) row1.appendChild(el('span', { 'class': 'muted small' }, '還沒有登記項目'));
     cats.forEach(function (c) {
@@ -289,27 +289,39 @@
     g1.appendChild(row1);
     box.appendChild(g1);
 
-    // 各科目學期成績權重
+    // 各科目學期成績權重（兩層）
     var g2 = el('div', { 'class': 'setgrp' });
-    g2.appendChild(el('div', { 'class': 'h3' }, '各科目學期成績權重（%）'));
-    g2.appendChild(el('p', { 'class': 'muted small' }, '學期成績＝定期考查（期中考、期末考）＋平時考查（平時測驗、作業、課堂表現）。各科預設依學校公布的評量方式：定期考查 50%、平時考查 50%（綜合、健體、本土語沒有段考，平時考查就是 100%）。數字可以直接修改，改完離開欄位就自動儲存；比例不用剛好是 100，會自動換算。某個成分沒有資料（例如期末考還沒考）時會自動略過並重新分配。'));
-    var wtb = el('table', { 'class': 'stats' }), wh = el('tr');
-    ['科目', '平時測驗', '作業', '課堂表現', '期中考', '期末考', '合計', ''].forEach(function (h, i) { wh.appendChild(el('th', { 'class': i === 0 ? 'l' : '' }, h)); });
-    var wthead = el('thead'); wthead.appendChild(wh); wtb.appendChild(wthead);
-    var wbody = el('tbody'), KEYS = ['quiz', 'homework', 'other', 'midterm', 'final'];
+    g2.appendChild(el('div', { 'class': 'h3' }, '各科目學期成績權重'));
+    g2.appendChild(el('p', { 'class': 'muted small' }, '學期成績＝第一次定期考查（期中）＋第二次定期考查（期末）；每次定期考查＝平時成績＋段考分數；平時成績＝紙筆測驗＋作業＋課堂表現。各科預設依學校公布的評量方式（綜合、健體、本土語沒有段考，平時成績就是定期考查的 100%）。數字可以直接修改，改完離開欄位就自動儲存；每一組的比例不用剛好是 100，會自動換算。某個成分沒有資料（例如期末考還沒考）時會自動略過並重新分配。平時項目屬於第一次還是第二次定期考查，在登記面板的「項目管理」設定（預設：期中考之前算第一次，之後算第二次）。'));
+    var GROUPS = [['學期成績', ['p1', 'p2'], ['第一次定期考查', '第二次定期考查']], ['每次定期考查', ['daily', 'exam'], ['平時成績', '段考分數']], ['平時成績', ['quiz', 'homework', 'other'], ['紙筆測驗', '作業', '課堂表現']]];
+    var KEYS = [], KLABEL = [];
+    GROUPS.forEach(function (g) { g[1].forEach(function (k, i) { KEYS.push(k); KLABEL.push(g[2][i]); }); });
+    var wtb = el('table', { 'class': 'stats' }), wthead = el('thead'), wh0 = el('tr'), wh = el('tr');
+    wh0.appendChild(el('th', { 'class': 'l', rowspan: '2' }, '科目'));
+    GROUPS.forEach(function (g) { wh0.appendChild(el('th', { colspan: String(g[1].length + 1), 'class': 'grp-h' }, g[0] + '的比例')); });
+    wh0.appendChild(el('th', { rowspan: '2' }, ''));
+    GROUPS.forEach(function (g) { g[2].forEach(function (lb) { wh.appendChild(el('th', null, lb)); }); wh.appendChild(el('th', null, '合計')); });
+    wthead.appendChild(wh0); wthead.appendChild(wh); wtb.appendChild(wthead);
+    var wbody = el('tbody');
     raw.subjects.forEach(function (d) {
-      var w = (raw.subjectWeights && raw.subjectWeights[d.subject]) || S.DEFAULT_WEIGHTS, tr = el('tr'), inputs = {}, sumCell = el('td');
+      var w = (raw.subjectWeights && raw.subjectWeights[d.subject]) || S.DEFAULT_WEIGHTS;
+      if (w.daily == null) w = S.DEFAULT_WEIGHTS;
+      var tr = el('tr'), inputs = {}, sums = [];
       tr.appendChild(el('td', { 'class': 'l' }, d.subject));
-      function sum() { var t = 0; KEYS.forEach(function (k) { t += Number(inputs[k].value) || 0; }); sumCell.textContent = fmt(t); }
-      KEYS.forEach(function (k) {
-        var inp = el('input', { type: 'number', min: '0', step: 'any' }); inp.value = w[k]; inp.style.width = '70px'; inputs[k] = inp;
-        inp.onchange = function () {
-          var nw = {}; KEYS.forEach(function (x) { nw[x] = Number(inputs[x].value) || 0; });
-          AX.call('setSubjectWeights', d.subject, nw).then(function () { toast('已儲存「' + d.subject + '」的權重'); ctx.onChange(true); }).catch(showError);
-        };
-        var td = el('td'); td.appendChild(inp); tr.appendChild(td);
+      function refresh() { GROUPS.forEach(function (g, gi) { var t = 0; g[1].forEach(function (k) { t += Number(inputs[k].value) || 0; }); sums[gi].textContent = fmt(t); }); }
+      GROUPS.forEach(function (g, gi) {
+        g[1].forEach(function (k) {
+          var inp = el('input', { type: 'number', min: '0', step: 'any' }); inp.value = w[k]; inp.style.width = '64px'; inputs[k] = inp;
+          inp.oninput = refresh;
+          inp.onchange = function () {
+            var nw = {}; KEYS.forEach(function (x) { nw[x] = Number(inputs[x].value) || 0; });
+            AX.call('setSubjectWeights', d.subject, nw).then(function () { toast('已儲存「' + d.subject + '」的權重'); ctx.onChange(true); }).catch(showError);
+          };
+          var td = el('td'); td.appendChild(inp); tr.appendChild(td);
+        });
+        sums[gi] = el('td', { 'class': 'muted' }); tr.appendChild(sums[gi]);
       });
-      sum(); tr.appendChild(sumCell);
+      refresh();
       var rb = el('button', null, '還原預設');
       rb.onclick = function () { AX.call('setSubjectWeights', d.subject, null).then(function () { toast('已還原「' + d.subject + '」的預設權重'); ctx.onChange(true); }).catch(showError); };
       var tdb = el('td'); tdb.appendChild(rb); tr.appendChild(tdb);

@@ -23,13 +23,14 @@
 
   var state = null;
 
-  // 各科預設權重（與後端 Code.gs 的 defaultWeightsFor_ 相同）
+  // 各科預設權重（與後端 Code.gs 的 defaultWeightsFor_ 相同）：
+  // 學期成績＝第一次定期考查 p1 ＋ 第二次定期考查 p2；定期考查＝平時 daily ＋ 段考 exam；平時＝紙筆 quiz ＋ 作業 homework ＋ 課堂 other
   function defaultWeightsFor(n) {
-    if (/英/.test(n)) return { quiz: 20, homework: 20, other: 10, midterm: 25, final: 25 };
-    if (/自然/.test(n)) return { quiz: 20, homework: 25, other: 5, midterm: 25, final: 25 };
-    if (/綜合|健|體/.test(n)) return { quiz: 40, homework: 35, other: 25, midterm: 0, final: 0 };
-    if (/本土|閩|客|原住民|族語/.test(n)) return { quiz: 40, homework: 30, other: 30, midterm: 0, final: 0 };
-    return { quiz: 20, homework: 17.5, other: 12.5, midterm: 25, final: 25 };
+    if (/英/.test(n)) return { daily: 50, exam: 50, quiz: 40, homework: 40, other: 20, p1: 50, p2: 50 };
+    if (/自然/.test(n)) return { daily: 50, exam: 50, quiz: 40, homework: 50, other: 10, p1: 50, p2: 50 };
+    if (/綜合|健|體/.test(n)) return { daily: 100, exam: 0, quiz: 40, homework: 35, other: 25, p1: 50, p2: 50 };
+    if (/本土|閩|客|原住民|族語/.test(n)) return { daily: 100, exam: 0, quiz: 40, homework: 30, other: 30, p1: 50, p2: 50 };
+    return { daily: 50, exam: 50, quiz: 40, homework: 35, other: 25, p1: 50, p2: 50 };
   }
 
   function build() {
@@ -49,10 +50,12 @@
       var items = [], plan = [];
       TERMS.forEach(function (t, ti) {
         var inProgress = t === CURRENT;
-        var nq = inProgress ? 4 : 6;
-        for (var k = 1; k <= nq; k++) { items.push({ term: t, category: '平時測驗', name: '測驗' + k, max: k % 3 === 0 ? 20 : 100 }); }
-        for (k = 1; k <= nq; k++) items.push({ term: t, category: '作業', name: '作業' + k, max: 10 });
+        var nq = inProgress ? 4 : 6, half = nq / 2, k;
+        for (k = 1; k <= half; k++) items.push({ term: t, category: '平時測驗', name: '測驗' + k, max: k % 3 === 0 ? 20 : 100 });
+        for (k = 1; k <= half; k++) items.push({ term: t, category: '作業', name: '作業' + k, max: 10 });
         items.push({ term: t, category: '期中考', name: '期中考', max: 100 });
+        for (k = half + 1; k <= nq; k++) items.push({ term: t, category: '平時測驗', name: '測驗' + k, max: k % 3 === 0 ? 20 : 100 });
+        for (k = half + 1; k <= nq; k++) items.push({ term: t, category: '作業', name: '作業' + k, max: 10 });
         if (!inProgress) items.push({ term: t, category: '期末考', name: '期末考', max: 100 });
       });
       var diffs = items.map(function () { return gauss(r) * 4; });
@@ -94,7 +97,7 @@
       missingNotes: [],
       subjects: subjects, terms: TERMS.slice(), currentTerm: CURRENT,
       kinds: { '平時測驗': 'quiz', '作業': 'homework', '期中考': 'midterm', '期末考': 'final' },
-      weights: { quiz: 20, homework: 17.5, other: 12.5, midterm: 25, final: 25 },
+      weights: { daily: 50, exam: 50, quiz: 40, homework: 35, other: 25, p1: 50, p2: 50 },
       subjectWeights: (function () { var o = {}; SUBJECTS.forEach(function (n) { o[n] = defaultWeightsFor(n); }); return o; })(),
       layout: { v1: [], v2: SUBJECTS.slice() }
     };

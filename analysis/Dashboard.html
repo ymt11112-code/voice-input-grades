@@ -169,14 +169,26 @@
 
   // ---------- 學期成績 ----------
   function renderTermScore(main, A, T, term) {
-    var s = sm(), w = T.weights, parts = [['quiz', '平時測驗'], ['homework', '作業'], ['other', '課堂表現'], ['midterm', '期中考'], ['final', '期末考']];
+    var s = sm(), w = T.weights, parts = [['quiz', '紙筆測驗'], ['homework', '作業'], ['other', '課堂表現'], ['midterm', '期中考'], ['final', '期末考']];
     var used = parts.filter(function (p) { return T.used.indexOf(p[0]) > -1; });
-    var c = AX.card(S.termLabel(st.term) + ' 學期成績', '依權重合成：' + used.map(function (p) { return p[1] + ' ' + w[p[0]]; }).join('、') +
-      '。' + (parts.length > used.length ? '（' + parts.filter(function (p) { return T.used.indexOf(p[0]) === -1; }).map(function (p) { return p[1]; }).join('、') + '還沒有資料或權重為 0，未計入）' : '') +
-      (T.hwNoMax ? ' 作業項目沒填滿分，無法換算成得分率，未計入。' : '') + (T.partial.some(Boolean) ? ' 缺考某個成分的同學會依其餘成分重新分配權重。' : ''));
+    function pc(v, keys) { var t2 = 0; keys.forEach(function (k) { t2 += w[k]; }); return t2 > 0 ? fmt(v / t2 * 100) : '0'; }
+    var dailyKeys = ['quiz', 'homework', 'other'].filter(function (k) { return T.periods.some(function (pr) { return pr.dailyUsed.indexOf(k) > -1; }); });
+    var hasExam = w.exam > 0, hasDaily = w.daily > 0;
+    var how = '學期成績＝第一次定期考查 ' + pc(w.p1, ['p1', 'p2']) + '％＋第二次定期考查 ' + pc(w.p2, ['p1', 'p2']) + '％；每次定期考查＝' +
+      (hasDaily ? '平時成績 ' + pc(w.daily, ['daily', 'exam']) + '％' : '') + (hasDaily && hasExam ? '＋' : '') + (hasExam ? '段考 ' + pc(w.exam, ['daily', 'exam']) + '％' : '') +
+      '；平時成績＝' + ['quiz', 'homework', 'other'].map(function (k, i) { return ['紙筆測驗', '作業', '課堂表現'][i] + ' ' + pc(w[k], ['quiz', 'homework', 'other']) + '％'; }).join('、') + '。';
+    var notes = [];
+    T.periods.forEach(function (pr) {
+      if (!pr.used) notes.push('第' + (pr.p === 1 ? '一' : '二') + '次定期考查還沒有資料');
+      else if (!pr.complete) notes.push('第' + (pr.p === 1 ? '一' : '二') + '次定期考查的' + (pr.p === 1 ? '期中考' : '期末考') + '還沒有成績，' + (T.provisional ? '目前學期成績暫以已有的平時成績計算' : '先不計入學期成績'));
+    });
+    var c = AX.card(S.termLabel(st.term) + ' 學期成績', how + (notes.length ? '（' + notes.join('；') + '）' : '') +
+      (T.hwNoMax ? ' 作業項目沒填滿分，無法換算成得分率，未計入。' : '') + (T.partial.some(Boolean) ? ' 缺考某個成分的同學會依其餘成分重新分配比例。' : ''));
     var t = T.tiers;
+    var examChips = [];
+    T.periods.forEach(function (pr) { if (pr.used) examChips.push(['第' + (pr.p === 1 ? '一' : '二') + '次定期考查平均', fmt(S.mean(S.nonNull(pr.total))) + '%']); });
     c.appendChild(AX.chips([['頂標', fmt(t.top)], ['前標', fmt(t.front)], ['均標', fmt(t.mid)], ['後標', fmt(t.back)], ['底標', fmt(t.bottom)], ['平均', fmt(T.stats.mean)], ['標準差', fmt(T.stats.sd)]]
-      .concat(used.map(function (p) { return [p[1] + '平均', fmt(S.mean(S.nonNull(T.comp[p[0]]))) + '%']; }))));
+      .concat(examChips).concat(used.map(function (p) { return [p[1] + '平均', fmt(S.mean(S.nonNull(T.comp[p[0]]))) + '%']; }))));
     var cols = el('div', { 'class': 'cols' }); cols.style.marginTop = '12px';
     var left = el('div'), right = el('div'); cols.appendChild(left); cols.appendChild(right); c.appendChild(cols); main.appendChild(c);
     AX.barChart(left, { bins: AX.pctBins(A.students, T.scores), color: 'var(--series-1)', markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: '學期成績', ariaLabel: '學期成績組距分布' });
@@ -378,14 +390,14 @@
     var wrap = el('div', { 'class': 'tbl-wrap' }); wrap.style.marginTop = '10px';
     var tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
     var hasOther = rows.some(function (r) { return S.nonNull(r.T.comp.other).length > 0; });
-    ['學期', '學期成績', '較上學期', '平時測驗', '作業'].concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考', '標準差', '及格率', '人數']).forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
+    ['學期', '學期成績', '較上學期', '第一次定期考查', '第二次定期考查', '紙筆測驗', '作業'].concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考', '標準差', '及格率', '人數']).forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
     rows.forEach(function (r, i) {
       var T = r.T, tr = el('tr'), cm = function (k) { var v = S.nonNull(T.comp[k]); return v.length ? fmt(S.mean(v)) + '%' : '—'; };
       var ok = T.scores.filter(function (v) { return v != null; });
       var vals = [S.termLabel(r.t), T.stats.n ? fmt(T.stats.mean) : '—', i > 0 && means[i] != null && means[i - 1] != null ? sg(means[i] - means[i - 1]) : '—',
-        cm('quiz'), cm('homework')].concat(hasOther ? [cm('other')] : []).concat([cm('midterm'), cm('final'), fmt(T.stats.sd), ok.length ? fmt(ok.filter(function (v) { return v >= pass; }).length / ok.length * 100, 0) + '%' : '—', String(T.stats.n)]);
+        cm('total1'), cm('total2'), cm('quiz'), cm('homework')].concat(hasOther ? [cm('other')] : []).concat([cm('midterm'), cm('final'), fmt(T.stats.sd), ok.length ? fmt(ok.filter(function (v) { return v >= pass; }).length / ok.length * 100, 0) + '%' : '—', String(T.stats.n)]);
       vals.forEach(function (v, j) {
         var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
         if (j === 2 && v !== '—') td.className = AX.cls(means[i] - means[i - 1]);

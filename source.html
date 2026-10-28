@@ -292,7 +292,7 @@
         <p class="muted">新學期的項目通常和上學期差不多，不用重新一個一個建立。</p>
         <div class="subpanel" style="margin-top:0">
           <b>📋 從其他學期複製項目</b>
-          <p class="muted">只複製項目本身（類別、名稱、滿分、難度），不含成績。目標學期已經有的同名項目會自動略過，所以重複按也不會重複建立。複製後再到下面的項目清單拖曳調整、改名都可以。</p>
+          <p class="muted">只複製項目本身（類別、名稱、滿分、難度、階段），不含成績。目標學期已經有的同名項目會自動略過，所以重複按也不會重複建立。複製後再到下面的項目清單拖曳調整、改名都可以。</p>
           <div class="row">
             <span class="muted">從</span><select id="copyFromTerm"></select>
             <span class="muted">複製到</span><select id="copyToTerm"></select>
@@ -336,7 +336,7 @@
         </div>
         <div class="subpanel">
           <b>📥 建立外科成績貼上區（例如自然老師提供的成績）</b>
-          <p class="muted">不是你自己登記、但名單或分析需要用到的科目，可以在這裡建立一個貼上區：系統會建一張跟其他科目格式相同的工作表，自動帶入座號姓名，並預先建好「平時成績、期中考、期末考」三欄（淡黃色區域）。把老師給的成績依座號順序貼進去就好，之後分析頁面和獎狀名單都會自動納入。</p>
+          <p class="muted">不是你自己登記、但名單或分析需要用到的科目，可以在這裡建立一個貼上區：系統會建一張跟其他科目格式相同的工作表，自動帶入座號姓名，並預先建好「期中平時成績、期中考、期末平時成績、期末考」四欄（淡黃色區域；自然老師通常只有平時成績加段考，各自填進對應的欄位，沒有的留空）。把老師給的成績依座號順序貼進去就好，之後分析頁面和獎狀名單都會自動納入。</p>
           <div class="row">
             <input type="text" id="externalSubjectName" value="自然" placeholder="科目名稱，例如：自然">
             <select id="externalTerm" title="這份成績屬於哪個學期"></select>
@@ -364,8 +364,8 @@
         <span class="cardToggle" id="cardToggle-card-weights">▾</span>
       </div>
       <div class="cardBody" id="card-weights" hidden>
-        <p class="muted">學期成績＝<b>定期考查</b>（期中考＝第一次段考、期末考＝第二次段考）＋<b>平時考查</b>（平時測驗＝紙筆測驗、作業＝習作／學習單、課堂表現＝發言／參與／口試）。下面的數字是各成分占學期成績的百分比，預設依學校公布的評量方式：定期考查 50%、平時考查 50%；綜合活動、健康與體育、本土語沒有段考，平時考查就是 100%。</p>
-        <p class="muted">數字可以直接修改，改完離開欄位就自動儲存；比例不用剛好是 100，系統會自動換算。某個成分還沒有資料（例如期末考還沒考）時，會自動略過並重新分配其餘權重。項目屬於哪個成分，是看「類別」：名稱含「作業、習作、學習單」＝作業；含「期中、期末」＝段考；含「課堂、參與、發言、討論、表現、口試」＝課堂表現；其他＝平時測驗（可以在分析頁面的設定改）。</p>
+        <p class="muted">計算分<b>三層</b>：<br>① <b>學期成績</b>＝第一次定期考查總成績（期中）× 比例 ＋ 第二次定期考查總成績（期末）× 比例，預設各占一半。<br>② 每一次<b>定期考查總成績</b>＝平時成績 ＋ 段考分數（期中考或期末考），預設各占一半。<br>③ <b>平時成績</b>＝紙筆測驗（平時測驗）＋ 作業（習作／學習單）＋ 課堂表現（發言／參與／口試），比例依各科學校公布的評量方式（例如國語、數學、社會 40／35／25；綜合活動、健康與體育、本土語沒有段考，平時成績就是定期考查的 100%）。</p>
+        <p class="muted">數字可以直接修改，改完離開欄位就自動儲存；<b>每一組</b>的比例不用剛好是 100，系統會自動換算。某個成分還沒有資料（例如期末考還沒考）時，會自動略過並重新分配其餘比例。項目屬於哪個成分，是看「類別」：名稱含「作業、習作、學習單」＝作業；含「期中、期末」＝段考；含「課堂、參與、發言、討論、表現、口試」＝課堂表現；其他＝平時測驗（可以在分析頁面的設定改）。平時項目屬於<b>第一次還是第二次</b>定期考查，到「項目管理」的「階段」欄設定（預設：期中考之前登記的算第一次，之後的算第二次）。</p>
         <div class="tblWrap"><table class="itemTable" id="weightTable"></table></div>
         <div class="row" style="margin-top:8px"><button class="secondary" onclick="onResetAllWeights()">全部科目還原預設</button></div>
       </div>
@@ -1224,7 +1224,7 @@ function onCreateExternalSubject() {
   var extTerm = document.getElementById('externalTerm').value || state.currentTerm;
   call('createExternalSubject', name, extTerm).then(function (res) {
     var box = document.getElementById('externalSubjectResult');
-    box.textContent = '已建立「' + res.name + '」工作表（' + res.term + '，帶入 ' + res.students + ' 位學生）。請到試算表該工作表，把老師提供的成績依座號順序貼進淡黃色區域：C 欄＝平時成績、D 欄＝期中考、E 欄＝期末考（還沒有的留空）。 ';
+    box.textContent = '已建立「' + res.name + '」工作表（' + res.term + '，帶入 ' + res.students + ' 位學生）。請到試算表該工作表，把老師提供的成績依座號順序貼進淡黃色區域：C 欄＝期中平時成績、D 欄＝期中考、E 欄＝期末平時成績、F 欄＝期末考（還沒有的留空）。 ';
     spreadsheetInfo = null;
     ensureSpreadsheetInfo().then(function (info) {
       var a = document.createElement('a');
@@ -1695,6 +1695,27 @@ function onAddItemSeries() {
 // ============================================================
 var itemSel_ = {};   // 勾選中的項目（欄位編號 → true）
 var DIFFICULTIES_ = ['易', '中', '難'];
+var PERIOD_NAME_ = { 1: '第一次', 2: '第二次' };
+
+// 「階段」下拉：這個平時項目算在第一次還是第二次定期考查。期中考、期末考本身固定（第一次、第二次）。
+function periodSelect_(it) {
+  var sel = document.createElement('select');
+  if (it.kind === 'midterm' || it.kind === 'final') {
+    var o = document.createElement('option'); o.textContent = PERIOD_NAME_[it.period] + '（段考）'; sel.appendChild(o);
+    sel.disabled = true; sel.title = '期中考固定是第一次定期考查、期末考固定是第二次';
+    return sel;
+  }
+  if (it.kind === 'skip') {
+    var o2 = document.createElement('option'); o2.textContent = '—（不分析）'; sel.appendChild(o2); sel.disabled = true;
+    return sel;
+  }
+  [['', '自動：' + PERIOD_NAME_[it.period]], ['1', '第一次'], ['2', '第二次']].forEach(function (x) {
+    var o3 = document.createElement('option'); o3.value = x[0]; o3.textContent = x[1]; sel.appendChild(o3);
+  });
+  sel.value = it.periodSet === 1 || it.periodSet === 2 ? String(it.periodSet) : '';
+  sel.title = '屬於第一次或第二次定期考查的平時成績（自動＝期中考之前算第一次，之後算第二次）';
+  return sel;
+}
 
 // 通用的拖曳排序（滑鼠、觸控都能用）：在 box 裡按住「把手」拖曳整列，放開時呼叫 onDrop(新順序的 data-id 陣列)
 function makeSortable_(box, rowSel, handleSel, onDrop) {
@@ -1797,7 +1818,7 @@ function itemRow_(it) {
   } else { tdT.textContent = '—'; tdT.className = 'muted'; }
 
   var sc = optSelect_(state.categories, it.category || '');
-  sc.onchange = function () { saveItem_(it, { category: sc.value }, false); };
+  sc.onchange = function () { saveItem_(it, { category: sc.value }, true); };
   cell().appendChild(sc);
 
   var nm = document.createElement('input');
@@ -1813,6 +1834,10 @@ function itemRow_(it) {
   df.title = '這個項目的難度（預設「易」）';
   df.onchange = function () { saveItem_(it, { difficulty: df.value }, false); };
   cell().appendChild(df);
+
+  var ps = periodSelect_(it);
+  ps.onchange = function () { saveItem_(it, { period: ps.value === '' ? '' : Number(ps.value) }, true); };
+  cell().appendChild(ps);
 
   var mx = document.createElement('input');
   mx.type = 'number'; mx.step = 'any'; mx.min = '0'; mx.placeholder = '滿分'; mx.value = it.max === '' || it.max === null ? '' : it.max;
@@ -1850,7 +1875,7 @@ function renderItemList() {
   var tb = document.createElement('table');
   tb.className = 'itemTable';
   tb.innerHTML = '<thead><tr><th class="narrow"></th><th class="narrow"><input type="checkbox" id="itemSelAll" title="全選／取消全選"></th>' +
-    '<th>學期</th><th>類別</th><th>項目名稱</th><th style="width:74px">難度</th><th style="width:96px">滿分</th><th class="narrow"></th></tr></thead>';
+    '<th>學期</th><th>類別</th><th>項目名稱</th><th style="width:74px">難度</th><th style="width:138px">階段</th><th style="width:96px">滿分</th><th class="narrow"></th></tr></thead>';
   var body = document.createElement('tbody');
   visible.forEach(function (it) { body.appendChild(itemRow_(it)); });
   tb.appendChild(body);
@@ -1881,9 +1906,14 @@ function renderBulkBar_() {
   var ts = hasTerm ? optSelect_(state.terms, undefined, '（學期不變）') : null;
   var cs = optSelect_(state.categories, undefined, '（類別不變）');
   var ds = optSelect_(DIFFICULTIES_, undefined, '（難度不變）');
+  var pr = document.createElement('select');
+  [['', '（階段不變）'], ['auto', '階段：自動'], ['1', '階段：第一次'], ['2', '階段：第二次']].forEach(function (x) {
+    var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; pr.appendChild(o);
+  });
   if (ts) bar.appendChild(ts);
   bar.appendChild(cs);
   bar.appendChild(ds);
+  bar.appendChild(pr);
   var ok = document.createElement('button');
   ok.textContent = '套用';
   ok.onclick = function () {
@@ -1891,7 +1921,8 @@ function renderBulkBar_() {
     if (ts && ts.value) patch.term = ts.value;
     if (cs.value) patch.category = cs.value;
     if (ds.value) patch.difficulty = ds.value;
-    if (!Object.keys(patch).length) return toast('請先選擇要改成的學期、類別或難度', true);
+    if (pr.value) patch.period = pr.value === 'auto' ? '' : Number(pr.value);
+    if (!Object.keys(patch).length) return toast('請先選擇要改成的學期、類別、難度或階段', true);
     var updates = cols.map(function (c) { var u = { col: c }; Object.keys(patch).forEach(function (k) { u[k] = patch[k]; }); return u; });
     call('updateItems', state.subject, updates).then(function (items) {
       state.items = items; itemSel_ = {}; renderItemList();
@@ -1944,7 +1975,7 @@ function onCopyItems() {
   if (from === to) return toast('來源學期和目標學期不能相同', true);
   if (scope !== 'all' && !state.subject) return toast('請先選擇科目', true);
   if (!confirm('把「' + from + '」的項目複製到「' + to + '」？\n範圍：' + (scope === 'all' ? '全部科目' : '目前科目「' + state.subject + '」') +
-    '\n只複製項目（類別、名稱、滿分），不含成績；目標學期已有同名項目會略過。')) return;
+    '\n只複製項目（類別、名稱、滿分、難度、階段），不含成績；目標學期已有同名項目會略過。')) return;
   call('copyItemsToTerm', scope === 'all' ? [] : [state.subject], from, to).then(function (report) {
     document.getElementById('copyResult').textContent = '完成：' + report.map(function (r) { return r.subject + (r.skipped ? '（' + r.skipped + '）' : ' +' + r.added); }).join('、') +
       '。要登記這個學期，請按學期清單的「設為目前學期」。';
@@ -2001,57 +2032,60 @@ function onImportTemplate() {
 // 各科目學期成績權重
 // ============================================================
 var weightRows_ = [];
-var WEIGHT_COLS_ = [['quiz', '平時測驗'], ['homework', '作業'], ['other', '課堂表現'], ['midterm', '期中考'], ['final', '期末考']];
+var WEIGHT_GROUPS_ = [
+  ['學期成績', [['p1', '第一次定期考查（期中）'], ['p2', '第二次定期考查（期末）']]],
+  ['每次定期考查', [['daily', '平時成績'], ['exam', '段考分數']]],
+  ['平時成績', [['quiz', '紙筆測驗'], ['homework', '作業'], ['other', '課堂表現']]]
+];
+var WEIGHT_KEYS_ = [];
+WEIGHT_GROUPS_.forEach(function (g) { g[1].forEach(function (c) { WEIGHT_KEYS_.push(c[0]); }); });
 
 function loadWeights_() {
   call('getSubjectWeights').then(function (rows) { weightRows_ = rows; renderWeightTable_(); }).catch(showError);
-}
-
-function weightSums_(w) {
-  var daily = (Number(w.quiz) || 0) + (Number(w.homework) || 0) + (Number(w.other) || 0);
-  var exam = (Number(w.midterm) || 0) + (Number(w.final) || 0);
-  return { daily: daily, exam: exam, total: daily + exam };
 }
 
 function renderWeightTable_() {
   var tb = document.getElementById('weightTable');
   if (!tb) return;
   tb.innerHTML = '';
-  var thead = document.createElement('thead'), hr = document.createElement('tr');
-  ['科目', '平時測驗（紙筆）', '作業', '課堂表現', '期中考', '期末考', '平時考查合計', '定期考查合計', '總和', ''].forEach(function (t) {
-    var th = document.createElement('th'); th.textContent = t; hr.appendChild(th);
-  });
-  thead.appendChild(hr); tb.appendChild(thead);
+  var thead = document.createElement('thead'), h0 = document.createElement('tr'), h1 = document.createElement('tr');
+  function th(tr, text, attrs) { var e = document.createElement('th'); e.textContent = text; if (attrs) Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); }); tr.appendChild(e); return e; }
+  th(h0, '科目', { rowspan: '2' });
+  WEIGHT_GROUPS_.forEach(function (g) { th(h0, g[0] + '的比例', { colspan: String(g[1].length + 1) }).style.textAlign = 'center'; g[1].forEach(function (c) { th(h1, c[1]); }); th(h1, '合計'); });
+  th(h0, '', { rowspan: '2' });
+  thead.appendChild(h0); thead.appendChild(h1); tb.appendChild(thead);
   var body = document.createElement('tbody');
   weightRows_.forEach(function (row) {
-    var tr = document.createElement('tr'), inputs = {};
+    var tr = document.createElement('tr'), inputs = {}, sumCells = [];
     var tdN = document.createElement('td'); tdN.textContent = row.subject; tdN.style.whiteSpace = 'nowrap';
     if (row.custom) { var tag = document.createElement('span'); tag.className = 'termTag'; tag.textContent = '已自訂'; tag.style.marginLeft = '6px'; tdN.appendChild(tag); }
     tr.appendChild(tdN);
-    var sumCells = { daily: document.createElement('td'), exam: document.createElement('td'), total: document.createElement('td') };
     function refreshSums() {
-      var w = {}; WEIGHT_COLS_.forEach(function (c) { w[c[0]] = inputs[c[0]].value; });
-      var s = weightSums_(w);
-      sumCells.daily.textContent = s.daily; sumCells.exam.textContent = s.exam; sumCells.total.textContent = s.total;
-      sumCells.total.style.color = Math.abs(s.total - 100) < 0.001 ? '' : 'var(--gold-ink)';
+      WEIGHT_GROUPS_.forEach(function (g, gi) {
+        var t = 0; g[1].forEach(function (c) { t += Number(inputs[c[0]].value) || 0; });
+        sumCells[gi].textContent = Math.round(t * 100) / 100;
+        sumCells[gi].style.color = Math.abs(t - 100) < 0.001 ? '' : 'var(--gold-ink)';
+      });
     }
-    WEIGHT_COLS_.forEach(function (c) {
-      var inp = document.createElement('input');
-      inp.type = 'number'; inp.min = '0'; inp.step = 'any'; inp.value = row.weights[c[0]]; inp.style.minWidth = '60px';
-      inputs[c[0]] = inp;
-      inp.oninput = refreshSums;
-      inp.onchange = function () {
-        var w = {};
-        WEIGHT_COLS_.forEach(function (x) { w[x[0]] = inputs[x[0]].value === '' ? 0 : Number(inputs[x[0]].value); });
-        call('setSubjectWeights', row.subject, w).then(function (rows) {
-          weightRows_ = rows;
-          refreshSums();
-          toast('已儲存「' + row.subject + '」的權重');
-        }).catch(function (e) { showError(e); loadWeights_(); });
-      };
-      var td = document.createElement('td'); td.appendChild(inp); tr.appendChild(td);
+    WEIGHT_GROUPS_.forEach(function (g, gi) {
+      g[1].forEach(function (c) {
+        var inp = document.createElement('input');
+        inp.type = 'number'; inp.min = '0'; inp.step = 'any'; inp.value = row.weights[c[0]]; inp.style.minWidth = '60px';
+        inputs[c[0]] = inp;
+        inp.oninput = refreshSums;
+        inp.onchange = function () {
+          var w = {};
+          WEIGHT_KEYS_.forEach(function (k) { w[k] = inputs[k].value === '' ? 0 : Number(inputs[k].value); });
+          call('setSubjectWeights', row.subject, w).then(function (rows) {
+            weightRows_ = rows;
+            refreshSums();
+            toast('已儲存「' + row.subject + '」的權重');
+          }).catch(function (e) { showError(e); loadWeights_(); });
+        };
+        var td = document.createElement('td'); td.appendChild(inp); tr.appendChild(td);
+      });
+      sumCells[gi] = document.createElement('td'); sumCells[gi].style.textAlign = 'center'; tr.appendChild(sumCells[gi]);
     });
-    ['daily', 'exam', 'total'].forEach(function (k) { sumCells[k].style.textAlign = 'center'; tr.appendChild(sumCells[k]); });
     refreshSums();
     var tdR = document.createElement('td'), rb = document.createElement('button');
     rb.className = 'secondary'; rb.textContent = '還原預設';

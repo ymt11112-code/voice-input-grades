@@ -313,14 +313,14 @@
     var wrap = el('div', { 'class': 'tbl-wrap' }); wrap.style.marginTop = '10px';
     var tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
     var hasOther = rows.some(function (r) { return r.comp.other != null; });
-    ['學期', '學期成績', '班平均', '相對班平均', '名次', '所在位置', '較上學期', '平時測驗', '作業'].concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考']).forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
+    ['學期', '學期成績', '班平均', '相對班平均', '名次', '所在位置', '較上學期', '第一次定期考查', '第二次定期考查', '紙筆測驗', '作業'].concat(hasOther ? ['課堂表現'] : []).concat(['期中考', '期末考']).forEach(function (h) { hr.appendChild(el('th', { 'class': h === '學期' ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
     rows.forEach(function (r, k) {
       var tr = el('tr'), pv = k > 0 ? rows[k - 1] : null;
       var cm = function (v) { return v == null ? '—' : fmt(v); };
       [S.termLabel(r.term), fmt(r.score) + (r.partial ? '*' : ''), fmt(r.classMean), sg(r.diff), r.rank + ' / ' + r.n, r.tier, pv ? sg(r.score - pv.score) + '（相對 ' + sg(r.diff - pv.diff) + '）' : '—',
-        cm(r.comp.quiz), cm(r.comp.homework)].concat(hasOther ? [cm(r.comp.other)] : []).concat([cm(r.comp.midterm), cm(r.comp.final)]).forEach(function (v, j) {
+        cm(r.comp.total1), cm(r.comp.total2), cm(r.comp.quiz), cm(r.comp.homework)].concat(hasOther ? [cm(r.comp.other)] : []).concat([cm(r.comp.midterm), cm(r.comp.final)]).forEach(function (v, j) {
         var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
         if (j === 3) td.className = AX.cls(r.diff);
         if (j === 6 && pv) td.className = AX.cls(r.diff - pv.diff, 2);
@@ -329,7 +329,7 @@
       body.appendChild(tr);
     });
     tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap);
-    if (rows.some(function (r) { return r.partial; })) c.appendChild(el('p', { 'class': 'muted small' }, '* 該學期缺少部分成分（例如缺考），學期成績已依其餘成分重新分配權重。'));
+    if (rows.some(function (r) { return r.partial; })) c.appendChild(el('p', { 'class': 'muted small' }, '* 該學期缺少部分成分（例如缺考，或第二次定期考查還沒考完），學期成績已依其餘成分重新分配比例。'));
     main.appendChild(c);
   }
 

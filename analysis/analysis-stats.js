@@ -97,8 +97,11 @@
   var DEFAULT_PASS = 60;
   var TEST_KINDS = { quiz: 1, midterm: 1, final: 1, other: 1 };
   var KIND_LABEL = { quiz: '平時測驗', midterm: '期中考', final: '期末考', homework: '作業', other: '課堂表現', skip: '不分析' };
-  // 預設：定期考查（期中考、期末考）50%＋平時考查 50%（平時測驗 20、作業 17.5、課堂表現 12.5）。實際權重依各科目設定。
-  var DEFAULT_WEIGHTS = { quiz: 20, homework: 17.5, other: 12.5, midterm: 25, final: 25 };
+  // 兩層權重（實際數字依各科目設定，每一組只看比例，不必剛好加總 100）：
+  //   第一層 學期成績＝第一次定期考查總成績 × p1 ＋ 第二次定期考查總成績 × p2   （第一次＝期中、第二次＝期末）
+  //   第二層 定期考查總成績＝平時成績 × daily ＋ 段考分數 × exam
+  //   第三層 平時成績＝紙筆測驗 × quiz ＋ 作業 × homework ＋ 課堂 × other
+  var DEFAULT_WEIGHTS = { daily: 50, exam: 50, quiz: 40, homework: 35, other: 25, p1: 50, p2: 50 };
 
   function defaultKind(cat) {
     var c = String(cat);
@@ -109,12 +112,30 @@
     return 'quiz';
   }
 
+  // 每個項目屬於第幾次定期考查：期中考固定第 1 次、期末考固定第 2 次；其他項目看 it.period（1 或 2，手動指定），
+  // 沒指定就看位置——同一學期內，排在期中考之前的算第 1 次，之後的算第 2 次（沒有期中考就全部算第 1 次）。
+  function periodMap(items, kinds) {
+    var firstMid = {};
+    items.forEach(function (it, k) {
+      if ((kinds[it.category] || defaultKind(it.category)) === 'midterm') { var t = it.term || ''; if (firstMid[t] === undefined) firstMid[t] = k; }
+    });
+    return items.map(function (it, k) {
+      var kind = kinds[it.category] || defaultKind(it.category);
+      if (kind === 'midterm') return 1;
+      if (kind === 'final') return 2;
+      if (it.period === 1 || it.period === 2) return it.period;
+      var fm = firstMid[it.term || ''];
+      return fm !== undefined && k > fm ? 2 : 1;
+    });
+  }
+
   // data = 單一科目資料；kinds = { 類別: kind }；opts.terms = 只納入這些學期（null＝全部）
   function analyze(data, kinds, passPct, opts) {
     passPct = passPct == null ? DEFAULT_PASS : passPct;
     kinds = kinds || {}; opts = opts || {};
     var S = data.students, nS = S.length;
     var quiz = [], hwOrder = [], hwMap = {};
+    var periods = periodMap(data.items, kinds);
 
     data.items.forEach(function (it, k) {
       var term = it.term || '';
@@ -125,11 +146,11 @@
       if (!col.some(function (v) { return v != null; })) return; // 全班都沒成績＝還沒登記，不納入
       if (TEST_KINDS[kind]) {
         var q = buildQuiz(it, k, col, nS, passPct);
-        q.kind = kind; q.term = term;
+        q.kind = kind; q.term = term; q.period = periods[k];
         quiz.push(q);
       } else {
         if (!hwMap[it.category]) { hwMap[it.category] = { category: it.category, items: [], cols: [] }; hwOrder.push(it.category); }
-        hwMap[it.category].items.push({ k: k, name: it.name, max: it.max });
+        hwMap[it.category].items.push({ k: k, name: it.name, max: it.max, period: periods[k] });
         hwMap[it.category].cols.push(col);
       }
     });
@@ -164,7 +185,7 @@
     }
     var pcts = totalMax ? sums.map(function (s2) { return s2 / totalMax * 100; }) : null;
     return {
-      category: g.category, items: g.items, nItems: nItems, totalMax: totalMax,
+      category: g.category, items: g.items, cols: g.cols, nItems: nItems, totalMax: totalMax,
       sums: sums, missing: missing, pcts: pcts,
       stats: describe(sums), tiers: tiers(sums),
       ranks: sums.map(function (v) { return compRank(sums, v); }),
@@ -216,48 +237,102 @@
   }
 
   // ============================================================
-  // 三、學期成績
+  // 三、學期成績（兩層權重）
   // ============================================================
-  // 四個成分：平時測驗、作業、期中考、期末考（皆換算成得分率 %），依權重合成。
-  // 某個成分全班都沒有資料（例如期末考還沒考）就不納入、其餘權重重新比例分配；
+  // 平時成績（紙筆測驗、作業、課堂）與段考分數（期中考／期末考）各占定期考查的一部分，
+  // 定期考查有兩次（第一次＝期中、第二次＝期末），學期成績再把兩次的總成績依比例合成。皆換算成得分率（滿分 100）。
+  // 某個成分全班都沒有資料（例如期末考還沒考）就不納入、其餘比例重新分配；
   // 個別學生缺某個成分（例如缺考期中考）也是同樣處理，但會標記 partial。
-  function termSummary(A, weights) {
-    weights = weights || DEFAULT_WEIGHTS;
-    var n = A.students.length, comp = { quiz: [], homework: [], other: [], midterm: [], final: [] }, i;
-    ['quiz', 'other', 'midterm', 'final'].forEach(function (kind) {
-      var qs = A.quiz.filter(function (q) { return q.kind === kind; });
-      for (i = 0; i < n; i++) {
-        var ps = [];
-        qs.forEach(function (q) { if (q.pcts[i] != null) ps.push(q.pcts[i]); });
-        comp[kind].push(ps.length ? mean(ps) : null);
-      }
-    });
-    var hwNoMax = false, totalS = [], totalMax = 0;
-    var groups = A.homework;
-    if (groups.length) {
-      if (groups.every(function (g) { return g.totalMax; })) {
-        groups.forEach(function (g) { totalMax += g.totalMax; });
-        for (i = 0; i < n; i++) { var t = 0; groups.forEach(function (g) { t += g.sums[i]; }); totalS.push(t); }
-        comp.homework = totalS.map(function (t2) { return t2 / totalMax * 100; });
-      } else { hwNoMax = true; for (i = 0; i < n; i++) comp.homework.push(null); }
-    } else { for (i = 0; i < n; i++) comp.homework.push(null); }
+  // 第二次定期考查還沒考完（段考沒有成績）時，不計入學期成績，等期末考成績進來才合併。
+  function wavg(pairs) { // pairs = [[權重, 值或 null]]；回傳 { v, miss }
+    var num = 0, den = 0, miss = false;
+    pairs.forEach(function (pr) { if (pr[1] == null) miss = true; else { num += pr[0] * pr[1]; den += pr[0]; } });
+    return { v: den > 0 ? num / den : null, miss: miss };
+  }
 
-    var used = Object.keys(comp).filter(function (k) { return comp[k].some(function (v) { return v != null; }) && weights[k] > 0; });
+  function termSummary(A, weights) {
+    var W = weights && weights.daily != null ? weights : DEFAULT_WEIGHTS;
+    var n = A.students.length, i;
+    function nulls() { var a = []; for (var j = 0; j < n; j++) a.push(null); return a; }
+    function hasData(a) { return a.some(function (v) { return v != null; }); }
+    function meanOf(qs) {
+      var out = [];
+      for (var s = 0; s < n; s++) { var ps = []; qs.forEach(function (q) { if (q.pcts[s] != null) ps.push(q.pcts[s]); }); out.push(ps.length ? mean(ps) : null); }
+      return out;
+    }
+    // 作業：只看總和；空白（缺交）以 0 分計。groupsOf 回傳每個類別裡屬於指定次數的項目
+    var hwNoMax = false;
+    function homeworkOf(p) {
+      var totalS = [], totalMax = 0, any = false;
+      for (i = 0; i < n; i++) totalS.push(0);
+      A.homework.forEach(function (g) {
+        var idx = [];
+        g.items.forEach(function (it, j) { if (p == null || it.period === p) idx.push(j); });
+        if (!idx.length) return;
+        if (!idx.every(function (j) { return g.items[j].max > 0; })) { hwNoMax = true; return; }
+        any = true;
+        idx.forEach(function (j) {
+          totalMax += g.items[j].max;
+          for (i = 0; i < n; i++) { var v = g.cols[j][i]; if (v != null) totalS[i] += v; }
+        });
+      });
+      return any && totalMax > 0 ? totalS.map(function (t) { return t / totalMax * 100; }) : nulls();
+    }
+    var DAILY = ['quiz', 'homework', 'other'];
+
+    var periods = [1, 2].map(function (p) {
+      var c = {
+        quiz: meanOf(A.quiz.filter(function (q) { return q.kind === 'quiz' && q.period === p; })),
+        other: meanOf(A.quiz.filter(function (q) { return q.kind === 'other' && q.period === p; })),
+        homework: homeworkOf(p)
+      };
+      var exam = meanOf(A.quiz.filter(function (q) { return q.kind === (p === 1 ? 'midterm' : 'final'); }));
+      var dailyUsed = W.daily > 0 ? DAILY.filter(function (k) { return hasData(c[k]) && W[k] > 0; }) : [];
+      var examUsed = hasData(exam) && W.exam > 0;
+      var daily = [], total = [], partial = [], dailyOn = dailyUsed.length > 0 && W.daily > 0;
+      for (i = 0; i < n; i++) {
+        var dl = wavg(dailyUsed.map(function (k) { return [W[k], c[k][i]]; }));
+        daily.push(dl.v);
+        var tt = wavg((dailyOn ? [[W.daily, dl.v]] : []).concat(examUsed ? [[W.exam, exam[i]]] : []));
+        total.push(tt.v);
+        partial.push(tt.v != null && (tt.miss || dl.miss));
+      }
+      return {
+        p: p, share: p === 1 ? W.p1 : W.p2, comps: c, exam: exam, daily: daily, total: total, partial: partial,
+        dailyUsed: dailyUsed, examUsed: examUsed, used: dailyOn || examUsed,
+        // 完成＝段考也有成績了（這個科目沒有段考則只要有平時成績）
+        complete: (dailyOn || examUsed) && (W.exam <= 0 || examUsed)
+      };
+    });
+
+    var inScore = periods.filter(function (pr) { return pr.complete && pr.share > 0; });
+    var provisional = false;
+    if (!inScore.length) { inScore = periods.filter(function (pr) { return pr.used && pr.share > 0; }); provisional = inScore.length > 0; }
     var scores = [], partial = [];
     for (i = 0; i < n; i++) {
-      var num = 0, den = 0, miss = false;
-      used.forEach(function (k) {
-        var v = comp[k][i];
-        if (v == null) miss = true; else { num += weights[k] * v; den += weights[k]; }
-      });
-      scores.push(den > 0 ? num / den : null); partial.push(den > 0 && miss);
+      var sc = wavg(inScore.map(function (pr) { return [pr.share, pr.total[i]]; }));
+      scores.push(sc.v);
+      partial.push(sc.v != null && (provisional || sc.miss || inScore.some(function (pr) { return pr.partial[i]; })));
     }
+
+    // 顯示用的整學期成分（兩次合併）：測驗、課堂＝全部項目平均；作業＝全部作業總和
+    var comp = {
+      quiz: meanOf(A.quiz.filter(function (q) { return q.kind === 'quiz'; })),
+      other: meanOf(A.quiz.filter(function (q) { return q.kind === 'other'; })),
+      homework: homeworkOf(null),
+      midterm: periods[0].exam, final: periods[1].exam,
+      daily1: periods[0].daily, daily2: periods[1].daily, total1: periods[0].total, total2: periods[1].total
+    };
+    var used = [];
+    DAILY.forEach(function (k) { if (periods.some(function (pr) { return pr.dailyUsed.indexOf(k) > -1; })) used.push(k); });
+    if (periods[0].examUsed) used.push('midterm');
+    if (periods[1].examUsed) used.push('final');
     var vals = nonNull(scores);
     return {
-      comp: comp, used: used, scores: scores, partial: partial, hwNoMax: hwNoMax,
+      comp: comp, used: used, scores: scores, partial: partial, hwNoMax: hwNoMax, periods: periods, provisional: provisional,
       stats: describe(vals), tiers: tiers(vals),
       ranks: scores.map(function (v) { return v == null ? null : compRank(vals, v); }),
-      weights: weights
+      weights: W
     };
   }
 
@@ -332,7 +407,8 @@
       term: term, score: sc, partial: T.partial[idx], rank: T.ranks[idx], n: T.stats.n,
       classMean: m, diff: sc - m, z: s > 0 ? (sc - m) / s : 0,
       tier: tierName(T.tiers, sc), comp: {
-        quiz: T.comp.quiz[idx], homework: T.comp.homework[idx], other: T.comp.other[idx], midterm: T.comp.midterm[idx], final: T.comp.final[idx]
+        quiz: T.comp.quiz[idx], homework: T.comp.homework[idx], other: T.comp.other[idx], midterm: T.comp.midterm[idx], final: T.comp.final[idx],
+        daily1: T.comp.daily1[idx], daily2: T.comp.daily2[idx], total1: T.comp.total1[idx], total2: T.comp.total2[idx]
       }
     };
   }
@@ -491,15 +567,9 @@
   // ============================================================
   // 七、獎狀名單（前 N 名、進步獎、學期領域前 N 名）
   // ============================================================
-  // 期中階段／期末階段的「學期成績」：只納入該階段已經有的成分（期中階段不含期末考）
+  // 期中階段＝第一次定期考查總成績（平時成績＋期中考）；期末階段＝學期成績（兩次定期考查各占設定的比例）
   function stageScores(T, phase) {
-    var keys = phase === 'midterm' ? ['quiz', 'homework', 'other', 'midterm'] : ['quiz', 'homework', 'other', 'midterm', 'final'];
-    var used = keys.filter(function (k) { return T.used.indexOf(k) > -1; });
-    return T.scores.map(function (_, i) {
-      var num = 0, den = 0;
-      used.forEach(function (k) { var v = T.comp[k][i]; if (v != null) { num += T.weights[k] * v; den += T.weights[k]; } });
-      return den > 0 ? num / den : null;
-    });
+    return phase === 'midterm' ? T.periods[0].total.slice() : T.scores.slice();
   }
 
   // 取前 n 名；ties＝true 時，與第 n 名同分的人一併列入（獎狀常見做法）

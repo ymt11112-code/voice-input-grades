@@ -232,3 +232,5 @@ button.chip { border: 1px solid var(--line); cursor: pointer; font-weight: 500; 
 button.chip:hover { background: var(--line); }
 button.chip.on { background: var(--forest); color: var(--on-forest); border-color: var(--forest); }
 button.chip.on b { color: inherit; }
+
+.stats th.grp-h { text-align: center; border-bottom: 1px solid var(--line); }
