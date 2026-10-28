@@ -544,12 +544,12 @@
 
   <!-- 系統設定：資料庫、語音修正設定 -->
   <div class="panel" id="panel-system" hidden>
-    <div class="card">
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-download')">
         <b><span class="cardIcon tint-teal">🎙️</span> 語音輸入設定</b>
         <span class="cardToggle" id="cardToggle-card-download">▾</span>
       </div>
-      <div class="cardBody" id="card-download">
+      <div class="cardBody" id="card-download" hidden>
         <p class="muted">語音輸入因為麥克風權限限制，不能在這個面板或網頁應用程式網址裡使用，必須開啟成「頂層網頁」——可以是存到自己電腦雙擊開啟，也可以上傳到 GitHub Pages 等網站空間，任何裝置用瀏覽器打開都能用。</p>
 
         <div class="row">
@@ -579,12 +579,50 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card collapsed">
+      <div class="cardHeader" onclick="toggleCard('card-backup')">
+        <b><span class="cardIcon tint-gold">💾</span> 備份（避免資料不小心被刪掉）</b>
+        <span class="cardToggle" id="cardToggle-card-backup">▾</span>
+      </div>
+      <div class="cardBody" id="card-backup" hidden>
+        <p class="muted">把整份試算表複製一份，存到你雲端硬碟的「登記分數備份」資料夾。重要的時間點（例如期中考登記完成、期末結算後）建議手動備份一次並加上備註；平常可以開啟「每週自動備份」。<b>要刪除科目、項目或清空成績之前，也請先備份。</b></p>
+        <p class="muted" id="backupPanelOnly" hidden>⚠️ 備份功能只能在從試算表選單開啟的面板裡使用。</p>
+        <div id="backupBox">
+          <h3>立即備份</h3>
+          <div class="row">
+            <input type="text" id="backupLabel" placeholder="備註（選填），例如：期中考登記完成" style="flex:1; min-width:220px;" maxlength="40">
+            <button onclick="onCreateBackup()">💾 立即建立備份</button>
+          </div>
+          <p class="muted" id="backupResult"></p>
+
+          <h3 style="margin-top:14px">每週自動備份</h3>
+          <div class="row">
+            <label><input type="checkbox" id="autoBackupOn"> 每週五晚上自動備份</label>
+            <span class="muted">只保留最近</span>
+            <input type="number" id="autoBackupKeep" min="1" max="52" value="8" style="width:70px">
+            <span class="muted">份自動備份（有備註的手動備份不會被刪）</span>
+            <button class="secondary" onclick="onSaveAutoBackup()">儲存設定</button>
+          </div>
+          <p class="muted" id="autoBackupStatus"></p>
+
+          <h3 style="margin-top:14px">最近的備份 <button class="secondary" style="padding:2px 10px; font-size:12px" onclick="loadBackupStatus_()">重新整理</button></h3>
+          <div id="backupList"><p class="muted">展開後會自動讀取</p></div>
+          <p class="muted" id="backupFolderLink"></p>
+          <div class="subpanel">
+            <b>📌 還原時怎麼做</b>
+            <p class="muted">開啟備份檔，直接當作新的試算表使用，或在備份檔裡選分頁、按右鍵「複製到 → 現有試算表」，把需要的科目工作表複製回來。注意：成績權重、類別分析方式這些設定存在 Apps Script 的「指令碼屬性」，備份檔不會帶著，還原後請到「科目設定 → 學期成績權重」確認一次。</p>
+            <p class="muted">另外，Google 試算表的「檔案 → 版本記錄 → 為目前版本命名」是 Google 自己的功能，沒有開放給程式使用，需要你手動按；這裡的「有備註的備份」可以達到一樣的效果。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-database')">
         <b><span class="cardIcon tint-blue">📊</span> 資料庫</b>
         <span class="cardToggle" id="cardToggle-card-database">▾</span>
       </div>
-      <div class="cardBody" id="card-database">
+      <div class="cardBody" id="card-database" hidden>
         <div class="row">
           <button onclick="openSpreadsheet()">📊 開啟整份試算表</button>
           <button class="secondary" onclick="openCurrentSubjectSheet()">開啟目前科目工作表</button>
@@ -594,12 +632,12 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card collapsed">
       <div class="cardHeader" onclick="toggleCard('card-corrections')">
         <b><span class="cardIcon tint-purple">🔤</span> 語音修正設定</b>
         <span class="cardToggle" id="cardToggle-card-corrections">▾</span>
       </div>
-      <div class="cardBody" id="card-corrections">
+      <div class="cardBody" id="card-corrections" hidden>
         <h3>新增修正對照</h3>
         <p class="muted">語音辨識常會把某些字詞聽成同音的別的字，例如把「98」聽成「酒吧」、把「88」聽成「爸爸」。在這裡新增後，之後語音輸入（含手機聽寫）辨識到的文字，只要含有「原本聽到的文字」都會自動先換成「要修正成的文字」再解析分數，不用每次手動改。</p>
         <div class="row">
@@ -1255,7 +1293,7 @@ document.querySelectorAll('.tab').forEach(function (btn) {
     document.getElementById('panel-' + btn.dataset.tab).hidden = false;
     if (btn.dataset.tab === 'setup') { refreshItems(); loadWeights_(); }
     if (btn.dataset.tab === 'students') refreshStudents();
-    if (btn.dataset.tab === 'system') renderTextCorrectionList();
+    if (btn.dataset.tab === 'system') { renderTextCorrectionList(); initBackupCard_(); }
     if (btn.dataset.tab === 'scores') refreshScoreItemSelect();
   });
 });
@@ -3157,6 +3195,77 @@ function setLayoutMode(mode, save) {
   var lang = getVoiceLang_();
   document.querySelectorAll('.voiceLangSel').forEach(function (s) { s.value = lang; });
 })();
+
+// ============================================================
+// 備份（只能在試算表選單開啟的面板使用）
+// ============================================================
+function initBackupCard_() {
+  var only = document.getElementById('backupPanelOnly'), box = document.getElementById('backupBox');
+  if (!isPanelMode_()) { only.hidden = false; box.hidden = true; return; }
+  only.hidden = true; box.hidden = false;
+  loadBackupStatus_();
+}
+
+function loadBackupStatus_() {
+  if (!isPanelMode_()) return;
+  var list = document.getElementById('backupList');
+  list.innerHTML = '<p class="muted">讀取中…</p>';
+  google.script.run.withSuccessHandler(renderBackupStatus_).withFailureHandler(function (err) {
+    list.innerHTML = '<p class="muted">讀取失敗：' + escapeHtml(err && err.message ? err.message : err) + '（第一次使用需要授權存取雲端硬碟，請先按「立即建立備份」並依畫面授權）</p>';
+  }).getBackupStatus();
+}
+
+function renderBackupStatus_(s) {
+  document.getElementById('autoBackupOn').checked = !!s.autoEnabled;
+  document.getElementById('autoBackupKeep').value = s.keep;
+  document.getElementById('autoBackupStatus').textContent = s.autoEnabled ? '自動備份已開啟（每週五晚上 6～7 點，保留最近 ' + s.keep + ' 份）。' : '自動備份目前是關閉的。';
+  var list = document.getElementById('backupList');
+  list.innerHTML = '';
+  if (!s.backups.length) list.innerHTML = '<p class="muted">還沒有任何備份</p>';
+  s.backups.forEach(function (b) {
+    var div = document.createElement('div');
+    div.className = 'list-item';
+    var span = document.createElement('span');
+    var note = b.name.replace(/^登記分數備份_\d{8}_\d{4}_?/, '').replace(/_?自動$/, '');
+    span.textContent = b.time + '　' + (note || (b.auto ? '' : '（無備註）')) + (b.auto ? '（自動備份）' : '');
+    div.appendChild(span);
+    var a = document.createElement('a');
+    a.href = b.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '開啟 ›';
+    div.appendChild(a);
+    list.appendChild(div);
+  });
+  document.getElementById('backupFolderLink').innerHTML = '共 ' + s.total + ' 份備份。<a href="' + s.folderUrl + '" target="_blank" rel="noopener">開啟備份資料夾 ›</a>';
+}
+
+function onCreateBackup() {
+  if (!isPanelMode_()) return toast('備份只能在從試算表選單開啟的面板使用', true);
+  var label = document.getElementById('backupLabel').value;
+  var res = document.getElementById('backupResult');
+  res.textContent = '備份中…（試算表較大時可能需要幾十秒）';
+  showLoading();
+  google.script.run.withSuccessHandler(function (r) {
+    hideLoading();
+    res.innerHTML = '';
+    res.appendChild(document.createTextNode('已建立備份：' + r.name + '　'));
+    var a = document.createElement('a'); a.href = r.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = '開啟 ›'; res.appendChild(a);
+    document.getElementById('backupLabel').value = '';
+    toast('備份完成');
+    loadBackupStatus_();
+  }).withFailureHandler(function (err) {
+    hideLoading(); res.textContent = '';
+    showError(err);
+  }).createBackup(label, false);
+}
+
+function onSaveAutoBackup() {
+  if (!isPanelMode_()) return toast('備份只能在從試算表選單開啟的面板使用', true);
+  var on = document.getElementById('autoBackupOn').checked, keep = Number(document.getElementById('autoBackupKeep').value);
+  if (!(keep >= 1 && keep <= 52)) return toast('保留份數請輸入 1～52', true);
+  showLoading();
+  google.script.run.withSuccessHandler(function (s) {
+    hideLoading(); renderBackupStatus_(s); toast(on ? '已開啟每週自動備份' : '已關閉自動備份');
+  }).withFailureHandler(function (err) { hideLoading(); showError(err); }).setAutoBackup(on, keep);
+}
 
 // ============================================================
 // 小工具
