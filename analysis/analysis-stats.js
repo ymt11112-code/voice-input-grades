@@ -662,14 +662,49 @@
   // 階段成績有兩種來源：(1) 系統裡登記的學期（定期考查總成績或段考分數）；(2) 匯入的「歷史成績」（學校算好的定期考查總成績，只在 basis='term' 時納入）。
   // o.basis：'term'＝定期考查總成績（平時成績＋段考）；'exam'＝只看段考分數（得分率）。
   // o.subjects：納入「總平均」的科目（預設全部）。總平均＝納入科目的平均；缺任何一科的同學該階段不排名。
-  // 歷史階段的名次是「當時全班」（含已轉出的同學）的名次，所以匯入的資料要包含當時全部同學。
+  // o.partial：true 時，連「段考還沒考、只有平時成績」的進行中階段也列入（標題後面加＊），讓新學期可以先看到目前的位置。
+  // o.scope：歷史階段的名次怎麼排。'cohort'（預設）＝只比「目前名單裡的同學」，讓每個階段都是同一批人，轉出的同學不影響名次，前後最好比；
+  //          'then'＝當時全班（含後來轉出的同學），名次就是當年實際的名次，但分母（人數）會隨階段改變。
   function termKey(t) { var m = /^(\d+)\s*(上|下)$/.exec(t); return m ? Number(m[1]) * 2 + (m[2] === '下' ? 1 : 0) : 99999; }
   function yearOf(t) { var m = /^(\d+)/.exec(t); return m ? m[1] : t; }
+
+  // ---- 分數集中時，名次的不確定性 ----
+  // 班上分數越集中（尤其是中段），小小的分數差就會造成很大的名次差。所以不能只看名次的升降，要先知道「分數本身的正常波動有多大」。
+  // 估法：每位同學相鄰兩個階段，「相對全班平均的分數」的變動；取全班所有人、所有階段的變動，用穩健的離散度（中位數絕對離差×1.4826，
+  // 不容易被真正大幅進退的少數人拉高）當作「全班典型波動」sigma。單一階段分數的誤差約為 sigma/√2（兩次相減後誤差合併）。
+  function noiseFrom(series) { // series：依時間排列的 [{v:[依 roster 排列的分數], m:全班平均}]
+    var cs = [];
+    for (var k = 1; k < series.length; k++) {
+      var x = series[k - 1], y = series[k];
+      for (var r = 0; r < x.v.length; r++) if (x.v[r] != null && y.v[r] != null) cs.push((y.v[r] - y.m) - (x.v[r] - x.m));
+    }
+    if (cs.length < 8) return null;
+    var med = median(cs), mad = median(cs.map(function (x2) { return Math.abs(x2 - med); }));
+    var sigma = mad * 1.4826;
+    if (!(sigma > 0)) sigma = sd(cs);
+    if (!(sigma > 0)) return null;
+    return { sigma: sigma, u: sigma / Math.SQRT2, n: cs.length };
+  }
+  function estimateNoise(stages) {
+    return noiseFrom(stages.map(function (st) { return { v: st.overall.avg, m: st.overall.classMean }; }));
+  }
+  // 每位同學的「合理名次範圍」：把他的分數上下各動一個誤差 u，會落在第幾名到第幾名之間
+  function rangesOf(vals, pool, rank, noise) {
+    var lo = [], hi = [];
+    vals.forEach(function (s, i) {
+      if (s == null || !noise) { lo.push(rank[i]); hi.push(rank[i]); return; }
+      var above = 0, below = 0;
+      pool.forEach(function (v) { if (v > s + noise.u) above++; if (v > s - noise.u) below++; });
+      lo.push(1 + above); hi.push(1 + below);
+    });
+    return { lo: lo, hi: hi };
+  }
+  function addRankRange(o, noise) { var g = rangesOf(o.avg, o.pool, o.rank, noise); o.rankLo = g.lo; o.rankHi = g.hi; }
 
   // 回傳 { roster, subjects:[科目名], stages:[{label, term, p, hist, subjects, vals, ranks, classMean, sd, n, overall:{avg, rank, n, classMean, sd, names}}], basis, histSubjects }
   function stageMatrix(model, o) {
     o = o || {};
-    var basis = o.basis === 'exam' ? 'exam' : 'term';
+    var basis = o.basis === 'exam' ? 'exam' : 'term', cohort = o.scope !== 'then';
     var roster = model.roster, R = roster.length, stages = [], subjSeen = {}, sysKey = {};
     function overallOf(st, incl) {
       var avg = [];
@@ -678,28 +713,32 @@
         avg.push(incl.length && vs.every(function (v) { return v != null; }) ? mean(vs) : null);
       }
       var an = nonNull(avg);
-      return { names: incl, avg: avg, rank: avg.map(function (v) { return v == null ? null : compRank(an, v); }), n: an.length, classMean: mean(an), sd: sd(an) };
+      return { names: incl, avg: avg, rank: avg.map(function (v) { return v == null ? null : compRank(an, v); }), n: an.length, classMean: mean(an), sd: sd(an), pool: an };
     }
     // --- 系統登記的學期
     model.terms.forEach(function (t) {
       [1, 2].forEach(function (p) {
-        var vals = {}, any = false;
+        var vals = {}, any = false, incomplete = false;
         model.subjects.forEach(function (sm) {
           var bt = sm.byTerm[t];
           if (!bt) return;
           var T = bt.T, arr;
           if (basis === 'exam') arr = p === 1 ? T.comp.midterm : T.comp.final;
-          else { if (!T.periods[p - 1].complete) return; arr = T.periods[p - 1].total; }
+          else {
+            var per = T.periods[p - 1];
+            if (!per.complete) { if (!(o.partial && per.used)) return; incomplete = true; }
+            arr = per.total;
+          }
           if (!arr.some(function (v) { return v != null; })) return;
           vals[sm.name] = roster.map(function (r) { var ix = sm.index[r.key]; return ix === undefined ? null : arr[ix]; });
           subjSeen[sm.name] = true; any = true;
         });
         if (!any) return;
-        var st = { term: t, p: p, hist: false, label: t + (p === 1 ? '中' : '末'), subjects: [], vals: vals, ranks: {}, classMean: {}, sd: {}, n: {} };
+        var st = { term: t, p: p, hist: false, partial: incomplete, label: t + (p === 1 ? '中' : '末') + (incomplete ? '＊' : ''), subjects: [], vals: vals, ranks: {}, classMean: {}, sd: {}, n: {}, pool: {} };
         Object.keys(vals).forEach(function (n) {
           var nn = nonNull(vals[n]);
           st.ranks[n] = vals[n].map(function (v) { return v == null ? null : compRank(nn, v); });
-          st.classMean[n] = mean(nn); st.sd[n] = sd(nn); st.n[n] = nn.length;
+          st.classMean[n] = mean(nn); st.sd[n] = sd(nn); st.n[n] = nn.length; st.pool[n] = nn;
         });
         sysKey[t + '|' + p] = true;
         stages.push(st);
@@ -718,12 +757,12 @@
       });
       order.forEach(function (k) {
         var g = groups[k], names = Object.keys(g.by);
-        var st = { term: g.term, p: g.p, hist: true, label: g.term + (g.p === 1 ? '中' : '末'), subjects: [], vals: {}, ranks: {}, classMean: {}, sd: {}, n: {}, allByName: g.by };
+        var st = { term: g.term, p: g.p, hist: true, label: g.term + (g.p === 1 ? '中' : '末'), subjects: [], vals: {}, ranks: {}, classMean: {}, sd: {}, n: {}, pool: {}, allByName: g.by };
         names.forEach(function (n) {
-          var m = g.by[n], all = Object.keys(m).map(function (nm) { return m[nm]; });
+          var m = g.by[n], all = cohort ? nonNull(roster.map(function (r) { return m[r.name] === undefined ? null : m[r.name]; })) : Object.keys(m).map(function (nm) { return m[nm]; });
           st.vals[n] = roster.map(function (r) { return m[r.name] === undefined ? null : m[r.name]; });
           st.ranks[n] = st.vals[n].map(function (v) { return v == null ? null : compRank(all, v); });
-          st.classMean[n] = mean(all); st.sd[n] = sd(all); st.n[n] = all.length;
+          st.classMean[n] = mean(all); st.sd[n] = sd(all); st.n[n] = all.length; st.pool[n] = all;
           subjSeen[n] = true;
         });
         stages.push(st);
@@ -738,16 +777,26 @@
       var incl = st.subjects.filter(function (n) { return !o.subjects || o.subjects.indexOf(n) > -1; });
       if (!st.hist) { st.overall = overallOf(st, incl); return; }
       // 歷史階段：總平均與名次以「當時全班」計（包含已轉出、不在目前名單的同學）
-      var names = {}; incl.forEach(function (n) { Object.keys(st.allByName[n]).forEach(function (nm) { names[nm] = true; }); });
+      var names = {};
+      if (cohort) roster.forEach(function (r) { names[r.name] = true; });
+      else incl.forEach(function (n) { Object.keys(st.allByName[n]).forEach(function (nm) { names[nm] = true; }); });
       var avgByName = {}, allAvg = [];
       Object.keys(names).forEach(function (nm) {
         var vs = incl.map(function (n) { return st.allByName[n][nm]; });
         if (incl.length && vs.every(function (v) { return v !== undefined; })) { avgByName[nm] = mean(vs); allAvg.push(avgByName[nm]); }
       });
       var avg = roster.map(function (r) { return avgByName[r.name] === undefined ? null : avgByName[r.name]; });
-      st.overall = { names: incl, avg: avg, rank: avg.map(function (v) { return v == null ? null : compRank(allAvg, v); }), n: allAvg.length, classMean: mean(allAvg), sd: sd(allAvg) };
+      st.overall = { names: incl, avg: avg, rank: avg.map(function (v) { return v == null ? null : compRank(allAvg, v); }), n: allAvg.length, classMean: mean(allAvg), sd: sd(allAvg), pool: allAvg };
     });
-    return { roster: roster, subjects: subjectOrder.filter(function (n) { return subjSeen[n]; }), stages: stages, basis: basis, histSubjects: histSubjects };
+    var noise = estimateNoise(stages), subjNoise = {};
+    stages.forEach(function (st) { addRankRange(st.overall, noise); st.rankLo = {}; st.rankHi = {}; });
+    subjectOrder.forEach(function (n) {
+      var seq = stages.filter(function (st) { return st.vals[n]; });
+      var nz = noiseFrom(seq.map(function (st) { return { v: st.vals[n], m: st.classMean[n] }; }));
+      subjNoise[n] = nz;
+      seq.forEach(function (st) { var g = rangesOf(st.vals[n], st.pool[n], st.ranks[n], nz); st.rankLo[n] = g.lo; st.rankHi[n] = g.hi; });
+    });
+    return { roster: roster, subjects: subjectOrder.filter(function (n) { return subjSeen[n]; }), stages: stages, basis: basis, scope: cohort ? 'cohort' : 'then', histSubjects: histSubjects, noise: noise, subjNoise: subjNoise };
   }
 
   // 標準分：離全班平均幾個標準差（0＝全班平均，+1 約在前 16%，−1 約在後 16%）
@@ -757,9 +806,9 @@
   function studentJourney(M, r) {
     var rows = M.stages.map(function (st) {
       var subj = {};
-      st.subjects.forEach(function (n) { subj[n] = { v: st.vals[n][r], rank: st.ranks[n][r], mean: st.classMean[n], n: st.n[n], z: zOf(st.vals[n][r], st.classMean[n], st.sd[n]) }; });
+      st.subjects.forEach(function (n) { subj[n] = { v: st.vals[n][r], rank: st.ranks[n][r], rankLo: st.rankLo[n][r], rankHi: st.rankHi[n][r], mean: st.classMean[n], n: st.n[n], z: zOf(st.vals[n][r], st.classMean[n], st.sd[n]) }; });
       var o = st.overall;
-      return { label: st.label, term: st.term, p: st.p, hist: st.hist, avg: o.avg[r], rank: o.rank[r], n: o.n, classMean: o.classMean, z: zOf(o.avg[r], o.classMean, o.sd), subj: subj };
+      return { label: st.label, term: st.term, p: st.p, hist: st.hist, avg: o.avg[r], rank: o.rank[r], rankLo: o.rankLo[r], rankHi: o.rankHi[r], n: o.n, classMean: o.classMean, z: zOf(o.avg[r], o.classMean, o.sd), subj: subj };
     });
     var bySubject = M.subjects.map(function (n) {
       var vs = [], rk = [], cm = [], zs = [];

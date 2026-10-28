@@ -27,6 +27,8 @@
     <div class="bar">
       <span class="grp"><span id="tabBtns" class="grp"></span></span>
       <span class="grp"><span class="lbl">成績依據</span><span id="basisBtns" class="grp"></span></span>
+      <span class="grp" id="partialGrp"><span class="lbl">進行中的階段</span><span id="partialBtns" class="grp"></span></span>
+      <span class="grp" id="scopeGrp"><span class="lbl">名次比較範圍</span><span id="scopeBtns" class="grp"></span></span>
       <span class="grp"><span class="lbl">總平均納入</span><span id="subjBtns" class="grp"></span></span>
     </div>
     <div class="bar" id="bar2"></div>
@@ -42,7 +44,7 @@
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed;
   // 科目固定配色（顏色跟著科目走，不會因為勾選的科目變動而改變）
   var PALETTE = ['#2a78d6', '#eb6834', '#2a9d6a', '#8a5fd0', '#c99a12', '#d6459b', '#0e9aa7', '#7a8b99'];
-  var st = { raw: null, model: null, M: null, tab: 'person', basis: 'term', subs: null, key: null, cmpIdx: null, th: 5, sort: 'seat' };
+  var st = { raw: null, model: null, M: null, tab: 'person', basis: 'term', scope: 'cohort', partial: false, subs: null, key: null, cmpIdx: null, k: 1.5, sort: 'seat' };
 
   AX.shell();
   AX.onResize(function () { if (st.M) renderMain(); });
@@ -52,6 +54,8 @@
     var q = AX.qs();
     if (q.tab === 'class') st.tab = 'class';
     if (q.basis === 'exam') st.basis = 'exam';
+    if (q.scope === 'then') st.scope = 'then';
+    if (q.partial === '1') st.partial = true;
     if (!st.model.roster.length) { AX.$('main').appendChild(el('div', { 'class': 'card empty' }, '試算表還沒有學生名單，請先到「登記分數」面板建立。')); return; }
     st.key = q.key && st.model.roster.some(function (x) { return x.key === q.key; }) ? q.key : st.model.roster[0].key;
     rebuild(); renderBars(); renderMain();
@@ -64,9 +68,9 @@
     return null;
   }
   function rebuild() {
-    var M0 = S.stageMatrix(st.model, { basis: st.basis });
+    var M0 = S.stageMatrix(st.model, { basis: st.basis, scope: st.scope, partial: st.partial });
     st.effSubs = effSubs(M0);
-    st.M = st.effSubs ? S.stageMatrix(st.model, { basis: st.basis, subjects: st.effSubs }) : M0;
+    st.M = st.effSubs ? S.stageMatrix(st.model, { basis: st.basis, scope: st.scope, partial: st.partial, subjects: st.effSubs }) : M0;
     // 全班名次進退的「典型幅度」：所有同學、相鄰階段的名次變動取中位數
     var ds = [];
     for (var k = 1; k < st.M.stages.length; k++) {
@@ -89,6 +93,11 @@
   function renderBars() {
     AX.btnGroup(AX.$('tabBtns'), [{ label: '個人歷程', value: 'person' }, { label: '全班進退步', value: 'class' }], st.tab, function (v) { st.tab = v; renderBars(); renderMain(); });
     AX.btnGroup(AX.$('basisBtns'), [{ label: '定期考查總成績', value: 'term' }, { label: '段考分數', value: 'exam' }], st.basis, function (v) { st.basis = v; rebuild(); st.cmpIdx = null; renderBars(); renderMain(); });
+    var hasHist = st.basis === 'term' && st.model.history && st.model.history.length > 0;
+    AX.$('scopeGrp').hidden = !hasHist;
+    AX.btnGroup(AX.$('scopeBtns'), [{ label: '同一批同學（目前名單）', value: 'cohort' }, { label: '當時全班（含已轉出）', value: 'then' }], st.scope, function (v) { st.scope = v; rebuild(); st.cmpIdx = null; renderBars(); renderMain(); });
+    AX.$('partialGrp').hidden = st.basis !== 'term';
+    AX.btnGroup(AX.$('partialBtns'), [{ label: '不含', value: '0' }, { label: '含（只有平時成績）', value: '1' }], st.partial ? '1' : '0', function (v) { st.partial = v === '1'; rebuild(); st.cmpIdx = null; renderBars(); renderMain(); });
     var box = AX.$('subjBtns'); AX.clear(box);
     st.M.subjects.forEach(function (n) {
       var on = !st.effSubs || st.effSubs.indexOf(n) > -1, b = el('button', { 'class': on ? 'on' : '' }, n);
@@ -119,10 +128,11 @@
       s2.onchange = function () { st.cmpIdx = Number(s2.value); renderMain(); };
       g2.appendChild(s2); bar2.appendChild(g2);
       var g3 = el('span', { 'class': 'grp' });
-      g3.appendChild(el('span', { 'class': 'lbl' }, '名次進退達'));
-      var th = el('input', { type: 'number', min: '1', max: '30', style: 'width:64px' }); th.value = st.th;
-      th.onchange = function () { var v = Number(th.value); st.th = v >= 1 ? v : 5; renderMain(); };
-      g3.appendChild(th); g3.appendChild(el('span', { 'class': 'lbl' }, '名以上標示「進步多／退步多」'));
+      g3.appendChild(el('span', { 'class': 'lbl' }, '標示「明顯進退」的標準'));
+      var ks = el('select', { title: '相對全班的分數變動，超過全班典型波動的幾倍，才算明顯進步或退步' });
+      [['1', '1 倍（較敏感）'], ['1.5', '1.5 倍（建議）'], ['2', '2 倍（較嚴格）']].forEach(function (x) { var o = el('option', { value: x[0] }, x[1]); if (Number(x[0]) === st.k) o.selected = true; ks.appendChild(o); });
+      ks.onchange = function () { st.k = Number(ks.value); renderMain(); };
+      g3.appendChild(ks); g3.appendChild(el('span', { 'class': 'lbl' }, '全班典型分數波動'));
       bar2.appendChild(g3);
       var g4 = el('span', { 'class': 'grp' });
       g4.appendChild(el('span', { 'class': 'lbl' }, '排序'));
@@ -137,7 +147,7 @@
   // ---------- 主畫面 ----------
   function renderMain() {
     var main = AX.$('main'); AX.clear(main);
-    try { history.replaceState(null, '', AX.pageUrl('Progress.html', { tab: st.tab === 'class' ? 'class' : '', basis: st.basis === 'exam' ? 'exam' : '', key: st.key })); } catch (e) { /* 忽略 */ }
+    try { history.replaceState(null, '', AX.pageUrl('Progress.html', { tab: st.tab === 'class' ? 'class' : '', basis: st.basis === 'exam' ? 'exam' : '', scope: st.scope === 'then' ? 'then' : '', partial: st.partial ? '1' : '', key: st.key })); } catch (e) { /* 忽略 */ }
     var M = st.M;
     if (!M.stages.length) {
       main.appendChild(el('div', { 'class': 'card empty' }, st.basis === 'term' ? '還沒有完成的定期考查（期中考或期末考還沒有成績）。可以改看「段考分數」，或在下方匯入前幾學年的歷史成績。' : '還沒有任何期中考或期末考的成績，登記後這裡就會出現歷程。'));
@@ -202,6 +212,10 @@
   }
 
   function rkText(r) { return r == null ? '—' : String(r); }
+  // 相對全班的分數變動（個人分數 − 全班平均，這次減上次；正＝進步）。sigma＝全班典型波動；超過 k 倍才算「明顯」
+  function relChange(pv, pm, cv, cm) { return pv == null || cv == null ? null : (cv - cm) - (pv - pm); }
+  function isSig(c, sigma) { return c != null && sigma > 0 && Math.abs(c) >= st.k * sigma; }
+  function rangeText(lo, hi, rank) { return rank == null ? '—' : (lo === hi ? String(rank) : lo + '–' + hi); }
   function moveCell(prev, cur) { // 名次進退（數字變小＝進步）
     if (prev == null || cur == null) return { text: '—', cls: '' };
     var d = prev - cur;
@@ -213,20 +227,21 @@
     var M = st.M, r = rIdx(), who = st.model.roster[r], J = S.studentJourney(M, r), rows = J.rows;
     var basisName = st.basis === 'exam' ? '段考分數（期中考、期末考的得分率）' : '定期考查總成績（平時成績＋段考）';
     var head = AX.card(AX.seatLabel(who) + '・成績歷程',
-      '共 ' + rows.length + ' 個階段（' + rows[0].label + ' → ' + rows[rows.length - 1].label + '）。成績依據：' + basisName + '；總平均＝' + M.stages[M.stages.length - 1].overall.names.join('、') + ' 的平均，名次是和全班比較。');
+      '共 ' + rows.length + ' 個階段（' + rows[0].label + ' → ' + rows[rows.length - 1].label + '）。成績依據：' + basisName + '；總平均＝' + M.stages[M.stages.length - 1].overall.names.join('、') + ' 的平均，名次是和全班比較。' + (M.stages.some(function (s) { return s.hist; }) ? (st.scope === 'cohort' ? '前幾學年的名次是「只和目前名單裡的同學」重新排出來的，已轉出的同學不算，所以每個階段比的都是同一批人；名次和當年學校公布的可能不同。' : '前幾學年的名次是當年全班（含後來轉出的同學）的實際名次，各階段的總人數不同，轉出的同學會讓後來的名次看起來變好，比較時請留意。') : '') + (M.stages.some(function (s) { return s.partial; }) ? '標「＊」的階段段考還沒考，只有平時成績，僅供參考，段考成績登記後會自動變成完整的定期考查總成績。' : ''));
     head.style.marginBottom = '12px';
     main.appendChild(head);
 
     var last = rows[rows.length - 1], prevRow = rows.length > 1 ? rows[rows.length - 2] : null;
     var tiles = el('div', { 'class': 'tiles' });
     tiles.appendChild(AX.tile('最新階段・' + last.label, last.avg == null ? '—' : fmt(last.avg), last.avg == null ? '' : '分', last.avg == null ? '這個階段缺考或缺成績，沒有總平均' : '全班平均 ' + fmt(last.classMean) + '（' + sg(last.avg - last.classMean) + '）', last.avg == null ? '' : AX.cls(last.avg - last.classMean)));
-    tiles.appendChild(AX.tile('總平均名次', last.rank == null ? '—' : String(last.rank), last.rank == null ? '' : '/ ' + last.n + ' 人', last.rank == null ? '' : '前 ' + S.topPercent(last.rank, last.n) + '%'));
+    tiles.appendChild(AX.tile('總平均名次', last.rank == null ? '—' : String(last.rank), last.rank == null ? '' : '/ ' + last.n + ' 人', last.rank == null ? '' : '前 ' + S.topPercent(last.rank, last.n) + '%' + (M.noise && last.rankLo !== last.rankHi ? '・合理範圍第 ' + last.rankLo + '–' + last.rankHi + ' 名' : '')));
     var mv = prevRow && last.rank != null && prevRow.rank != null ? prevRow.rank - last.rank : null;
     tiles.appendChild(AX.tile('較上一階段', mv == null ? '—' : (mv > 0 ? '▲ ' + mv : (mv < 0 ? '▼ ' + (-mv) : '＝')), mv == null ? '' : '名', prevRow && mv != null ? prevRow.label + ' 第 ' + prevRow.rank + ' 名 → 第 ' + last.rank + ' 名' : '', mv == null ? '' : AX.cls(mv, 0.5)));
     var ranks = rows.map(function (x) { return x.rank; }).filter(function (v) { return v != null; });
     tiles.appendChild(AX.tile('相對全班位置（標準分）', last.z == null ? '—' : sg(last.z, 2), '', last.z == null ? '' : '0＝全班平均；+1 約前 16%、−1 約後 16%', last.z == null ? '' : AX.cls(last.z)));
     tiles.appendChild(AX.tile('各階段平均名次', ranks.length ? fmt(S.mean(ranks)) : '—', ranks.length ? '名' : '', ranks.length ? '最好第 ' + Math.min.apply(null, ranks) + ' 名、最差第 ' + Math.max.apply(null, ranks) + ' 名' : ''));
     main.appendChild(tiles);
+    var insSlot = el('div'); main.appendChild(insSlot);   // 「分析重點」最後才算出來，但放在小卡的正下方
 
     // --- 分數表
     var c1 = AX.card('各階段分數', '每一格是該階段的得分（滿分 100）。最後三欄是整個歷程的個人平均、全班平均與差距。');
@@ -250,12 +265,12 @@
     tb1.appendChild(bd1); w1.appendChild(tb1); c1.appendChild(w1); main.appendChild(c1);
 
     // --- 名次表
-    var c2 = AX.card('各階段名次', '括號是和上一階段比的進退（▲進步、▼退步，名次數字越小越好）；標色的是進退達 ' + st.th + ' 名以上。');
+    var c2 = AX.card('各階段名次', '括號是和上一階段比的名次進退（▲進步、▼退步，名次數字越小越好）。班上分數集中時，名次起伏有一大部分只是分數的小波動，所以只有「相對全班的分數變動」超過全班典型波動的 ' + st.k + ' 倍才標色；最下面一列是總平均名次的合理範圍（把分數上下各動一個正常誤差後會落在第幾名到第幾名）。');
     var w2 = el('div', { 'class': 'tbl-wrap' }), tb2 = el('table', { 'class': 'stats' }), h2 = el('tr');
     ['科目'].concat(rows.map(function (x) { return x.label; })).concat(['平均名次']).forEach(function (h, i) { h2.appendChild(el('th', { 'class': i === 0 ? 'l' : '' }, h)); });
     var th2 = el('thead'); th2.appendChild(h2); tb2.appendChild(th2);
     var bd2 = el('tbody');
-    function rankRow(label, getRank, n, color, tot) {
+    function rankRow(label, getRank, getVM, sigma, color, tot) {
       var tr = el('tr', { 'class': tot ? 'tot' : '' }), td0 = el('td', { 'class': 'l' });
       if (color) { var dot = el('span', { 'class': 'dot' }); dot.style.background = color; td0.appendChild(dot); }
       td0.appendChild(document.createTextNode(label)); tr.appendChild(td0);
@@ -266,14 +281,22 @@
         rs.push(cur);
         var m = moveCell(pv, cur);
         td.textContent = String(cur) + (pv != null && m.d ? '（' + m.text + '）' : '');
-        if (m.d && Math.abs(m.d) >= st.th) td.className = m.cls;
+        if (i > 0) { var a = getVM(rows[i - 1]), b = getVM(x), c = relChange(a[0], a[1], b[0], b[1]); if (isSig(c, sigma)) td.className = c > 0 ? 'up' : 'down'; }
         tr.appendChild(td);
       });
       tr.appendChild(el('td', null, rs.length ? fmt(S.mean(rs)) : '—'));
       return tr;
     }
-    J.bySubject.forEach(function (b) { bd2.appendChild(rankRow(b.name, function (x) { var c = x.subj[b.name]; return c ? c.rank : null; }, 0, colorOf(b.name), false)); });
-    bd2.appendChild(rankRow('總平均名次', function (x) { return x.rank; }, 0, null, true));
+    J.bySubject.forEach(function (b) {
+      var nz = M.subjNoise[b.name];
+      bd2.appendChild(rankRow(b.name, function (x) { var c = x.subj[b.name]; return c ? c.rank : null; }, function (x) { var c = x.subj[b.name]; return c ? [c.v, c.mean] : [null, null]; }, nz ? nz.sigma : 0, colorOf(b.name), false));
+    });
+    bd2.appendChild(rankRow('總平均名次', function (x) { return x.rank; }, function (x) { return [x.avg, x.classMean]; }, M.noise ? M.noise.sigma : 0, null, true));
+    if (M.noise) {
+      var trR = el('tr'); trR.appendChild(el('td', { 'class': 'l muted' }, '總平均名次的合理範圍'));
+      rows.forEach(function (x) { trR.appendChild(el('td', { 'class': 'muted' }, rangeText(x.rankLo, x.rankHi, x.rank))); });
+      trR.appendChild(el('td', null, '')); bd2.appendChild(trR);
+    }
     tb2.appendChild(bd2); w2.appendChild(tb2); c2.appendChild(w2); main.appendChild(c2);
 
     // --- 標準分表（不受考卷難易、分數集中程度影響，比名次更適合看長期變化）
@@ -299,12 +322,13 @@
     var nMax = Math.max.apply(null, M.stages.map(function (x) { return x.overall.n; }).concat([2]));
     var maxN = Math.max.apply(null, M.stages.map(function (x) { return Math.max.apply(null, x.subjects.map(function (n) { return x.n[n]; })); }).concat([2]));
     function rankTicks(n) { var t = [1], step = n > 20 ? 5 : (n > 10 ? 3 : 2); for (var v = step; v < n; v += step) t.push(v); t.push(n); return t.filter(function (v, i, a) { return a.indexOf(v) === i; }); }
-    var cA = AX.card('總平均名次變化', '往上＝名次越前面。' + (nMax ? '全班 ' + nMax + ' 人。' : '')); cols.appendChild(cA);
+    var cA = AX.card('總平均名次變化', '往上＝名次越前面。' + (nMax ? '全班 ' + nMax + ' 人。' : '') + (M.noise ? '淡色帶是「合理範圍」：分數有正常的小波動，所以名次其實是一個範圍；中段同學的帶子特別寬，代表他的名次差幾名多半沒有實質意義。' : '')); cols.appendChild(cA);
     var boxA = el('div'); cA.appendChild(boxA);
     AX.lineChart(boxA, {
       labels: rows.map(function (x) { return x.label; }), series: [{ name: '總平均名次', color: 'var(--series-2)', values: rows.map(function (x) { return x.rank; }) }],
-      yMin: 1, yMax: nMax, ticks: rankTicks(nMax), invert: true, height: 250, noLegend: true, groups: yearGroups(), ariaLabel: '總平均名次變化',
-      tipRows: function (i) { var x = rows[i]; return { title: x.label, rows: [{ color: 'var(--series-2)', name: '總平均名次', value: x.rank == null ? '—' : '第 ' + x.rank + ' 名 / ' + x.n + ' 人' }, { name: '總平均', value: x.avg == null ? '—' : fmt(x.avg) + ' 分（班平均 ' + fmt(x.classMean) + '）' }] }; }
+      band: M.noise ? { name: '合理範圍', color: 'var(--series-2)', lo: rows.map(function (x) { return x.rankHi; }), hi: rows.map(function (x) { return x.rankLo; }) } : null,
+      yMin: 1, yMax: nMax, ticks: rankTicks(nMax), invert: true, height: 250, noLegend: !M.noise, groups: yearGroups(), ariaLabel: '總平均名次變化',
+      tipRows: function (i) { var x = rows[i]; return { title: x.label, rows: [{ color: 'var(--series-2)', name: '總平均名次', value: x.rank == null ? '—' : '第 ' + x.rank + ' 名 / ' + x.n + ' 人' }, { name: '合理範圍', value: x.rank == null ? '—' : rangeText(x.rankLo, x.rankHi, x.rank) + ' 名' }, { name: '總平均', value: x.avg == null ? '—' : fmt(x.avg) + ' 分（班平均 ' + fmt(x.classMean) + '）' }] }; }
     });
     var cB = AX.card('各科名次變化', '每條線是一個科目，往上＝名次越前面。'); cols.appendChild(cB);
     var boxB = el('div'); cB.appendChild(boxB);
@@ -346,9 +370,12 @@
       }
       var avgR = S.mean(ranks), pos = avgR / nMax, band = pos <= 0.2 ? '前段（前 20%）' : (pos <= 0.4 ? '中前段' : (pos <= 0.6 ? '中段' : (pos <= 0.8 ? '中後段' : '後段（後 20%）')));
       add('長期位置：全部階段平均名次第 ' + fmt(avgR) + ' 名（全班約 ' + nMax + ' 人），大致落在' + band + '。多個階段平均下來，這個位置比任何單一次的名次都可靠。');
-      if (st.typ && prevRow && last.rank != null && prevRow.rank != null) {
-        var lastMove = Math.abs(prevRow.rank - last.rank);
-        add('最近一次名次變動 ' + lastMove + ' 名；全班各階段之間名次變動的中位數是 ' + st.typ.median + ' 名，約 80% 的變動在 ' + st.typ.p80 + ' 名以內。' + (lastMove <= st.typ.median ? '屬於正常波動，不必特別解讀。' : (lastMove <= st.typ.p80 ? '略大於一般波動，但還在常見範圍。' : '明顯大於一般波動，值得了解當次的狀況。')));
+      if (M.noise) {
+        add('分數集中的影響：全班同學相鄰階段之間，「相對全班的分數」典型波動約 ±' + fmt(M.noise.sigma) + ' 分。在這位同學目前的位置，分數上下各 ' + fmt(M.noise.u) + ' 分（單次考試的正常誤差）就會對應第 ' + last.rankLo + '–' + last.rankHi + ' 名，所以名次在這個範圍內的起伏，不能當成實質的進步或退步。');
+        if (prevRow && last.avg != null && prevRow.avg != null) {
+          var cL = relChange(prevRow.avg, prevRow.classMean, last.avg, last.classMean), mv2 = prevRow.rank - last.rank;
+          add('最近一次：名次 ' + (mv2 > 0 ? '進步 ' + mv2 : (mv2 < 0 ? '退步 ' + (-mv2) : '不變')) + ' 名，相對全班的分數變動 ' + sg(cL) + ' 分（全班典型波動 ±' + fmt(M.noise.sigma) + ' 分）。' + (isSig(cL, M.noise.sigma) ? '超過典型波動的 ' + st.k + ' 倍，算是明顯的' + (cL > 0 ? '進步' : '退步') + '，建議留意是否持續。' : '還在正常波動範圍內，不必特別解讀。'));
+        }
       }
       var sdv = S.sd(ranks); add('名次穩定度：標準差 ' + fmt(sdv) + ' 名，' + (sdv <= Math.max(2, 0.08 * nMax) ? '表現穩定。' : '各階段起伏' + (sdv >= 0.2 * nMax ? '很大' : '較明顯') + '。'));
       var best = null, worst = null;
@@ -371,7 +398,7 @@
     });
     if (swing && Math.abs(swing.d) >= Math.max(4, 0.15 * maxN)) add('單科起伏最大的是「' + swing.name + '」：' + swing.from + ' 第 ' + swing.a + ' 名 → ' + swing.to + ' 第 ' + swing.c + ' 名（' + (swing.d > 0 ? '進步 ' : '退步 ') + Math.abs(swing.d) + ' 名）。' + (swing.d < 0 ? '建議了解當次是否有特殊狀況。' : ''));
     if (rows.some(function (x) { return x.rank == null; })) add('有些階段因為缺考或缺成績，沒有總平均與名次（表格中顯示「—」）。');
-    ins.appendChild(ul); main.appendChild(ins);
+    ins.appendChild(ul); insSlot.appendChild(ins);
   }
 
   // ===== 全班進退步 =====
@@ -379,28 +406,30 @@
     var M = st.M, n = M.stages.length;
     if (n < 2) { main.appendChild(el('div', { 'class': 'card empty' }, '至少要有兩個階段（例如期中考、期末考）的成績，才能比較進退步。')); return; }
     var ci = st.cmpIdx == null ? n - 1 : st.cmpIdx, cur = M.stages[ci], prv = M.stages[ci - 1], R = M.roster.length;
-    var recs = [];
+    var recs = [], sigma = M.noise ? M.noise.sigma : 0;
     for (var r = 0; r < R; r++) {
       var a = prv.overall.rank[r], b = cur.overall.rank[r], pa = prv.overall.avg[r], pb = cur.overall.avg[r];
       var dRank = a != null && b != null ? a - b : null;   // 正＝進步
-      recs.push({ r: r, who: M.roster[r], rank: b, prevRank: a, avg: pb, prevAvg: pa, d: dRank, dAvg: pa != null && pb != null ? pb - pa : null });
+      var cr = relChange(pa, prv.overall.classMean, pb, cur.overall.classMean);
+      recs.push({ r: r, who: M.roster[r], rank: b, prevRank: a, avg: pb, prevAvg: pa, d: dRank, c: cr, sig: isSig(cr, sigma) });
     }
     var comp = recs.filter(function (x) { return x.d != null; });
     var up = comp.filter(function (x) { return x.d > 0; }).length, dn = comp.filter(function (x) { return x.d < 0; }).length;
-    var upMany = comp.filter(function (x) { return x.d >= st.th; }), dnMany = comp.filter(function (x) { return x.d <= -st.th; });
+    var upMany = comp.filter(function (x) { return x.sig && x.c > 0; }), dnMany = comp.filter(function (x) { return x.sig && x.c < 0; });
     var head = AX.card(cur.label + ' 相比 ' + prv.label + '：名次進退', '總平均＝' + cur.overall.names.join('、') + ' 的平均（' + (st.basis === 'exam' ? '段考分數' : '定期考查總成績') + '）。名次數字變小＝進步。兩個階段都有總平均的 ' + comp.length + ' 位同學納入比較。');
-    head.appendChild(AX.chips([['進步', up + ' 人'], ['退步', dn + ' 人'], ['不變', (comp.length - up - dn) + ' 人'], ['進步多（≥' + st.th + ' 名）', upMany.length + ' 人'], ['退步多（≥' + st.th + ' 名）', dnMany.length + ' 人'], ['全班總平均', fmt(cur.overall.classMean) + '（' + sg(cur.overall.classMean - prv.overall.classMean) + '）']].concat(st.typ ? [['名次變動中位數', st.typ.median + ' 名'], ['80% 的變動在', st.typ.p80 + ' 名內']] : [])));
-    if (st.typ) head.appendChild(el('p', { 'class': 'sub', style: 'margin-top:8px' }, '提醒：全班各階段之間，名次變動的中位數是 ' + st.typ.median + ' 名，約 80% 的變動在 ' + st.typ.p80 + ' 名以內；班上分數越集中，小幅度的分數差就會造成越大的名次起伏。只有明顯超過這個幅度、或連續多次同方向的變動，才值得當作進步或退步來解讀。'));
+    var thrTxt = M.noise ? '相對全班的分數變動超過 ' + fmt(st.k * sigma) + ' 分（全班典型波動 ±' + fmt(sigma) + ' 分的 ' + st.k + ' 倍）' : '（資料不足，無法估計典型波動）';
+    head.appendChild(AX.chips([['進步', up + ' 人'], ['退步', dn + ' 人'], ['不變', (comp.length - up - dn) + ' 人'], ['進步明顯', upMany.length + ' 人'], ['退步明顯', dnMany.length + ' 人'], ['全班總平均', fmt(cur.overall.classMean) + '（' + sg(cur.overall.classMean - prv.overall.classMean) + '）']]));
+    head.appendChild(el('p', { 'class': 'sub', style: 'margin-top:8px' }, '怎麼判斷「明顯」：班上分數很集中時（尤其中段），差一兩分名次就差好幾名，所以只看名次升降會把小波動誤當成進退步。這裡改看「相對全班的分數變動」，' + thrTxt + '才標示為進步明顯或退步明顯；名次進退只列出來參考。'));
     main.appendChild(head);
 
     var list = recs.slice();
     if (st.sort === 'rank') list.sort(function (a, b) { return (a.rank == null) - (b.rank == null) || a.rank - b.rank; });
-    else if (st.sort === 'up') list.sort(function (a, b) { return (b.d == null ? -999 : b.d) - (a.d == null ? -999 : a.d); });
-    else if (st.sort === 'down') list.sort(function (a, b) { return (a.d == null ? 999 : a.d) - (b.d == null ? 999 : b.d); });
+    else if (st.sort === 'up') list.sort(function (a, b) { return (b.c == null ? -999 : b.c) - (a.c == null ? -999 : a.c); });
+    else if (st.sort === 'down') list.sort(function (a, b) { return (a.c == null ? 999 : a.c) - (b.c == null ? 999 : b.c); });
     var subs = cur.subjects.filter(function (nm) { return prv.subjects.indexOf(nm) > -1; });
-    var c = AX.card('全班名次進退表', '點姓名可以看那位同學的完整歷程。各科欄位是該科名次的進退（▲進步、▼退步）。標色的是進退達 ' + st.th + ' 名以上。');
+    var c = AX.card('全班名次進退表', '點姓名可以看那位同學的完整歷程。名次進退只列出來參考；有標色的才是分數變動超過正常波動的明顯進退。各科欄位是該科名次的進退，同樣依各科自己的分數波動判斷。');
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' }), hr = el('tr');
-    ['座號 姓名', '總平均', '名次', '上一階段名次', '名次進退', '分數進退', '標示'].concat(subs).forEach(function (h, i) { hr.appendChild(el('th', { 'class': i === 0 ? 'l' : '' }, h)); });
+    ['座號 姓名', '總平均', '名次', '上一階段名次', '名次進退', '相對全班的分數變動', '標示'].concat(subs).forEach(function (h, i) { hr.appendChild(el('th', { 'class': i === 0 ? 'l' : '' }, h)); });
     var thd = el('thead'); thd.appendChild(hr); tb.appendChild(thd);
     var body = el('tbody');
     list.forEach(function (x) {
@@ -412,13 +441,14 @@
       tr.appendChild(el('td', null, rkText(x.rank)));
       tr.appendChild(el('td', null, rkText(x.prevRank)));
       var mvv = moveCell(x.prevRank, x.rank);
-      tr.appendChild(el('td', { 'class': mvv.cls }, mvv.text));
-      tr.appendChild(el('td', { 'class': x.dAvg == null ? '' : AX.cls(x.dAvg) }, x.dAvg == null ? '—' : sg(x.dAvg)));
-      var flag = x.d == null ? (x.rank == null || x.prevRank == null ? '缺考／缺成績' : '') : (x.d >= st.th ? '進步多' : (x.d <= -st.th ? '退步多' : ''));
-      tr.appendChild(el('td', { 'class': flag === '進步多' ? 'up' : (flag === '退步多' ? 'down' : 'muted') }, flag));
+      tr.appendChild(el('td', { 'class': x.sig ? mvv.cls : 'muted' }, mvv.text));
+      tr.appendChild(el('td', { 'class': x.c == null ? '' : (x.sig ? AX.cls(x.c) : 'muted') }, x.c == null ? '—' : sg(x.c)));
+      var flag = x.c == null ? (x.rank == null || x.prevRank == null ? '缺考／缺成績' : '') : (x.sig ? (x.c > 0 ? '進步明顯' : '退步明顯') : '');
+      tr.appendChild(el('td', { 'class': flag === '進步明顯' ? 'up' : (flag === '退步明顯' ? 'down' : 'muted') }, flag));
       subs.forEach(function (nm) {
-        var m2 = moveCell(prv.ranks[nm][x.r], cur.ranks[nm][x.r]);
-        tr.appendChild(el('td', { 'class': m2.d && Math.abs(m2.d) >= st.th ? m2.cls : 'muted' }, m2.text));
+        var m2 = moveCell(prv.ranks[nm][x.r], cur.ranks[nm][x.r]), nz = M.subjNoise[nm];
+        var cs2 = relChange(prv.vals[nm][x.r], prv.classMean[nm], cur.vals[nm][x.r], cur.classMean[nm]), sg2 = nz && isSig(cs2, nz.sigma);
+        tr.appendChild(el('td', { 'class': sg2 ? (cs2 > 0 ? 'up' : 'down') : 'muted' }, m2.text));
       });
       body.appendChild(tr);
     });
@@ -429,10 +459,10 @@
     function listCard(title, arr, sub) {
       var cc = AX.card(title, sub); cols.appendChild(cc);
       if (!arr.length) { cc.appendChild(el('p', { 'class': 'muted small' }, '沒有達到門檻的同學。')); return; }
-      cc.appendChild(AX.studentList(arr.map(function (x) { return { label: AX.seatLabel(x.who), href: AX.pageUrl('Progress.html', { key: x.who.key }), rank: x.rank, value: '第 ' + x.prevRank + ' → 第 ' + x.rank + ' 名（' + (x.d > 0 ? '▲' : '▼') + Math.abs(x.d) + '）' }; })));
+      cc.appendChild(AX.studentList(arr.map(function (x) { return { label: AX.seatLabel(x.who), href: AX.pageUrl('Progress.html', { key: x.who.key }), rank: x.rank, value: '名次 ' + x.prevRank + ' → ' + x.rank + '，相對分數 ' + sg(x.c) + ' 分' }; })));
     }
-    listCard('進步多（可作為進步獎參考）', upMany.slice().sort(function (a, b) { return b.d - a.d; }), '名次進步 ' + st.th + ' 名以上，依進步幅度排列。');
-    listCard('退步多（建議關心）', dnMany.slice().sort(function (a, b) { return a.d - b.d; }), '名次退步 ' + st.th + ' 名以上，依退步幅度排列。');
+    listCard('進步明顯（可作為進步獎參考）', upMany.slice().sort(function (a, b) { return b.c - a.c; }), '相對全班的分數進步超過正常波動，依幅度排列。');
+    listCard('退步明顯（建議關心）', dnMany.slice().sort(function (a, b) { return a.c - b.c; }), '相對全班的分數退步超過正常波動，依幅度排列。');
   }
 })();
 </script>
