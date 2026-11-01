@@ -1193,7 +1193,8 @@ var BUNDLE_FNS_ = {
   addStudent: 1, addStudentsBulk: 1, copyStudentsFrom: 1, deleteStudent: 1
 };
 // 會讓欄位或列號位移的動作：做完之前，清單暫時不能點，避免用舊的位置操作到別的項目
-var SHIFT_FNS_ = { deleteItem: 1, deleteItems: 1, moveItem: 1, reorderItems: 1, deleteStudent: 1 };
+// （reorderItems 不在這裡：排序是畫面先變、背景再存，可以連續拖曳）
+var SHIFT_FNS_ = { deleteItem: 1, deleteItems: 1, moveItem: 1, deleteStudent: 1 };
 // 會動到工作表結構的動作：先把還沒寫入的成績寫完再做
 var FLUSH_FIRST_FNS_ = {
   addSubject: 1, renameSubject: 1, deleteSubject: 1, moveSubject: 1, createExternalSubject: 1,
@@ -2538,7 +2539,8 @@ function makeSortable_(box, rowSel, handleSel, onDrop) {
     function rows() { return Array.prototype.slice.call(parent.children).filter(function (n) { return n.matches(rowSel); }); }
     var before = rows().map(function (n) { return n.dataset.id; }).join('\u0001');
     row.classList.add('dragging');
-    try { h.setPointerCapture(e.pointerId); } catch (x) { /* 忽略 */ }
+    // 移動列的位置（insertBefore）會讓瀏覽器放掉「指標捕捉」，原本掛在把手上的事件就收不到了，
+    // 結果一次只能移動一格；所以改成掛在整個頁面上，拖多遠都能連續移動。
     function move(ev) {
       var y = ev.clientY;
       if (y < 70) window.scrollBy(0, -16); else if (y > window.innerHeight - 70) window.scrollBy(0, 16);   // 拖到邊緣自動捲動
@@ -2551,12 +2553,12 @@ function makeSortable_(box, rowSel, handleSel, onDrop) {
       else if (parent.lastElementChild !== row) parent.appendChild(row);
     }
     function up() {
-      h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
       row.classList.remove('dragging');
       var order = rows().map(function (n) { return n.dataset.id; });
       if (order.join('\u0001') !== before && box._onDrop) box._onDrop(order);
     }
-    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
   });
 }
 
@@ -2583,12 +2585,34 @@ function fullOrderAfterDrop_(visibleCols) {
   return out;
 }
 
+// 排序完全在畫面上先完成（欄位編號、成績一起換位置），再到背景寫進試算表，所以可以連續一直拖，不用等
+function applyOrderLocally_(b, wantCols) {
+  var positions = b.items.map(function (it) { return it.col; }).sort(function (a, c) { return a - c; });
+  var map = {};
+  wantCols.forEach(function (oldCol, i) { map[oldCol] = positions[i]; });
+  b.items.forEach(function (it) { if (map[it.col] !== undefined) it.col = map[it.col]; });
+  b.items.sort(function (a, c) { return a.col - c.col; });
+  Object.keys(b.scores).forEach(function (row) {
+    var cells = b.scores[row], moved = {};
+    Object.keys(cells).forEach(function (col) { moved[map[col] !== undefined ? map[col] : col] = cells[col]; });
+    b.scores[row] = moved;
+  });
+  var sel = {};
+  Object.keys(itemSel_).forEach(function (col) { sel[map[col] !== undefined ? map[col] : col] = true; });
+  itemSel_ = sel;
+  return map;
+}
+
 function commitOrder_(visibleCols) {
-  call('reorderItems', state.subject, fullOrderAfterDrop_(visibleCols)).then(function (items) {
-    state.items = items;
-    renderItemList();
-    toast('已調整順序');
-  }).catch(function (e) { showError(e); refreshItems(); });
+  var subject = state.subject, b = store.bundles[subject];
+  var full = fullOrderAfterDrop_(visibleCols);
+  if (b) { applyOrderLocally_(b, full); renderItemList(); saveCacheSoon_(); }
+  setSync_('☁️ 儲存順序中…');
+  call('reorderItems', subject, full).then(function () {
+    // 背景存好了；還有別的排序在排隊、或正在拖曳時，不要重畫，免得拖到一半的列被換掉
+    if (!bundleCallsInFlight_[subject] && subject === state.subject && !document.querySelector('#itemList tr.dragging')) renderItemList();
+    if (!bundleCallsInFlight_[subject] && !pendingCount_()) setSync_('✅ 順序已儲存', true);
+  }).catch(function (e) { setSync_(''); showError(e); });   // 失敗時 callWithBundle_ 會把畫面還原成試算表的內容
 }
 
 // 畫面先變，背景再存；失敗的話 callWithBundle_ 會把畫面還原成試算表的內容
@@ -2674,6 +2698,7 @@ function itemRow_(it) {
 
 function renderItemList() {
   var box = document.getElementById('itemList');
+  if (box.querySelector('tr.dragging')) return;   // 正在拖曳時不重畫（背景同步回來也一樣），免得拖到一半的列被換掉
   box.innerHTML = '';
   var visible = state.items.filter(inViewTerm_);
   var alive = {};
