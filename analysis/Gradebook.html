@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261106">
+  <link rel="stylesheet" href="analysis-common.css?v=20261107">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -154,10 +154,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261106"></script>
-<script src="analysis-demo.js?v=20261106"></script>
-<script src="analysis-art.js?v=20261106"></script>
-<script src="analysis-common.js?v=20261106"></script>
+<script src="analysis-stats.js?v=20261107"></script>
+<script src="analysis-demo.js?v=20261107"></script>
+<script src="analysis-art.js?v=20261107"></script>
+<script src="analysis-common.js?v=20261107"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -271,7 +271,7 @@
       if (!single) {
         g.cats.forEach(function (c) {
           c.items.forEach(function (x) {
-            cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores });
+            cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores, scaled: !!c.scale });
           });
           if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.raw : null, scaled: !!c.scale, input: !!c.input, pctVal: true });
         });
@@ -315,11 +315,11 @@
         var v = c.values[i], cls = [];
         if (c.cls) cls.push(c.cls);
         if (c.first) cls.push('b-l');
-        var pctOfItem = c.kind === 'item' && v != null ? v / c.item.max * 100 : v;
+        var pctOfItem = c.kind === 'item' && v != null ? (c.scaled ? null : v / c.item.max * 100) : v;
         if (isLow(pctOfItem)) cls.push('low');
         var title = '';
         if (c.kind !== 'item' && !c.input && v != null && v > 100.0001) { cls.push('bad'); title = ' title="超過 100 分，請檢查原始分數有沒有打錯"'; }
-        if (c.kind === 'item' && v != null && v > c.item.max) { cls.push('over'); cls.push('bad'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
+        if (c.kind === 'item' && !c.scaled && v != null && v > c.item.max) { cls.push('over'); cls.push('bad'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
         if (c.input) {
           var rv = c.raw ? c.raw[i] : null;
           h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + st.blank + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + st.blank + ' 分">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';

@@ -1155,9 +1155,9 @@
         if (cat.input) { cat.raw = cat.input_vals; cat.avg = cat.input_avg; cat.used = hasData(cat.avg) && cat.weight > 0; return; }
         var graded = cat.items.filter(function (x) { return x.graded; });
         // 換算（例如筆記：總分不是 100，改用班上現有的分數，最低分換成 lo、最高分換成 hi，中間照比例）。
-        // 每個項目各自換算；空白（沒交）算下限 lo；超過滿分的視為打錯，不計入換算範圍也不計入平均。
+        // 每個項目各自換算；空白（沒交）算下限 lo。換算的類別總分本來就不是 100（例如筆記的星星數），所以不看項目的「滿分」，所有有填的分數都列入。
         if (cat.scale) graded.forEach(function (x) {
-          var vs = x.scores.filter(function (v) { return v != null && v <= x.max; });
+          var vs = x.scores.filter(function (v) { return v != null; });
           x.mn = vs.length ? Math.min.apply(null, vs) : 0;
           x.mx = vs.length ? Math.max.apply(null, vs) : 0;
         });
@@ -1166,7 +1166,6 @@
           list.forEach(function (x) {
             var v = x.scores[i];
             if (cat.scale) {
-              if (v != null && v > x.max) return;
               ps.push(v == null ? cat.lo : (x.mx > x.mn ? cat.lo + (v - x.mn) / (x.mx - x.mn) * (cat.hi - cat.lo) : cat.hi));
               return;
             }
