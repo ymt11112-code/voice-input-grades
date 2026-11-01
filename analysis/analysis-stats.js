@@ -687,7 +687,8 @@
       if (!nonNull(vals).length && o.provisional && o.basis === 'term') {
         // 段考還沒有成績時，先用「平時成績＋段考暫定 70 分」算，讓名單可以先預覽（只看得到平時成績造成的名次差異）
         var per = T.periods[o.phase === 'midterm' ? 0 : 1], PW = T.weights || DEFAULT_WEIGHTS;
-        vals = per.daily.map(function (d) { return d == null ? null : (PW.exam > 0 && PW.daily > 0 ? (PW.daily * d + PW.exam * 70) / (PW.daily + PW.exam) : d); });
+        var PROVS = o.provisionalScore != null && isFinite(Number(o.provisionalScore)) && Number(o.provisionalScore) >= 0 && Number(o.provisionalScore) <= 100 ? Number(o.provisionalScore) : BLANK_DEFAULT;
+        vals = per.daily.map(function (d) { return d == null ? null : (PW.exam > 0 && PW.daily > 0 ? (PW.daily * d + PW.exam * PROVS) / (PW.daily + PW.exam) : d); });
         prov = nonNull(vals).length > 0;
         if (prov) out.provisional.push(sm.name);
       }
@@ -1099,7 +1100,9 @@
     return Math.round(v * f + 1e-9) / f;
   }
 
-  function gradebook(d, term, stage, kinds, weights, cfg, dec, att) {
+  function gradebook(d, term, stage, kinds, weights, cfg, dec, att, blank) {
+    // 還沒輸入的態度、還沒有成績的段考，先當作這個分數（預設 70；成績總表頁的「還沒輸入時先當作」可以改）
+    var BLANK = blank !== undefined && blank !== null && blank !== '' && isFinite(Number(blank)) && Number(blank) >= 0 && Number(blank) <= 100 ? Number(blank) : BLANK_DEFAULT;
     kinds = kinds || {}; cfg = cfg || {};
     dec = dec === 1 ? 1 : 2;   // 預設 2 位：平均是兩個「已取到 1 位」的數字的平均，最多 2 位，跟 Excel 一樣不再進位
     var W = weights && weights.daily != null ? weights : DEFAULT_WEIGHTS;
@@ -1141,7 +1144,7 @@
       og.cats.unshift({
         category: '態度', items: [], weight: ac.weight == null ? 1 : Number(ac.weight), base: 0, input: true, input_vals: araw, scale: ascale, lo: alo, hi: ahi,
         // 還沒輸入的同學先當作 BLANK_DEFAULT（70）分，免得比例亂掉；輸入後就改用實際（換算後）的分數
-        input_avg: araw.map(function (v) { return v == null ? BLANK_DEFAULT : (ascale ? gbRound(amx > amn ? alo + (v - amn) / (amx - amn) * (ahi - alo) : ahi, 1) : v); })
+        input_avg: araw.map(function (v) { return v == null ? BLANK : (ascale ? gbRound(amx > amn ? alo + (v - amn) / (amx - amn) * (ahi - alo) : ahi, 1) : v); })
       });
     }
     var groups = [];
@@ -1211,7 +1214,7 @@
     });
     // 這一次的考試全班都還沒有成績（還沒考、或還沒登記）：全班先當作 BLANK_DEFAULT 分；只有個別同學缺考則維持空白
     var examDefault = W.exam > 0 && !gradedExam.length;
-    if (examDefault) exam = exam.map(function () { return BLANK_DEFAULT; });
+    if (examDefault) exam = exam.map(function () { return BLANK; });
     var dailyOn = hasData(daily), examOn = hasData(exam) && W.exam > 0;
     var bothTotal = (dailyOn ? W.daily : 0) + (examOn ? W.exam : 0);
 
@@ -1222,7 +1225,7 @@
     var vals = nonNull(final);
     return {
       term: term, stage: stage, students: students, groups: groups, examItems: examItems, exam: exam, examOn: examOn,
-      examListed: W.exam > 0, examDefault: examDefault, examGraded: gradedExam.length > 0, blank: BLANK_DEFAULT, daily: daily, dailyOn: dailyOn,
+      examListed: W.exam > 0, examDefault: examDefault, examGraded: gradedExam.length > 0, blank: BLANK, daily: daily, dailyOn: dailyOn,
       dailyShare: dailyOn && bothTotal > 0 ? W.daily / bothTotal * 100 : 0, examShare: examOn && bothTotal > 0 ? W.exam / bothTotal * 100 : 0,
       final: final, ranks: final.map(function (v) { return v == null ? null : compRank(vals, v); }),
       ranked: vals.length, mean: vals.length ? gbRound(mean(vals), dec) : null, dec: dec,

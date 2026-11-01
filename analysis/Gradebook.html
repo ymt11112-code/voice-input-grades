@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261105">
+  <link rel="stylesheet" href="analysis-common.css?v=20261106">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -43,6 +43,8 @@
     .gbCfg .scaleCell .tiny { font-size: 12.5px; padding: 3px 10px; }
     table.gb input.attIn:focus { outline: 2px solid var(--ink); border-style: solid; }
     .over { outline: 2px solid #E59A00; outline-offset: -2px; }
+    table.gb td.bad, table.brief td.bad { background: #7B1E1E !important; color: #fff !important; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.gb td.bad .attSc { color: #fff; }
     .legend { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
 
     /* 簡表 */
@@ -132,6 +134,7 @@
     <div class="bar">
       <span class="grp"><span class="lbl">未達</span><input type="number" id="optLow" min="0" max="100" style="width:64px"><span class="lbl">分標紅色</span></span>
       <span class="grp"><span class="lbl">平均取小數</span><select id="optDec"><option value="2">2 位（跟 Excel 一樣）</option><option value="1">1 位（四捨五入）</option></select></span>
+      <span class="grp"><span class="lbl">還沒輸入時先當作</span><input type="number" id="optBlank" min="0" max="100" style="width:64px"><span class="lbl">分（態度、還沒有成績的段考）</span></span>
       <span class="grp" id="perPageGrp"><span class="lbl">簡表每個表格</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人（一張 A4 直式放兩個表格）</span></span>
       <span class="spacer"></span>
       <button id="xlsBtn" title="每個科目一個工作表，一次下載全部">⬇️ 下載 Excel（全部科目）</button>
@@ -151,10 +154,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261105"></script>
-<script src="analysis-demo.js?v=20261105"></script>
-<script src="analysis-art.js?v=20261105"></script>
-<script src="analysis-common.js?v=20261105"></script>
+<script src="analysis-stats.js?v=20261106"></script>
+<script src="analysis-demo.js?v=20261106"></script>
+<script src="analysis-art.js?v=20261106"></script>
+<script src="analysis-common.js?v=20261106"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -163,6 +166,7 @@
   try { saved = JSON.parse(AX.lsGet(STORE) || '{}') || {}; } catch (e) { saved = {}; }
   var st = {
     raw: null, subject: saved.subject || null, term: null, stage: null,
+    blank: saved.blank >= 0 && saved.blank <= 100 && saved.blank !== null ? Number(saved.blank) : S.BLANK_DEFAULT,
     dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : 'detail', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
     rowOpt: saved.rowOpt && typeof saved.rowOpt === 'object' ? saved.rowOpt : {}   // 簡表要印哪些列：{科目: {列的代號: true/false}}
   };
@@ -170,7 +174,7 @@
   var STAGE_NAME = { 1: '期中考', 2: '期末考' };
 
   AX.shell();
-  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec, rowOpt: st.rowOpt })); }
+  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, rowOpt: st.rowOpt })); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n1(v) { return v == null ? '' : (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
   function nd(v, dec) {
@@ -207,7 +211,7 @@
     (st.raw.attitude || []).forEach(function (a) { if (a.subject === subject && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
     return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? map[k] : null; });
   }
-  function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, attOf(subject, stage)); }
+  function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, attOf(subject, stage), st.blank); }
   function gbFor(stage) { return gbOf(st.subject, stage); }
   function hasGraded(G) {
     return G.examGraded || G.groups.some(function (g) { return g.cats.some(function (c) { return c.items.some(function (x) { return x.graded; }); }); });
@@ -314,10 +318,11 @@
         var pctOfItem = c.kind === 'item' && v != null ? v / c.item.max * 100 : v;
         if (isLow(pctOfItem)) cls.push('low');
         var title = '';
-        if (c.kind === 'item' && v != null && v > c.item.max) { cls.push('over'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
+        if (c.kind !== 'item' && !c.input && v != null && v > 100.0001) { cls.push('bad'); title = ' title="超過 100 分，請檢查原始分數有沒有打錯"'; }
+        if (c.kind === 'item' && v != null && v > c.item.max) { cls.push('over'); cls.push('bad'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
         if (c.input) {
           var rv = c.raw ? c.raw[i] : null;
-          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + S.BLANK_DEFAULT + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + S.BLANK_DEFAULT + ' 分">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';
+          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + st.blank + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + st.blank + ' 分">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';
           return;
         }
         h += '<td' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + title + '>' + (c.d2 ? n2(v) : n1(v)) + '</td>';
@@ -343,7 +348,7 @@
     var over = wrap.querySelectorAll('.over').length;
     card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」直接在表上輸入（Enter 到下一位）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
       (shareNote(G) ? ' ' + shareNote(G) : '') +
-      (over ? ' ⚠️ 有 ' + over + ' 格超過滿分（橘框），請確認有沒有打錯。' : '')));
+      (wrap.querySelectorAll('td.bad').length ? ' ⚠️ 有 ' + wrap.querySelectorAll('td.bad').length + ' 格超過滿分或超過 100 分（深紅色底），請檢查原始分數有沒有打錯。' : '')));
     main.appendChild(card);
     wireAttitudeInputs(wrap, G);
   }
@@ -391,7 +396,7 @@
     return '包含 ' + done.length + ' 項：' + done.join('、') + (wait.length ? '（尚未登記：' + wait.join('、') + '）' : '');
   }
   function groupTip(g) {
-    if (g.kind === 'other') return '老師在詳表輸入的態度分數；還沒輸入的先當 ' + S.BLANK_DEFAULT + ' 分';
+    if (g.kind === 'other') return '老師在詳表輸入的態度分數；還沒輸入的先當 ' + st.blank + ' 分';
     var used = g.cats.filter(function (c) { return c.used; });
     if (used.length > 1) return '由 ' + used.map(function (c) { return c.category + ' ' + pct(c.share); }).join('、') + ' 合成';
     return used.length ? itemsTip(used[0]) : '';
@@ -506,7 +511,8 @@
           idx.forEach(function (i) {
             var v = r.values[i];
             var text = r.rank ? (v == null ? '' : v) : (r.d2 ? n2(v) : (v == null ? '' : (Math.round(v * 10) / 10).toString()));
-            h += '<td' + (!r.rank && isLow(v) ? ' class="low"' : '') + '>' + text + '</td>';
+            var isBad = !r.rank && v != null && v > 100.0001;
+            h += '<td' + (isBad ? ' class="bad" title="超過 100 分，請檢查原始分數有沒有打錯"' : (!r.rank && isLow(v) ? ' class="low"' : '')) + '>' + text + '</td>';
           });
           h += blankCells('td', blanks) + '</tr>';
         });
@@ -521,6 +527,8 @@
       main.appendChild(sheet);
     }
     var note = shareNote(G);
+    var badN = main.querySelectorAll('table.brief td.bad').length;
+    if (badN) main.appendChild(el('p', { 'class': 'legend noprint' }, '⚠️ 有 ' + badN + ' 格超過 100 分（深紅色底），請檢查原始分數有沒有打錯（滑鼠移到格子上會有提示）。'));
     if (note) main.appendChild(el('p', { 'class': 'legend noprint' }, note));
   }
 
@@ -528,7 +536,7 @@
   function renderConfig() {
     var body = AX.$('cfgBody'), d = dataOf(st.subject), cfg = cfgOf(st.subject), W = weightsOf(st.subject);
     AX.clear(body);
-    body.appendChild(el('p', { 'class': 'muted small' }, '比例分三層，跟「科目設定 → 學期成績權重」是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一層只看比例，不用剛好是 100。態度、期中／期末考還沒輸入時，先當作 ' + S.BLANK_DEFAULT + ' 分計算，輸入後改用實際分數。'));
+    body.appendChild(el('p', { 'class': 'muted small' }, '比例分三層，跟「科目設定 → 學期成績權重」是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一層只看比例，不用剛好是 100。態度、期中／期末考還沒輸入時，先當作 ' + st.blank + ' 分計算，輸入後改用實際分數。'));
     [
       ['① 平時成績 ＝', [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度']]],
       ['② 定期考查總成績（期中、期末各一次）＝', [['daily', '平時成績'], ['exam', st.stage === 2 ? '期末考' : '期中考']]],
@@ -651,6 +659,8 @@
 
   // ---- 工具列 --------------------------------------------------
   AX.$('optLow').value = st.low;
+  AX.$('optBlank').value = st.blank;
+  AX.$('optBlank').onchange = function () { var v = Number(this.value); if (this.value !== '' && v >= 0 && v <= 100) { st.blank = v; remember(); render(); } else this.value = st.blank; };
   AX.$('optPerPage').value = st.perPage;
   AX.$('optDec').value = String(st.dec);
   AX.$('optDec').onchange = function () { st.dec = Number(this.value) === 1 ? 1 : 2; remember(); render(); };

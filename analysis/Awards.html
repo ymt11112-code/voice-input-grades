@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261105">
+  <link rel="stylesheet" href="analysis-common.css?v=20261106">
   <style>
     .list li.off { opacity: .45; text-decoration: line-through; }
     .list li label { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 0; cursor: pointer; }
@@ -49,7 +49,7 @@
         <div class="bar">
           <span class="grp"><span class="lbl" id="topLbl">每科前</span><input type="number" id="optTopN" min="1" max="30"><span class="lbl">名</span></span>
           <label class="chk"><input type="checkbox" id="optTies"> 同分一併列入</label>
-          <label class="chk" title="段考還沒有成績的科目，先把段考當作 70 分、加上已登記的平時成績來排名，讓你先看看名單長什麼樣子。只用在「定期考查總成績」的排名依據，有了真正的段考成績就自動改用真的。"><input type="checkbox" id="optProv"> 沒有段考成績時，先用暫定 70 分預覽</label>
+          <label class="chk" title="段考還沒有成績的科目，先把段考當作 70 分、加上已登記的平時成績來排名，讓你先看看名單長什麼樣子。只用在「定期考查總成績」的排名依據，有了真正的段考成績就自動改用真的。"><input type="checkbox" id="optProv"> 沒有段考成績時，先用暫定分數預覽（預設 70，在成績總表頁可改）</label>
           <span class="grp" id="basisGrp"><span class="lbl">排名依據</span>
             <select id="optBasis">
               <option value="exam">只看段考分數</option>
@@ -82,10 +82,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261105"></script>
-<script src="analysis-demo.js?v=20261105"></script>
-<script src="analysis-art.js?v=20261105"></script>
-<script src="analysis-common.js?v=20261105"></script>
+<script src="analysis-stats.js?v=20261106"></script>
+<script src="analysis-demo.js?v=20261106"></script>
+<script src="analysis-art.js?v=20261106"></script>
+<script src="analysis-common.js?v=20261106"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt;
@@ -230,7 +230,9 @@
   // ---- 版面
   function render() {
     var main = AX.$('main'); AX.clear(main);
-    var o = Object.assign({}, st.o, { term: st.term, phase: st.phase, subjects: st.subjSel, domains: st.domSel, prevParsed: null, noProgress: st.phase !== 'final',
+    // 暫定分數跟成績總表頁「還沒輸入時先當作」同一個設定
+    var provScore = S.BLANK_DEFAULT; try { var sv = JSON.parse(AX.lsGet('AX_GRADEBOOK') || '{}'); if (sv.blank >= 0 && sv.blank <= 100 && sv.blank !== null) provScore = Number(sv.blank); } catch (e) { /* 忽略 */ }
+    var o = Object.assign({}, st.o, { provisionalScore: provScore, term: st.term, phase: st.phase, subjects: st.subjSel, domains: st.domSel, prevParsed: null, noProgress: st.phase !== 'final',
       excluded: function (kind, subject, key) { return !!st.ex[exKey(kind, subject, key)]; } });
     var isFinal = st.phase === 'final', R;   // 進步獎只有期末考才有
 
@@ -251,7 +253,7 @@
         '。如果是別位老師的科目（例如自然），請先用試算表選單「建立外科成績貼上區」建立工作表並貼上成績。'));
     }
     st.last = R;
-    if (R.provisional && R.provisional.length) main.appendChild(el('div', { 'class': 'note' }, '⚠️ 暫定名單：' + R.provisional.join('、') + '還沒有' + PHASE_NAME[st.phase] + '成績，段考先當作 70 分計算，所以名次只反映已登記的平時成績，僅供預覽，不要直接印成獎狀。登記了段考成績就會自動改用真的成績。'));
+    if (R.provisional && R.provisional.length) main.appendChild(el('div', { 'class': 'note' }, '⚠️ 暫定名單：' + R.provisional.join('、') + '還沒有' + PHASE_NAME[st.phase] + '成績，段考先當作 ' + provScore + ' 分計算，所以名次只反映已登記的平時成績，僅供預覽，不要直接印成獎狀。登記了段考成績就會自動改用真的成績。'));
     if (!R.subjects.length) { main.appendChild(el('div', { 'class': 'card empty' }, '沒有可以產生名單的科目／領域。')); return; }
 
     var unit = st.phase === 'term' ? '領域' : '科', tiles = el('div', { 'class': 'tiles noprint' });
