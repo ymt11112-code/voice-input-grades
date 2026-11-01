@@ -448,7 +448,7 @@
       </div>
       <div class="cardBody" id="card-weights" hidden>
         <p class="muted">計算分<b>三層</b>：<br>① <b>學期成績</b>＝第一次定期考查總成績（期中）× 比例 ＋ 第二次定期考查總成績（期末）× 比例，預設各占一半。<br>② 每一次<b>定期考查總成績</b>＝平時成績 ＋ 段考分數（期中考或期末考），預設各占一半。<br>③ <b>平時成績</b>＝紙筆測驗（平時測驗）＋ 作業（習作／學習單）＋ 課堂表現（發言／參與／口試），比例依各科學校公布的評量方式（例如國語、數學、社會 40／35／25；綜合活動、健康與體育、本土語沒有段考，平時成績就是定期考查的 100%）。</p>
-        <p class="muted">數字可以直接修改，改完離開欄位就自動儲存；<b>每一組</b>的比例不用剛好是 100，系統會自動換算。某個成分還沒有資料（例如期末考還沒考）時，會自動略過並重新分配其餘比例。項目屬於哪個成分，是看「類別」：名稱含「作業、習作、學習單」＝作業；含「期中、期末」＝段考；含「課堂、參與、發言、討論、表現、口試」＝課堂表現；其他＝平時測驗（可以在分析頁面的設定改）。平時項目屬於<b>第一次還是第二次</b>定期考查，到「項目管理」的「階段」欄設定（預設：期中考之前登記的算第一次，之後的算第二次）。</p>
+        <p class="muted">數字可以直接修改，改完離開欄位就自動儲存；<b>每一組</b>的比例不用剛好是 100，系統會自動換算。某個成分還沒有資料（例如期末考還沒考）時，會自動略過並重新分配其餘比例。項目屬於哪個成分，是看「類別」：名稱含「作業、習作、學習單」＝作業；含「期中、期末」＝段考；含「課堂、參與、發言、討論、表現、口試」＝課堂表現；其他＝平時測驗（可以在分析頁面的設定改）。平時項目算在<b>期中還是期末</b>，到「項目管理」的「階段」欄設定（預設：期中考之前登記的算期中，之後的算期末）。</p>
         <div class="tblWrap"><table class="itemTable" id="weightTable"></table></div>
         <div class="row" style="margin-top:8px"><button class="secondary" onclick="onResetAllWeights()">全部科目還原預設</button></div>
       </div>
@@ -2502,25 +2502,25 @@ function onAutoSplitCategories() {
 // ============================================================
 var itemSel_ = {};   // 勾選中的項目（欄位編號 → true）
 var DIFFICULTIES_ = ['易', '中', '難'];
-var PERIOD_NAME_ = { 1: '第一次', 2: '第二次' };
+var PERIOD_NAME_ = { 1: '期中', 2: '期末' };
 
 // 「階段」下拉：這個平時項目算在第一次還是第二次定期考查。期中考、期末考本身固定（第一次、第二次）。
 function periodSelect_(it) {
   var sel = document.createElement('select');
   if (it.kind === 'midterm' || it.kind === 'final') {
     var o = document.createElement('option'); o.textContent = PERIOD_NAME_[it.period] + '（段考）'; sel.appendChild(o);
-    sel.disabled = true; sel.title = '期中考固定是第一次定期考查、期末考固定是第二次';
+    sel.disabled = true; sel.title = '期中考固定算期中、期末考固定算期末';
     return sel;
   }
   if (it.kind === 'skip') {
     var o2 = document.createElement('option'); o2.textContent = '—（不分析）'; sel.appendChild(o2); sel.disabled = true;
     return sel;
   }
-  [['', '自動：' + PERIOD_NAME_[it.period]], ['1', '第一次'], ['2', '第二次']].forEach(function (x) {
+  [['', '自動：' + PERIOD_NAME_[it.period]], ['1', '期中'], ['2', '期末']].forEach(function (x) {
     var o3 = document.createElement('option'); o3.value = x[0]; o3.textContent = x[1]; sel.appendChild(o3);
   });
   sel.value = it.periodSet === 1 || it.periodSet === 2 ? String(it.periodSet) : '';
-  sel.title = '屬於第一次或第二次定期考查的平時成績（自動＝期中考之前算第一次，之後算第二次）';
+  sel.title = '這個項目算在期中還是期末的平時成績（自動＝期中考之前登記的算期中，之後算期末）';
   return sel;
 }
 
@@ -2746,7 +2746,7 @@ function renderBulkBar_() {
   var cs = optSelect_(state.categories, undefined, '（類別不變）');
   var ds = optSelect_(DIFFICULTIES_, undefined, '（難度不變）');
   var pr = document.createElement('select');
-  [['', '（階段不變）'], ['auto', '階段：自動'], ['1', '階段：第一次'], ['2', '階段：第二次']].forEach(function (x) {
+  [['', '（階段不變）'], ['auto', '階段：自動'], ['1', '階段：期中'], ['2', '階段：期末']].forEach(function (x) {
     var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; pr.appendChild(o);
   });
   if (ts) bar.appendChild(ts);
