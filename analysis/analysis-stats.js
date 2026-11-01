@@ -673,7 +673,7 @@
   // o = { term, phase:'midterm'|'final', topN, ties, basis:'exam'|'term', progressN, progressMetric:'score'|'relative'|'rank',
   //       progressBase:'midterm'|'prevFinal', minGain, excludeTop, subjects:[科目名]|null, sortBySeat, excluded:function }
   function awards(model, o) {
-    var out = { subjects: [], missing: [], topUnique: [], progUnique: [], reg: null };
+    var out = { subjects: [], missing: [], provisional: [], topUnique: [], progUnique: [], reg: null };
     function info(sm, idx) { var s = sm.data.students[idx]; return { key: sm.keys[idx], name: s.name, seat: s.seat }; }
     // 進步獎只有期末考才有：和同學期的期中、或上一學期的期末比較。用各階段成績（含匯入的歷史成績）比較；排名依據選「定期考查總成績」時用兩次定期考查的總成績，否則用段考分數
     var M = (o.noProgress || o.phase !== 'final') ? null : stageMatrix(model, { basis: o.basis === 'term' ? 'term' : 'exam', scope: o.scope || 'cohort', partial: false });
@@ -683,6 +683,14 @@
       if (!bt) { out.missing.push({ subject: sm.name, why: '這個學期沒有任何成績' }); return; }
       var T = bt.T;
       var vals = o.basis === 'term' ? stageScores(T, o.phase) : (o.phase === 'midterm' ? T.comp.midterm : T.comp.final);
+      var prov = false;
+      if (!nonNull(vals).length && o.provisional && o.basis === 'term') {
+        // 段考還沒有成績時，先用「平時成績＋段考暫定 70 分」算，讓名單可以先預覽（只看得到平時成績造成的名次差異）
+        var per = T.periods[o.phase === 'midterm' ? 0 : 1], PW = T.weights || DEFAULT_WEIGHTS;
+        vals = per.daily.map(function (d) { return d == null ? null : (PW.exam > 0 && PW.daily > 0 ? (PW.daily * d + PW.exam * 70) / (PW.daily + PW.exam) : d); });
+        prov = nonNull(vals).length > 0;
+        if (prov) out.provisional.push(sm.name);
+      }
       if (!nonNull(vals).length) { out.missing.push({ subject: sm.name, why: o.phase === 'midterm' ? '沒有期中考成績' : '沒有期末考成績' }); return; }
       var top = pickTop(vals, o.topN, o.ties).map(function (x) { var r = info(sm, x.idx); r.value = x.value; r.rank = x.rank; r.idx = x.idx; return r; });
       var prog = [], progNote = '', reg = null, labels = null;
@@ -692,7 +700,7 @@
         prog = pr.list.map(function (x) { var r = info(sm, x.idx); r.base = x.base; r.cur = x.cur; r.expect = x.expect; r.gain = x.gain; r.baseRank = x.baseRank; r.curRank = x.curRank; r.idx = x.idx; return r; });
       }
       markExcluded(top, 'top', sm.name, o); markExcluded(prog, 'prog', sm.name, o);
-      out.subjects.push({ name: sm.name, top: top, prog: prog, progNote: progNote, reg: reg, labels: labels, n: nonNull(vals).length });
+      out.subjects.push({ name: sm.name, top: top, prog: prog, progNote: progNote, reg: reg, labels: labels, n: nonNull(vals).length, provisional: prov });
     });
     out.topUnique = uniqueOf(out.subjects, 'top', o.sortBySeat);
     out.progUnique = uniqueOf(out.subjects, 'prog', o.sortBySeat);

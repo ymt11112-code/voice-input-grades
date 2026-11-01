@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261104">
+  <link rel="stylesheet" href="analysis-common.css?v=20261105">
   <style>
     .list li.off { opacity: .45; text-decoration: line-through; }
     .list li label { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 0; cursor: pointer; }
@@ -49,6 +49,7 @@
         <div class="bar">
           <span class="grp"><span class="lbl" id="topLbl">每科前</span><input type="number" id="optTopN" min="1" max="30"><span class="lbl">名</span></span>
           <label class="chk"><input type="checkbox" id="optTies"> 同分一併列入</label>
+          <label class="chk" title="段考還沒有成績的科目，先把段考當作 70 分、加上已登記的平時成績來排名，讓你先看看名單長什麼樣子。只用在「定期考查總成績」的排名依據，有了真正的段考成績就自動改用真的。"><input type="checkbox" id="optProv"> 沒有段考成績時，先用暫定 70 分預覽</label>
           <span class="grp" id="basisGrp"><span class="lbl">排名依據</span>
             <select id="optBasis">
               <option value="exam">只看段考分數</option>
@@ -81,15 +82,15 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261104"></script>
-<script src="analysis-demo.js?v=20261104"></script>
-<script src="analysis-art.js?v=20261104"></script>
-<script src="analysis-common.js?v=20261104"></script>
+<script src="analysis-stats.js?v=20261105"></script>
+<script src="analysis-demo.js?v=20261105"></script>
+<script src="analysis-art.js?v=20261105"></script>
+<script src="analysis-common.js?v=20261105"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt;
   var st = { raw: null, model: null, term: null, phase: 'final', last: null, parsed: null, ex: {}, subjSel: null, domSel: null,
-    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true, regress: false, termSource: 'auto', tol: 1, domainMap: {} } };
+    o: { topN: 5, ties: true, basis: 'exam', sortBySeat: false, progressN: 3, progressMetric: 'score', progressBase: 'midterm', minGain: 5, excludeTop: true, regress: false, provisional: true, termSource: 'auto', tol: 1, domainMap: {} } };
   var PHASE_NAME = { midterm: '期中考', final: '期末考', term: '學期總成績' };
 
   AX.shell();
@@ -100,15 +101,15 @@
   function exKey(kind, subject, key) { return [st.term, st.phase, kind, subject, key].join('|'); }
 
   // ---- 條件欄位
-  var F = { topN: AX.$('optTopN'), ties: AX.$('optTies'), basis: AX.$('optBasis'), seat: AX.$('optSeat'), progN: AX.$('optProgN'), metric: AX.$('optMetric'), base: AX.$('optBase'), min: AX.$('optMin'), excl: AX.$('optExcl'), reg: AX.$('optRegress') };
+  var F = { topN: AX.$('optTopN'), ties: AX.$('optTies'), basis: AX.$('optBasis'), seat: AX.$('optSeat'), progN: AX.$('optProgN'), metric: AX.$('optMetric'), base: AX.$('optBase'), min: AX.$('optMin'), excl: AX.$('optExcl'), reg: AX.$('optRegress'), prov: AX.$('optProv') };
   function loadFields() {
-    F.topN.value = st.o.topN; F.ties.checked = st.o.ties; F.basis.value = st.o.basis; F.seat.checked = st.o.sortBySeat;
+    F.prov.checked = st.o.provisional !== false; F.topN.value = st.o.topN; F.ties.checked = st.o.ties; F.basis.value = st.o.basis; F.seat.checked = st.o.sortBySeat;
     F.progN.value = st.o.progressN; F.metric.value = st.o.progressMetric; F.base.value = st.o.progressBase; F.min.value = st.o.minGain; F.excl.checked = st.o.excludeTop; F.reg.checked = !!st.o.regress;
     syncProg();
   }
   function readFields() {
     var n = Number(F.topN.value); st.o.topN = n >= 1 ? Math.floor(n) : 5;
-    st.o.ties = F.ties.checked; st.o.basis = F.basis.value; st.o.sortBySeat = F.seat.checked;
+    st.o.provisional = F.prov.checked; st.o.ties = F.ties.checked; st.o.basis = F.basis.value; st.o.sortBySeat = F.seat.checked;
     var p = Number(F.progN.value); st.o.progressN = p >= 1 ? Math.floor(p) : 3;
     st.o.progressMetric = F.metric.value; st.o.progressBase = F.base.value;
     var mg = Number(F.min.value); st.o.minGain = mg > 0 ? mg : 1; st.o.excludeTop = F.excl.checked; st.o.regress = F.reg.checked;
@@ -223,7 +224,7 @@
     });
   }
 
-  function titleText() { return S.termLabel(st.term) + ' ' + PHASE_NAME[st.phase]; }
+  function titleText() { return S.termLabel(st.term) + ' ' + PHASE_NAME[st.phase] + (st.last && st.last.provisional && st.last.provisional.length ? '（暫定）' : ''); }
   function unitOf(s) { return st.phase === 'term' || st.o.basis === 'term' ? ' 分' : ' %'; }
 
   // ---- 版面
@@ -250,6 +251,7 @@
         '。如果是別位老師的科目（例如自然），請先用試算表選單「建立外科成績貼上區」建立工作表並貼上成績。'));
     }
     st.last = R;
+    if (R.provisional && R.provisional.length) main.appendChild(el('div', { 'class': 'note' }, '⚠️ 暫定名單：' + R.provisional.join('、') + '還沒有' + PHASE_NAME[st.phase] + '成績，段考先當作 70 分計算，所以名次只反映已登記的平時成績，僅供預覽，不要直接印成獎狀。登記了段考成績就會自動改用真的成績。'));
     if (!R.subjects.length) { main.appendChild(el('div', { 'class': 'card empty' }, '沒有可以產生名單的科目／領域。')); return; }
 
     var unit = st.phase === 'term' ? '領域' : '科', tiles = el('div', { 'class': 'tiles noprint' });
@@ -278,7 +280,7 @@
     var grid = el('div', { 'class': 'grid2' }); d.appendChild(grid); main.appendChild(d);
     R.subjects.forEach(function (s) {
       var mini = el('div', { 'class': 'mini' });
-      var h3 = el('h3', null, s.name); if (window.AXArt) h3.insertBefore(AXArt.subject(s.name, 26), h3.firstChild); mini.appendChild(h3);
+      var h3 = el('h3', null, s.name + (s.provisional ? '（暫定）' : '')); if (window.AXArt) h3.insertBefore(AXArt.subject(s.name, 26), h3.firstChild); mini.appendChild(h3);
       var th3 = el('div', { 'class': 'h3 muted' }, '前 ' + st.o.topN + ' 名（' + s.top.length + ' 人）'); if (window.AXArt) th3.insertBefore(AXArt.icon('trophy', 20), th3.firstChild); mini.appendChild(th3);
       if (s.top.length > st.o.topN) mini.appendChild(el('div', { 'class': 'tieNote' }, '⚠ 同分 ' + s.top.length + ' 人超出 ' + st.o.topN + ' 個名額，請勾選要列入的人（或取消勾選「同分一併列入」只取前 ' + st.o.topN + ' 位）'));
       mini.appendChild(entryList(s.top, 'top', s.name, function (x) { return fmt(x.value) + unitOf(); }, true));
