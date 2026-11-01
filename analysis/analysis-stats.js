@@ -1150,9 +1150,9 @@
           x.mn = vs.length ? Math.min.apply(null, vs) : 0;
           x.mx = vs.length ? Math.max.apply(null, vs) : 0;
         });
-        cat.avg = each(function (i) {
+        function avgOf(list) { return each(function (i) {
           var ps = [];
-          graded.forEach(function (x) {
+          list.forEach(function (x) {
             var v = x.scores[i];
             if (cat.scale) {
               if (v != null && v > x.max) return;
@@ -1167,7 +1167,16 @@
           });
           // 所有類別一律先各自四捨五入到小數 1 位，再合成大項（使用者指定的統一作法）
           return ps.length ? gbRound(mean(ps), 1) : null;
+        }); }
+        cat.avg = avgOf(graded);
+        // 細項：項目名稱去掉尾端的數字後相同的算同一組（國習1、國習2 → 國習；筆記1、筆記2 → 筆記），至少有兩組才提供，給簡表選擇要不要列出
+        var stemOrder = [], stemItems = {};
+        graded.forEach(function (x) {
+          var s = String(x.name).replace(/[A-Za-z]*[\s\d０-９]+$/, '').trim() || String(x.name);
+          if (!stemItems[s]) { stemItems[s] = []; stemOrder.push(s); }
+          stemItems[s].push(x);
         });
+        cat.subs = stemOrder.length >= 2 ? stemOrder.map(function (s) { return { label: s, avg: avgOf(stemItems[s]) }; }) : [];
         cat.used = graded.length > 0 && cat.weight > 0;
       });
       var usedCats = g.cats.filter(function (c) { return c.used; });

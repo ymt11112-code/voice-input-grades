@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261102">
+  <link rel="stylesheet" href="analysis-common.css?v=20261103">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -151,10 +151,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261102"></script>
-<script src="analysis-demo.js?v=20261102"></script>
-<script src="analysis-art.js?v=20261102"></script>
-<script src="analysis-common.js?v=20261102"></script>
+<script src="analysis-stats.js?v=20261103"></script>
+<script src="analysis-demo.js?v=20261103"></script>
+<script src="analysis-art.js?v=20261103"></script>
+<script src="analysis-common.js?v=20261103"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -395,10 +395,16 @@
       g.cats.forEach(function (c) {
         if (c.input) return;
         var key = 'c:' + c.category, def = multi;   // 只有一個類別時，類別那列跟總列一樣，預設不重複印
-        group.push({ key: key, label: c.category + '平均', values: c.avg, on: on(key, def) });
+        // 這一大項只有一個類別時，類別那列和合計一模一樣，不重複列出
+        if (multi) group.push({ key: key, label: c.category + '平均', pick: c.category + '平均（類別）', values: c.avg, on: on(key, def) });
+        // 類別底下的細項（例如作業類別裡的國習1、國習2、筆記1…，名稱前面相同的合成一組）
+        (c.subs || []).forEach(function (sb) {
+          var sk = 's:' + c.category + '|' + sb.label;
+          group.push({ key: sk, label: sb.label + '平均', pick: sb.label + '平均（細項）', sub: true, values: sb.avg, on: on(sk, false) });
+        });
       });
       var gk = 'g:' + g.kind;
-      group.push({ key: gk, label: total + (g.used ? '（' + pct(g.share) + '）' : '（不計分）'), values: g.avg, cls: g.kind === 'other' ? 'att' : 'tot', on: on(gk, true) });
+      group.push({ key: gk, label: total + (g.used ? '（' + pct(g.share) + '）' : '（不計分）'), pick: total + '（合計）', values: g.avg, cls: g.kind === 'other' ? 'att' : 'tot', on: on(gk, true) });
       rows.push({ side: side, rows: group, cls: g.kind === 'other' ? 'att' : '' });
     });
     var fin = [{ key: 'daily', label: '平時成績（' + pct(G.dailyShare) + '）', values: G.daily, cls: 'sum', on: on('daily', true) }];
@@ -417,7 +423,7 @@
     box.style.display = st.view === 'brief' && G && !G.empty ? '' : 'none';
     AX.clear(body);
     if (st.view !== 'brief' || !G || G.empty) return;
-    body.appendChild(el('p', { 'class': 'muted small' }, '打勾的列才會出現在簡表和列印裡（這個設定每個科目各自記住）。例如平時作業底下有國習、筆記等簿本，可以只勾想印的。'));
+    body.appendChild(el('p', { 'class': 'muted small' }, '打勾的列才會出現在簡表和列印裡（這個設定每個科目各自記住）。每一大項（平時作業、平時測驗）可以選：只印合計，或再加印各類別的平均（例如國習、筆記；聽寫、考卷）。如果類別底下的項目名稱是「國習1、國習2、筆記1…」這種，也可以勾「細項」，把名稱前面相同的合成一列。'));
     briefRows(G, true).forEach(function (sec) {
       body.appendChild(el('div', { 'class': 'sec' }, sec.side));
       sec.rows.forEach(function (r) {
@@ -430,7 +436,7 @@
         };
         var lab = el('label');
         lab.appendChild(cb);
-        lab.appendChild(document.createTextNode(' ' + (r.key.indexOf('c:') === 0 ? '類別：' : '') + r.label.replace(/（.*）$/, '')));
+        lab.appendChild(document.createTextNode(' ' + (r.pick || r.label.replace(/（.*）$/, ''))));
         body.appendChild(lab);
       });
     });

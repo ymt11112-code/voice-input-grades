@@ -500,6 +500,12 @@
           </div>
         </div>
 
+        <div class="subpanel">
+          <b>🪄 依項目名稱自動分類（做出各簿本的小計平均）</b>
+          <p class="muted">例如「作業」類別裡有「數課U1～U5」和「數習U1～U5」，按下去會把它們分到「數課」「數習」兩個類別；「平時測驗」裡的「數重U1…」「數卷U1…」也一樣。分開以後，成績總表就會自動算出每個類別各自的小計平均（數課平均、數習平均…），簡表也能選擇要不要印。名稱要是「名稱＋編號」的格式，同一組至少 2 個項目才會分，只拆目前畫面上的學期。按下去會先列出要怎麼分，確認才會動；之後想改，可以在下面的清單勾選項目再改類別。</p>
+          <div class="row"><button class="secondary" onclick="onAutoSplitCategories()">依名稱拆分類別</button></div>
+        </div>
+
         <h3>目前科目的項目清單</h3>
         <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、難度、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、類別、難度，或一次刪除。</p>
         <div class="row">
@@ -2403,6 +2409,56 @@ function onAddItemSeries() {
     document.getElementById('seriesMax').value = '';
     renderItemList();
     toast('已批次產生 ' + count + ' 個項目');
+  }).catch(showError);
+}
+
+// 項目名稱去掉尾端的「英文字母＋數字」就是它屬於哪一組：數課U1 → 數課、聽考L3 → 聽考、國習2 → 國習
+function itemStem_(name) {
+  return String(name).replace(/[A-Za-z]*[\s\d０-９]+$/, '').trim();
+}
+
+// 一個類別裡有好幾組不同簿本時（例如作業裡的數課、數習），把各組拆成自己的類別，成績總表才會各自算小計平均
+function onAutoSplitCategories() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  var subject = state.subject;
+  var byCat = {};
+  state.items.filter(inViewTerm_).forEach(function (it) { var c = it.category || ''; (byCat[c] = byCat[c] || []).push(it); });
+  var plan = [];   // { from, stem, items, kind }
+  Object.keys(byCat).forEach(function (cat) {
+    var stems = {}, order = [];
+    byCat[cat].forEach(function (it) {
+      var s = itemStem_(it.name);
+      if (!s) return;
+      if (!stems[s]) { stems[s] = []; order.push(s); }
+      stems[s].push(it);
+    });
+    var groups = order.filter(function (s) { return stems[s].length >= 2; });
+    if (groups.length < 2) return;   // 只有一組，不需要拆
+    groups.forEach(function (s) { plan.push({ from: cat, stem: s, items: stems[s], kind: stems[s][0].kind }); });
+  });
+  if (!plan.length) return toast('沒有可以拆開的項目：需要同一個類別裡，有兩組以上「名稱＋編號」的項目（例如 數課U1、數課U2、數習U1、數習U2）', true);
+  var byFrom = {}, fromOrder = [];
+  plan.forEach(function (p) {
+    if (!byFrom[p.from]) { byFrom[p.from] = []; fromOrder.push(p.from); }
+    byFrom[p.from].push(p.stem + '（' + p.items.length + ' 項）');
+  });
+  var lines = fromOrder.map(function (f) { return '「' + (f || '未分類') + '」→ ' + byFrom[f].join('、'); });
+  if (!confirm('要這樣分類嗎？\n\n' + lines.join('\n') + '\n\n沒有被列出的項目維持原來的類別。')) return;
+  var chain = Promise.resolve(), cats = state.categories.slice();
+  plan.forEach(function (p) {
+    if (cats.indexOf(p.stem) > -1) return;
+    cats.push(p.stem);
+    // 新類別沿用原本類別的分析方式（作業、平時測驗…），免得名稱不在預設規則裡時被當成別的
+    chain = chain.then(function () { return call('addCategory', p.stem); }).then(function (list) {
+      state.categories = list;
+      return p.kind ? call('setCategoryKind', p.stem, p.kind) : null;
+    });
+  });
+  var updates = [];
+  plan.forEach(function (p) { p.items.forEach(function (it) { updates.push({ col: it.col, category: p.stem }); }); });
+  chain.then(function () { return call('updateItems', subject, updates); }).then(function () {
+    renderCategoryList(); renderCategoryOptionsForItems(); renderItemList();
+    toast('已分類 ' + updates.length + ' 個項目，到成績總表看各簿本的小計平均');
   }).catch(showError);
 }
 
