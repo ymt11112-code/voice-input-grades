@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261110">
+  <link rel="stylesheet" href="analysis-common.css?v=20261111">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -154,10 +154,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261110"></script>
-<script src="analysis-demo.js?v=20261110"></script>
-<script src="analysis-art.js?v=20261110"></script>
-<script src="analysis-common.js?v=20261110"></script>
+<script src="analysis-stats.js?v=20261111"></script>
+<script src="analysis-demo.js?v=20261111"></script>
+<script src="analysis-art.js?v=20261111"></script>
+<script src="analysis-common.js?v=20261111"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -744,10 +744,17 @@
   }
   AX.$('xlsBtn').onclick = downloadExcel;
   AX.$('reloadBtn').onclick = load;
-  AX.$('printBtn').onclick = function () { window.print(); };
+  // 存成 PDF 時，瀏覽器預設的檔名是網頁標題：列印前先改成「學期_科目_期中（期末）成績總表」，印完還原
+  var baseTitle = document.title;
+  function setPrintTitle() {
+    if (!st.subject || !st.term) return;
+    document.title = fullTerm(st.term) + '_' + st.subject + '_' + (st.stage === 2 ? '期末' : '期中') + '成績總表' + (st.view === 'brief' ? '（簡表）' : '');
+  }
+  AX.$('printBtn').onclick = function () { setPrintTitle(); window.print(); };
 
   // 詳表欄位很多：列印前依紙張寬度（A4 橫式約 1060px）自動縮放，整張印在同一頁寬度內
   window.addEventListener('beforeprint', function () {
+    setPrintTitle();
     var t = document.querySelector('table.gb');
     if (!t) return;
     t.style.zoom = '';
@@ -756,6 +763,7 @@
     t.style.zoom = w > 1060 ? String(1060 / w) : '';
   });
   window.addEventListener('afterprint', function () {
+    document.title = baseTitle;
     var t = document.querySelector('table.gb');
     if (t) { t.style.zoom = ''; t.style.fontSize = ''; }
   });
