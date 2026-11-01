@@ -105,10 +105,10 @@
 
   function defaultKind(cat) {
     var c = String(cat);
-    if (/作業|習作|習題|學習單/.test(c)) return 'homework';
+    if (/作業|習作|習題|學習單|筆記|^[國數英自社]習|^數課/.test(c)) return 'homework';
     if (c.indexOf('期中') > -1 || c.indexOf('第一次段考') > -1) return 'midterm';
     if (c.indexOf('期末') > -1 || c.indexOf('第二次段考') > -1) return 'final';
-    if (/課堂|參與|發言|討論|表現|出席|口試/.test(c)) return 'other';
+    if (/課堂|參與|發言|討論|表現|出席|口試|態度/.test(c)) return 'other';
     return 'quiz';
   }
 
@@ -1071,7 +1071,135 @@
     return out;
   }
 
+  // ============================================================
+  // 成績總表（詳表、簡表）
+  // ============================================================
+  // 算法跟老師的 Excel 成績表一樣，每一層都印得出來、可以用手驗算：
+  //   類別平均（國習、筆記、聽寫、考卷…）：該階段已登記項目的平均，一律先四捨五入到小數 1 位
+  //   大項（平時作業、平時測驗、態度）＝各類別平均依比例合成，四捨五入到小數 1 位
+  //   平時成績＝各大項依比例合成，四捨五入到小數 1 位
+  //   平均＝平時成績與月考成績依比例合成，四捨五入到小數 dec 位（預設 2 位，等於不再進位；可改成 1 位）；名次依這個平均排（同分同名次）
+  // 空白：作業類以 0 分計（缺交）；測驗、態度不計入平均。
+  // 類別可以設「底分」（例如筆記 50）：分數＝底分＋得分×(100−底分)÷滿分，空白就是底分；超過滿分視為打錯，不計入。
+  // cfg：{ 類別: {weight, base} }（weight 預設 1，0＝列出來但不計分）
+  // 還沒有月考成績時，平均＝平時成績；已經有月考成績、但這位同學缺考時，不算平均也不排名。
+  function gbRound(v, d) {
+    if (v == null) return null;
+    var f = Math.pow(10, d);
+    return Math.round(v * f + 1e-9) / f;
+  }
+
+  function gradebook(d, term, stage, kinds, weights, cfg, dec, att) {
+    kinds = kinds || {}; cfg = cfg || {};
+    dec = dec === 1 ? 1 : 2;   // 預設 2 位：平均是兩個「已取到 1 位」的數字的平均，最多 2 位，跟 Excel 一樣不再進位
+    var W = weights && weights.daily != null ? weights : DEFAULT_WEIGHTS;
+    var students = d.students, n = students.length, periods = periodMap(d.items, kinds);
+    var examKind = stage === 2 ? 'final' : 'midterm';
+    var DEFS = [['other', '態度'], ['homework', '平時作業'], ['quiz', '平時測驗']];
+    var byKind = {}, examItems = [];
+
+    function each(fn) { var out = []; for (var i = 0; i < n; i++) out.push(fn(i)); return out; }
+    function hasData(a) { return a.some(function (v) { return v != null; }); }
+
+    d.items.forEach(function (it, k) {
+      if ((it.term || '') !== (term || '')) return;
+      var kind = kinds[it.category] || defaultKind(it.category);
+      if (kind === 'skip') return;
+      var mx = it.max > 0 ? it.max : 100;
+      var col = students.map(function (s) { return s.scores[k]; });
+      var item = { k: k, name: it.name, max: mx, scores: col, graded: hasData(col), category: it.category };
+      if (kind === examKind) { examItems.push(item); return; }
+      if (kind === 'midterm' || kind === 'final' || periods[k] !== stage) return;
+      var g = byKind[kind] || (byKind[kind] = { catMap: {}, cats: [] });
+      if (!g.catMap[it.category]) {
+        var c = cfg[it.category] || {};
+        g.catMap[it.category] = { category: it.category, items: [], weight: c.weight == null ? 1 : Number(c.weight), base: Number(c.base) > 0 ? Number(c.base) : 0,
+          lo: Number(c.lo) || 0, hi: Number(c.hi) || 0, scale: Number(c.hi) > (Number(c.lo) || 0) && Number(c.hi) > 0 };
+        g.cats.push(g.catMap[it.category]);
+      }
+      g.catMap[it.category].items.push(item);
+    });
+
+    // 態度：不是登記項目，而是成績總表頁用輸入框另外輸入的分數（att＝依學生順序的分數陣列，沒輸入的是 null），放在「態度」那一項
+    var attOn = !!att && !(byKind.other && byKind.other.catMap['態度']);
+    if (attOn) {
+      var og = byKind.other || (byKind.other = { catMap: {}, cats: [] }), ac = cfg['態度'] || {};
+      og.cats.unshift({ category: '態度', items: [], weight: ac.weight == null ? 1 : Number(ac.weight), base: 0, input: true, input_vals: att.map(function (v) { return v == null || v === '' || !isFinite(Number(v)) ? null : Number(v); }) });
+    }
+    var groups = [];
+    DEFS.forEach(function (def) {
+      var g = byKind[def[0]];
+      if (!g) return;
+      g.cats.forEach(function (cat) {
+        if (cat.input) { cat.avg = cat.input_vals; cat.used = hasData(cat.avg) && cat.weight > 0; return; }
+        var graded = cat.items.filter(function (x) { return x.graded; });
+        // 換算（例如筆記：總分不是 100，改用班上現有的分數，最低分換成 lo、最高分換成 hi，中間照比例）。
+        // 每個項目各自換算；空白（沒交）算下限 lo；超過滿分的視為打錯，不計入換算範圍也不計入平均。
+        if (cat.scale) graded.forEach(function (x) {
+          var vs = x.scores.filter(function (v) { return v != null && v <= x.max; });
+          x.mn = vs.length ? Math.min.apply(null, vs) : 0;
+          x.mx = vs.length ? Math.max.apply(null, vs) : 0;
+        });
+        cat.avg = each(function (i) {
+          var ps = [];
+          graded.forEach(function (x) {
+            var v = x.scores[i];
+            if (cat.scale) {
+              if (v != null && v > x.max) return;
+              ps.push(v == null ? cat.lo : (x.mx > x.mn ? cat.lo + (v - x.mn) / (x.mx - x.mn) * (cat.hi - cat.lo) : cat.hi));
+              return;
+            }
+            if (cat.base > 0) {
+              if (v != null && v > x.max) return;
+              ps.push(Math.min(100, cat.base + (v == null ? 0 : v) * (100 - cat.base) / x.max));
+            } else if (v != null) ps.push(v / x.max * 100);
+            else if (def[0] === 'homework') ps.push(0);
+          });
+          // 所有類別一律先各自四捨五入到小數 1 位，再合成大項（使用者指定的統一作法）
+          return ps.length ? gbRound(mean(ps), 1) : null;
+        });
+        cat.used = graded.length > 0 && cat.weight > 0;
+      });
+      var usedCats = g.cats.filter(function (c) { return c.used; });
+      var catTotal = sum(usedCats.map(function (c) { return c.weight; }));
+      g.cats.forEach(function (c) { c.share = c.used && catTotal > 0 ? c.weight / catTotal * 100 : 0; });
+      groups.push({
+        kind: def[0], label: def[1], cats: g.cats, weight: W[def[0]],
+        avg: each(function (i) { return gbRound(wavg(usedCats.map(function (c) { return [c.weight, c.avg[i]]; })).v, 1); })
+      });
+    });
+
+    var usedGroups = groups.filter(function (g) { return g.weight > 0 && hasData(g.avg); });
+    var groupTotal = sum(usedGroups.map(function (g) { return g.weight; }));
+    groups.forEach(function (g) { g.used = usedGroups.indexOf(g) > -1; g.share = g.used ? g.weight / groupTotal * 100 : 0; });
+
+    var daily = each(function (i) { return W.daily > 0 ? gbRound(wavg(usedGroups.map(function (g) { return [g.weight, g.avg[i]]; })).v, 1) : null; });
+    var gradedExam = examItems.filter(function (x) { return x.graded; });
+    var exam = each(function (i) {
+      var ps = [];
+      gradedExam.forEach(function (x) { if (x.scores[i] != null) ps.push(x.scores[i] / x.max * 100); });
+      return ps.length ? gbRound(mean(ps), 1) : null;
+    });
+    var dailyOn = hasData(daily), examOn = hasData(exam) && W.exam > 0;
+    var bothTotal = (dailyOn ? W.daily : 0) + (examOn ? W.exam : 0);
+
+    var final = each(function (i) {
+      if (dailyOn && examOn) return daily[i] == null || exam[i] == null ? null : gbRound((W.daily * daily[i] + W.exam * exam[i]) / bothTotal, dec);
+      return dailyOn ? gbRound(daily[i], dec) : (examOn ? gbRound(exam[i], dec) : null);
+    });
+    var vals = nonNull(final);
+    return {
+      term: term, stage: stage, students: students, groups: groups, examItems: examItems, exam: exam, examOn: examOn,
+      examListed: W.exam > 0 && examItems.length > 0, daily: daily, dailyOn: dailyOn,
+      dailyShare: dailyOn && bothTotal > 0 ? W.daily / bothTotal * 100 : 0, examShare: examOn && bothTotal > 0 ? W.exam / bothTotal * 100 : 0,
+      final: final, ranks: final.map(function (v) { return v == null ? null : compRank(vals, v); }),
+      ranked: vals.length, mean: vals.length ? gbRound(mean(vals), dec) : null, dec: dec,
+      attInput: attOn, empty: !groups.length && !examItems.length
+    };
+  }
+
   AX.stats = {
+    periodMap: periodMap, gradebook: gradebook, gbRound: gbRound,
     defaultDomainOf: defaultDomainOf, semesterByDomain: semesterByDomain, domainParsedFromSystem: domainParsedFromSystem, compareDomainScores: compareDomainScores,
     sum: sum, mean: mean, median: median, sd: sd, describe: describe, scoreBands: scoreBands, nonNull: nonNull, tiers: tiers, tierName: tierName,
     TIER_DEFS: TIER_DEFS, compRank: compRank, topPercent: topPercent, histogram: histogram, fmt: fmt, signed: signed,

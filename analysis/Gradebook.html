@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>成績總表</title>
+  <meta name="color-scheme" content="light">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="analysis-common.css?v=20261101">
+  <style>
+    .app { max-width: none; }
+    .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
+
+    /* 詳表 */
+    .gbWrap { overflow: auto; max-height: 76vh; border: 2px solid var(--ink); border-radius: 14px; background: #fff; }
+    table.gb { border-collapse: separate; border-spacing: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+    table.gb th, table.gb td { border-right: 1px solid #D9CFBD; border-bottom: 1px solid #D9CFBD; padding: 4px 6px; text-align: center; white-space: nowrap; min-width: 40px; background: #fff; }
+    table.gb thead th { position: sticky; background: var(--yellow-soft); font-weight: 400; z-index: 2; line-height: 1.25; }
+    table.gb thead tr:nth-child(1) th { top: 0; }
+    table.gb thead tr:nth-child(2) th { top: 29px; }
+    table.gb .seat, table.gb .name { position: sticky; z-index: 1; background: var(--paper2); }
+    table.gb .seat { left: 0; min-width: 38px; }
+    table.gb .name { left: 38px; min-width: 72px; }
+    table.gb thead .seat, table.gb thead .name { z-index: 3; background: var(--yellow-soft); }
+    table.gb .pct { display: block; font-size: 11px; color: var(--muted); }
+    table.gb td.cat { background: var(--aqua-soft); }
+    table.gb td.grp { background: var(--coral-soft); }
+    table.gb td.dly { background: #EFEAE0; }
+    table.gb td.fin, table.gb td.rnk { background: #CFE6F2; }
+    table.gb td.rnk { font-weight: 700; }
+    table.gb .b-l { border-left: 2px solid var(--ink); }
+    table.gb tfoot td { background: var(--green-soft); border-top: 2px solid var(--ink); position: sticky; bottom: 0; }
+    table.gb tfoot .seat, table.gb tfoot .name { background: var(--green-soft); z-index: 3; }
+    table.gb tbody tr:hover td { filter: brightness(.96); }
+    .low { color: #D0301C; font-weight: 700; }
+    table.gb td.att { background: #FFF6DC; padding: 2px 3px; }
+    table.gb input.attIn { width: 56px; text-align: center; font: inherit; border: 1.5px dashed #C9A94B; border-radius: 8px; padding: 2px 3px; background: #fff; }
+    table.gb input.attIn:focus { outline: 2px solid var(--ink); border-style: solid; }
+    .over { outline: 2px solid #E59A00; outline-offset: -2px; }
+    .legend { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+
+    /* 簡表 */
+    .sheet { background: #fff; padding: 6px; margin-bottom: 18px; }
+    table.brief { border-collapse: collapse; width: 100%; table-layout: fixed; font-variant-numeric: tabular-nums; border: 2px solid #222; }
+    table.brief caption { caption-side: top; font-size: 23px; font-weight: 700; padding: 4px 0 8px; }
+    table.brief th, table.brief td { border: 1px solid #333; text-align: center; padding: 5px 1px; font-weight: 400; font-size: 15px; }
+    table.brief .side { width: 66px; font-size: 19px; font-weight: 700; line-height: 1.25; }
+    table.brief .label { width: 156px; font-size: 14px; }
+    table.brief .stuName { writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 3px; font-size: 17px; height: 96px; vertical-align: middle; padding: 4px 0; }
+    table.brief .head { background: #FBE6D8; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.brief .diag { position: relative; background: #FBE6D8 linear-gradient(to top right, transparent calc(50% - 1px), #333 calc(50% - .5px), #333 calc(50% + .5px), transparent calc(50% + 1px)); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.brief .diag .a { position: absolute; top: 14px; right: 44px; font-size: 15px; letter-spacing: 6px; }
+    table.brief .diag .b { position: absolute; bottom: 12px; left: 40px; font-size: 15px; letter-spacing: 6px; }
+    table.brief tr.att td, table.brief tr.att th { background: #FFF6DC; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.brief tr.tot td, table.brief tr.tot th { background: #FBE6D8; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.brief tr.sum td, table.brief tr.sum th { background: #DEE7F1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.brief tr.avg td, table.brief tr.avg th { background: #EBF0DF; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.brief tr.rank td { font-size: 19px; font-weight: 700; }
+    table.brief tr.line > * { border-top: 2px solid #222; }
+    table.brief td.foot { text-align: left; padding: 6px 10px; font-size: 16px; border-top: 2px solid #222; }
+    table.brief td.foot span { margin-right: 28px; }
+
+    /* 設定 */
+    .gbCfg summary { cursor: pointer; }
+    .gbCfg table { border-collapse: collapse; margin: 8px 0; }
+    .gbCfg th, .gbCfg td { padding: 4px 10px; border-bottom: 2px dotted var(--line); text-align: left; font-weight: 400; }
+    .gbCfg input[type=number] { width: 70px; }
+
+    @page { size: A4 landscape; margin: 8mm; }
+    @media print {
+      .gbCfg, .legend { display: none !important; }
+      table.gb input.attIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
+      table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      .gbWrap { overflow: visible; max-height: none; border: 1.5px solid #222; border-radius: 0; }
+      table.gb { font-size: 10.5px; }
+      table.gb th, table.gb td { padding: 2px 3px; min-width: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table.gb thead th, table.gb .seat, table.gb .name, table.gb tfoot td { position: static; }
+      .sheet { padding: 0; margin: 0; break-after: page; }
+      .sheet:last-child { break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <span class="title">📊 成績分析</span>
+    <nav class="pages">
+      <a href="Dashboard.html">全班概況</a>
+      <a href="Personal.html">個人概況</a>
+      <a class="on" href="Gradebook.html">成績總表</a>
+      <a href="Progress.html">成績歷程</a>
+      <a href="Report.html">家長報告</a>
+      <a href="Attention.html">關注名單</a>
+      <a href="Awards.html">獎狀名單</a>
+      <a href="Missing.html">缺分紀錄</a>
+    </nav>
+    <span class="spacer"></span>
+    <button id="connBtn">⚙️ 連線設定</button>
+  </div>
+
+  <div id="content" class="content">
+    <div class="bar">
+      <span class="grp"><span class="lbl">科目</span><span id="subjectBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">學期</span><span id="termBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">階段</span><span id="stageBtns" class="grp"></span></span>
+      <span class="grp"><span class="lbl">表格</span><span id="viewBtns" class="grp"></span></span>
+    </div>
+    <div class="bar">
+      <span class="grp"><span class="lbl">未達</span><input type="number" id="optLow" min="0" max="100" style="width:64px"><span class="lbl">分標紅色</span></span>
+      <span class="grp"><span class="lbl">平均取小數</span><select id="optDec"><option value="2">2 位（跟 Excel 一樣）</option><option value="1">1 位（四捨五入）</option></select></span>
+      <span class="grp" id="perPageGrp"><span class="lbl">簡表每頁</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人</span></span>
+      <span class="spacer"></span>
+      <button id="xlsBtn" title="每個科目一個工作表，一次下載全部">⬇️ 下載 Excel（全部科目）</button>
+      <button class="primary" id="printBtn">🖨️ 列印 / 存成 PDF</button>
+      <button id="reloadBtn" title="在試算表修改成績後，按這裡重新讀取">🔄 重新讀取試算表</button>
+    </div>
+    <div id="main"></div>
+    <details class="card gbCfg noprint" id="cfgBox">
+      <summary><b>⚙️ 計分設定（這個科目）</b></summary>
+      <div id="cfgBody"></div>
+    </details>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="analysis-stats.js?v=20261101"></script>
+<script src="analysis-demo.js?v=20261101"></script>
+<script src="analysis-art.js?v=20261101"></script>
+<script src="analysis-common.js?v=20261101"></script>
+<script>
+(function () {
+  var S = AX.stats, el = AX.el;
+  var STORE = 'AX_GRADEBOOK';
+  var saved = {};
+  try { saved = JSON.parse(AX.lsGet(STORE) || '{}') || {}; } catch (e) { saved = {}; }
+  var st = {
+    raw: null, subject: saved.subject || null, term: null, stage: null,
+    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : 'detail', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 12, G: null
+  };
+  var KIND_OPTS = [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度（課堂表現）'], ['midterm', '期中考'], ['final', '期末考'], ['skip', '不列入']];
+  var STAGE_NAME = { 1: '期中考', 2: '期末考' };
+
+  AX.shell();
+  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec })); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function n1(v) { return v == null ? '' : (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
+  function nd(v, dec) {
+    if (v == null) return '';
+    var f = Math.pow(10, dec), t = (Math.round(v * f + 1e-9) / f).toFixed(dec);
+    if (t.indexOf('.') > -1) { while (t.charAt(t.length - 1) === '0') t = t.slice(0, -1); if (t.charAt(t.length - 1) === '.') t = t.slice(0, -1); }
+    return t;
+  }
+  function n2(v) { return nd(v, st.dec); }
+  function pct(v) { return Math.round(v * 10) / 10 + '%'; }
+  function fullTerm(t) {
+    var m = /^(\d+)\s*(上|下)$/.exec(t || '');
+    return m ? m[1] + '學年度第' + (m[2] === '上' ? 1 : 2) + '學期' : (t || '');
+  }
+  function dataOf(subject) {
+    return st.raw.subjects.filter(function (d) { return d.subject === subject; })[0] || null;
+  }
+  function termsOf(d) {
+    var have = {};
+    d.items.forEach(function (it) { have[it.term || ''] = true; });
+    var list = (st.raw.terms || []).filter(function (t) { return have[t]; });
+    Object.keys(have).forEach(function (t) { if (list.indexOf(t) === -1) list.push(t); });
+    return list;
+  }
+  function weightsOf(subject) { return (st.raw.subjectWeights && st.raw.subjectWeights[subject]) || st.raw.weights; }
+  function cfgOf(subject) {
+    st.raw.gradebook = st.raw.gradebook || {};
+    return st.raw.gradebook[subject] || (st.raw.gradebook[subject] = {});
+  }
+  function normName(n) { return String(n == null ? '' : n).replace(/\s+/g, ''); }
+  // 這個科目、學期、階段的態度分數，依學生順序（沒輸入的是 null）
+  function attOf(subject, stage) {
+    var map = {};
+    (st.raw.attitude || []).forEach(function (a) { if (a.subject === subject && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
+    return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? map[k] : null; });
+  }
+  function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, attOf(subject, stage)); }
+  function gbFor(stage) { return gbOf(st.subject, stage); }
+  function hasGraded(G) {
+    return G.examOn || G.groups.some(function (g) { return g.cats.some(function (c) { return c.items.some(function (x) { return x.graded; }); }); });
+  }
+
+  function load() {
+    AX.load().then(function (res) {
+      st.raw = res.raw;
+      buildPickers();
+      render();
+    }).catch(AX.showError);
+  }
+
+  function buildPickers() {
+    var names = st.raw.subjects.map(function (d) { return d.subject; });
+    if (names.indexOf(st.subject) === -1) st.subject = names[0] || null;
+    if (!st.subject) return;
+    var terms = termsOf(dataOf(st.subject));
+    if (terms.indexOf(st.term) === -1) st.term = terms.indexOf(st.raw.currentTerm) > -1 ? st.raw.currentTerm : terms[terms.length - 1];
+    if (st.stage == null) st.stage = hasGraded(gbFor(2)) ? 2 : 1;
+    AX.btnGroup(AX.$('subjectBtns'), names.map(function (n) { return { label: n, value: n }; }), st.subject, function (v) { st.subject = v; remember(); buildPickers(); render(); });
+    AX.btnGroup(AX.$('termBtns'), terms.map(function (t) { return { label: t, value: t }; }), st.term, function (v) { st.term = v; buildPickers(); render(); });
+    AX.btnGroup(AX.$('stageBtns'), [{ label: '期中考', value: 1 }, { label: '期末考', value: 2 }], st.stage, function (v) { st.stage = Number(v); buildPickers(); render(); });
+    AX.btnGroup(AX.$('viewBtns'), [{ label: '詳表', value: 'detail' }, { label: '簡表（列印）', value: 'brief' }], st.view, function (v) { st.view = v; remember(); buildPickers(); render(); });
+    AX.$('perPageGrp').style.display = st.view === 'brief' ? '' : 'none';
+  }
+
+  function render() {
+    var main = AX.$('main');
+    AX.clear(main);
+    if (!st.subject) { main.appendChild(el('div', { 'class': 'empty' }, '還沒有任何科目')); return; }
+    var G = st.G = gbFor(st.stage);
+    renderConfig();
+    if (G.empty || !G.students.length) {
+      main.appendChild(el('div', { 'class': 'empty' }, G.students.length ? '這個階段還沒有登記項目' : '這個科目還沒有學生名單'));
+      return;
+    }
+    if (st.view === 'detail') renderDetail(main, G); else renderBrief(main, G);
+  }
+
+  function isLow(v) { return v != null && v < st.low; }
+
+  // ---- 詳表 --------------------------------------------------
+  function detailColumns(G) {
+    var cols = [], tops = [];
+    G.groups.forEach(function (g) {
+      var single = g.cats.length === 1 && g.cats[0].items.length === 1 && !g.cats[0].base && !g.cats[0].scale;
+      var start = cols.length;
+      if (g.cats.length === 1 && g.cats[0].input) {
+        cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '輸入') + '</span>', cls: 'grp att', values: g.avg, input: true, raw: g.cats[0].avg, pctVal: true });
+        cols[start].first = true;
+        tops.push({ label: g.label, n: 1, single: true });
+        return;
+      }
+      if (!single) {
+        g.cats.forEach(function (c) {
+          c.items.forEach(function (x) {
+            cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores });
+          });
+          if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.avg : null, input: !!c.input, pctVal: true });
+        });
+      }
+      cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '不計分') + '</span>', cls: 'grp', values: g.avg, pctVal: true });
+      cols[start].first = true;
+      tops.push({ label: g.label, n: cols.length - start, single: cols.length - start === 1 });
+    });
+    return { cols: cols, tops: tops };
+  }
+
+  function tailColumns(G) {
+    var tail = [];
+    tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: true });
+    if (G.examListed) tail.push({ head: '月考成績<span class="pct">' + pct(G.examShare) + '</span>', cls: 'dly', values: G.exam, pctVal: true });
+    tail.push({ head: '平均', cls: 'fin', values: G.final, pctVal: true, d2: true });
+    return tail;
+  }
+
+  function renderDetail(main, G) {
+    var built = detailColumns(G), cols = built.cols;
+    var tail = tailColumns(G);
+    var all = cols.concat(tail);
+
+    var h = '<table class="gb"><thead><tr><th class="seat" rowspan="2">座號</th><th class="name" rowspan="2">姓名</th>';
+    built.tops.forEach(function (t) {
+      if (t.single) h += '<th class="b-l" rowspan="2" data-solo="1"></th>';
+      else h += '<th class="b-l" colspan="' + t.n + '">' + esc(t.label) + '</th>';
+    });
+    tail.forEach(function (c) { h += '<th rowspan="2"' + (c.first ? ' class="b-l"' : '') + '>' + c.head + '</th>'; });
+    h += '<th rowspan="2">排名</th></tr><tr>';
+    var pos = 0;
+    built.tops.forEach(function (t) {
+      if (!t.single) for (var j = 0; j < t.n; j++) h += '<th' + (j === 0 ? ' class="b-l"' : '') + '>' + cols[pos + j].head + '</th>';
+      pos += t.n;
+    });
+    h += '</tr></thead><tbody>';
+    G.students.forEach(function (s, i) {
+      h += '<tr><td class="seat">' + esc(s.seat) + '</td><td class="name">' + esc(s.name) + '</td>';
+      all.forEach(function (c) {
+        var v = c.values[i], cls = [];
+        if (c.cls) cls.push(c.cls);
+        if (c.first) cls.push('b-l');
+        var pctOfItem = c.kind === 'item' && v != null ? v / c.item.max * 100 : v;
+        if (isLow(pctOfItem)) cls.push('low');
+        var title = '';
+        if (c.kind === 'item' && v != null && v > c.item.max) { cls.push('over'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
+        if (c.input) {
+          var rv = c.raw ? c.raw[i] : null;
+          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表"></td>';
+          return;
+        }
+        h += '<td' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + title + '>' + (c.d2 ? n2(v) : n1(v)) + '</td>';
+      });
+      var r = G.ranks[i];
+      h += '<td class="rnk">' + (r == null ? '' : r) + '</td></tr>';
+    });
+    h += '</tbody><tfoot><tr><td class="seat"></td><td class="name">平均</td>';
+    all.forEach(function (c) {
+      var vals = S.nonNull(c.values), cls = c.first ? ' class="b-l"' : '';
+      h += '<td' + cls + '>' + (vals.length ? (c.d2 ? n2(S.mean(vals)) : n1(S.mean(vals))) : '') + '</td>';
+    });
+    h += '<td></td></tr></tfoot></table>';
+
+    // 單欄大項（例如態度）的表頭：標題和比例放在同一格
+    var card = el('div');
+    card.appendChild(el('div', { 'class': 'gbTitle' }, fullTerm(st.term) + '　' + st.subject + '　' + STAGE_NAME[st.stage] + '成績'));
+    var wrap = el('div', { 'class': 'gbWrap', id: 'gbPrint' });
+    wrap.innerHTML = h;
+    var solos = wrap.querySelectorAll('th[data-solo]'), si = 0, p = 0;
+    built.tops.forEach(function (t) { if (t.single) solos[si++].innerHTML = cols[p].head; p += t.n; });
+    card.appendChild(wrap);
+    var over = wrap.querySelectorAll('.over').length;
+    card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」直接在表上輸入（Enter 到下一位）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
+      (over ? ' ⚠️ 有 ' + over + ' 格超過滿分（橘框），請確認有沒有打錯。' : '')));
+    main.appendChild(card);
+    wireAttitudeInputs(wrap, G);
+  }
+
+  // ---- 態度輸入：離開欄位或按 Enter 就存；存完重算整張表，游標留在原本的位置 ----
+  var attChain = Promise.resolve();
+  function wireAttitudeInputs(wrap, G) {
+    var inputs = wrap.querySelectorAll('input.attIn');
+    if (!inputs.length) return;
+    Array.prototype.forEach.call(inputs, function (inp, k) {
+      inp.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var nxt = inputs[e.shiftKey ? k - 1 : k + 1];
+        if (nxt) { nxt.focus(); nxt.select(); } else inp.blur();
+      });
+      inp.addEventListener('focus', function () { inp.select(); });
+      inp.addEventListener('change', function () { saveAttitude(G, Number(inp.dataset.i), inp.value, inp); });
+    });
+  }
+  function saveAttitude(G, i, text, inp) {
+    var stu = G.students[i], subject = st.subject, term = st.term, stage = st.stage;
+    var v = String(text).trim() === '' ? '' : Number(text);
+    if (v !== '' && (!isFinite(v) || v < 0 || v > 100)) { AX.toast('態度分數要在 0～100 之間', true); inp.value = ''; return; }
+    // 先改畫面上的資料（立刻重算），再背景存到試算表
+    var key = normName(stu.name);
+    st.raw.attitude = (st.raw.attitude || []).filter(function (a) { return !(a.subject === subject && a.term === term && Number(a.p) === stage && a.name === key); });
+    if (v !== '') st.raw.attitude.push({ subject: subject, term: term, p: stage, name: key, score: v });
+    setTimeout(function () {
+      var ae = document.activeElement, keep = ae && ae.classList && ae.classList.contains('attIn') ? ae.dataset.i : null;
+      render();
+      if (keep != null) { var again = document.querySelector('input.attIn[data-i="' + keep + '"]'); if (again) { again.focus(); again.select(); } }
+    }, 0);
+    attChain = attChain.then(function () { return AX.call('setAttitude', subject, term, stage, [{ name: stu.name, score: v }]); })
+      .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
+  }
+  function setSaved(msg) { AX.toast(msg); }
+
+  // ---- 簡表（學生橫列，方便列印） ------------------------------
+  function briefRows(G) {
+    var rows = [];
+    G.groups.forEach(function (g) {
+      var group = [];
+      var side = { other: '上課態度', homework: '平時作業', quiz: '平時測驗' }[g.kind];
+      var total = { other: '態度', homework: '作業平均', quiz: '紙筆測驗' }[g.kind];
+      if (g.cats.length > 1) g.cats.forEach(function (c) { group.push({ label: c.category + '平均', values: c.avg }); });
+      group.push({ label: total + (g.used ? '（' + pct(g.share) + '）' : '（不計分）'), values: g.avg, cls: g.kind === 'other' ? 'att' : 'tot' });
+      rows.push({ side: side, rows: group, cls: g.kind === 'other' ? 'att' : '' });
+    });
+    var fin = [{ label: '平時成績（' + pct(G.dailyShare) + '）', values: G.daily, cls: 'sum' }];
+    if (G.examListed) fin.push({ label: '月考成績（' + pct(G.examShare) + '）', values: G.exam, cls: 'sum' });
+    fin.push({ label: '平均', values: G.final, d2: true, cls: 'avg' });
+    fin.push({ label: '排名', values: G.ranks, rank: true, cls: 'rank' });
+    rows.push({ side: '學期總成績', rows: fin });
+    return rows;
+  }
+
+  function renderBrief(main, G) {
+    var per = st.perPage, rows = briefRows(G), n = G.students.length;
+    var below = G.final.filter(isLow).length;
+    for (var start = 0; start < n; start += per) {
+      var idx = [];
+      for (var i = start; i < Math.min(n, start + per); i++) idx.push(i);
+      var blanks = per - idx.length;
+      function blankCells(tag) { var s = ''; for (var b = 0; b < blanks; b++) s += '<' + tag + '></' + tag + '>'; return s; }
+      var cap = fullTerm(st.term) + '　' + st.subject + '　' + STAGE_NAME[st.stage] + '　成績紀錄（座號 ' + G.students[idx[0]].seat + '～' + G.students[idx[idx.length - 1]].seat + '）';
+      var h = '<table class="brief"><caption>' + esc(cap) + '</caption><colgroup><col class="side" style="width:66px"><col style="width:156px"></colgroup>';
+      h += '<tr class="head"><th class="head" colspan="2">座號</th>' + idx.map(function (i) { return '<th class="head">' + esc(G.students[i].seat) + '</th>'; }).join('') + blankCells('th') + '</tr>';
+      h += '<tr><th class="diag" colspan="2"><span class="a">姓名</span><span class="b">項目</span></th>' +
+        idx.map(function (i) { return '<th class="head stuName">' + esc(G.students[i].name) + '</th>'; }).join('') + blankCells('th') + '</tr>';
+      rows.forEach(function (sec) {
+        sec.rows.forEach(function (r, ri) {
+          var trCls = [r.cls || ''];
+          if (ri === 0) trCls.push('line');
+          h += '<tr class="' + trCls.join(' ') + '">';
+          if (ri === 0) h += '<th class="side"' + (sec.rows.length > 1 ? ' rowspan="' + sec.rows.length + '"' : ' style="font-size:13px"') + '>' + esc(sec.side) + '</th>';
+          h += '<th class="label">' + esc(r.label) + '</th>';
+          idx.forEach(function (i) {
+            var v = r.values[i];
+            var text = r.rank ? (v == null ? '' : v) : (r.d2 ? n2(v) : (v == null ? '' : (Math.round(v * 10) / 10).toString()));
+            h += '<td' + (!r.rank && isLow(v) ? ' class="low"' : '') + '>' + text + '</td>';
+          });
+          h += blankCells('td') + '</tr>';
+        });
+      });
+      h += '<tr><td class="foot" colspan="' + (2 + per) + '"><span>＊全班人數：' + n + ' 人</span><span>＊全班平均：' + (G.mean == null ? '—' : nd(G.mean, st.dec)) + '</span><span>＊未達 ' + st.low + ' 分者：' + below + ' 人</span></td></tr></table>';
+      var sheet = el('div', { 'class': 'sheet' });
+      sheet.innerHTML = h;
+      main.appendChild(sheet);
+    }
+  }
+
+  // ---- 計分設定 ------------------------------------------------
+  function renderConfig() {
+    var body = AX.$('cfgBody'), d = dataOf(st.subject), cfg = cfgOf(st.subject), W = weightsOf(st.subject);
+    AX.clear(body);
+    body.appendChild(el('p', { 'class': 'muted small' }, '下面的比例和學期成績權重是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一組只看比例，不用剛好是 100。'));
+    var wb = el('div', { 'class': 'bar' });
+    [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度'], ['daily', '平時成績'], ['exam', '月考成績']].forEach(function (x) {
+      var inp = el('input', { type: 'number', min: '0', step: 'any', value: W[x[0]] });
+      inp.onchange = function () { saveWeight(x[0], inp.value); };
+      var g = el('span', { 'class': 'grp' });
+      g.appendChild(el('span', { 'class': 'lbl' }, x[1]));
+      g.appendChild(inp);
+      wb.appendChild(g);
+    });
+    body.appendChild(wb);
+
+    var cats = [];
+    d.items.forEach(function (it) { if ((it.term || '') === (st.term || '') && cats.indexOf(it.category) === -1) cats.push(it.category); });
+    var tb = el('table'), head = el('tr');
+    ['類別', '算在哪一項', '同一項裡的比例', '底分', '換算下限', '換算上限'].forEach(function (t) { head.appendChild(el('th', null, t)); });
+    tb.appendChild(head);
+    cats.forEach(function (c) {
+      var tr = el('tr'), kind = st.raw.kinds[c] || S.defaultKind(c), cur = cfg[c] || {};
+      tr.appendChild(el('td', null, c || '（未分類）'));
+      var sel = el('select');
+      KIND_OPTS.forEach(function (o) { sel.appendChild(el('option', { value: o[0] }, o[1])); });
+      sel.value = kind;
+      sel.onchange = function () { saveKind(c, sel.value); };
+      var td1 = el('td'); td1.appendChild(sel); tr.appendChild(td1);
+      var w = el('input', { type: 'number', min: '0', step: 'any', value: cur.weight == null ? 1 : cur.weight });
+      w.title = '例如國習、筆記都填 1，就是各占一半；填 0＝列出來但不計分';
+      w.onchange = function () { saveCfg(c, 'weight', w.value); };
+      var td2 = el('td'); td2.appendChild(w); tr.appendChild(td2);
+      var b = el('input', { type: 'number', min: '0', max: '99', step: 'any', value: cur.base || 0 });
+      b.title = '例如筆記填 50：分數＝50＋得分÷2，空白就是 50 分，超過滿分不計入';
+      b.onchange = function () { saveCfg(c, 'base', b.value); };
+      var td3 = el('td'); td3.appendChild(b); tr.appendChild(td3);
+      var lo = el('input', { type: 'number', min: '0', max: '99', step: 'any', value: cur.lo || '', placeholder: '70' });
+      lo.title = '總分不是 100 的類別（例如筆記）：用班上現有的分數，最低分換成這個分數';
+      lo.onchange = function () { saveCfg(c, 'lo', lo.value); };
+      var td4 = el('td'); td4.appendChild(lo); tr.appendChild(td4);
+      var hi = el('input', { type: 'number', min: '1', max: '100', step: 'any', value: cur.hi || '', placeholder: '100' });
+      hi.title = '最高分換成這個分數；上下限都填才會啟用換算，空白＝不換算';
+      hi.onchange = function () { saveCfg(c, 'hi', hi.value); };
+      var td5 = el('td'); td5.appendChild(hi); tr.appendChild(td5);
+      tb.appendChild(tr);
+    });
+    body.appendChild(tb);
+    body.appendChild(el('p', { 'class': 'muted small' }, '表格裡的分組就是「類別」：國習 1～6 的類別都設成「國習」，就會合成一欄「國習」平均。可以在登記面板「科目設定 → 項目管理」勾選多個項目一次改類別。'));
+  }
+
+  function saveWeight(key, value) {
+    var w = {}, cur = weightsOf(st.subject);
+    Object.keys(cur).forEach(function (k) { w[k] = cur[k]; });
+    w[key] = value === '' ? 0 : Number(value);
+    AX.call('setSubjectWeights', st.subject, w).then(function () {
+      st.raw.subjectWeights = st.raw.subjectWeights || {};
+      st.raw.subjectWeights[st.subject] = w;
+      render();
+      AX.toast('已儲存比例');
+    }).catch(function (e) { AX.showError(e); render(); });
+  }
+  function saveKind(category, kind) {
+    AX.call('setCategoryKind', category, kind).then(function () { AX.toast('已儲存'); load(); }).catch(function (e) { AX.showError(e); render(); });
+  }
+  function saveCfg(category, field, value) {
+    var cfg = cfgOf(st.subject), c = cfg[category] || (cfg[category] = {});
+    c[field] = value === '' ? 0 : Number(value);
+    render();
+    AX.call('setGradebookConfig', st.raw.gradebook).then(function () { AX.toast('已儲存'); }).catch(AX.showError);
+  }
+
+  // ---- 工具列 --------------------------------------------------
+  AX.$('optLow').value = st.low;
+  AX.$('optPerPage').value = st.perPage;
+  AX.$('optDec').value = String(st.dec);
+  AX.$('optDec').onchange = function () { st.dec = Number(this.value) === 1 ? 1 : 2; remember(); render(); };
+  AX.$('optLow').onchange = function () { var v = Number(this.value); if (v >= 0 && v <= 100) { st.low = v; remember(); render(); } };
+  AX.$('optPerPage').onchange = function () { var v = Math.floor(Number(this.value)); if (v >= 4 && v <= 20) { st.perPage = v; remember(); render(); } };
+
+  // ---- 下載 Excel：每個科目一個工作表（詳表的內容），數字是真的數字，貼到自己的表就能直接算 ----
+  function plainHead(head) {
+    var d = document.createElement('div');
+    d.innerHTML = String(head).split('<span class="pct">').join('（').split('</span>').join('）');
+    return d.textContent;
+  }
+  function sheetName(name, used) {
+    var base = String(name).split('').filter(function (c) { return '[]:*?/'.indexOf(c) < 0 && c.charCodeAt(0) !== 92; }).join('').slice(0, 31) || '科目';
+    var out = base, k = 2;
+    while (used[out]) out = base.slice(0, 28) + '(' + (k++) + ')';
+    used[out] = true;
+    return out;
+  }
+  function sheetOf(subject, G) {
+    var built = detailColumns(G), tail = tailColumns(G), cols = built.cols, all = cols.concat(tail);
+    var width = 2 + all.length + 1, merges = [];
+    var titleRow = [fullTerm(st.term) + '　' + subject + '　' + STAGE_NAME[st.stage] + '成績'];
+    var top = ['座號', '姓名'], sub = ['', ''], pos = 0, c;
+    built.tops.forEach(function (t) {
+      if (t.single) { top.push(plainHead(cols[pos].head)); sub.push(''); merges.push({ s: { r: 1, c: top.length - 1 }, e: { r: 2, c: top.length - 1 } }); }
+      else {
+        var from = top.length;
+        for (c = 0; c < t.n; c++) { top.push(c === 0 ? t.label : ''); sub.push(plainHead(cols[pos + c].head)); }
+        merges.push({ s: { r: 1, c: from }, e: { r: 1, c: top.length - 1 } });
+      }
+      pos += t.n;
+    });
+    tail.forEach(function (x) { top.push(plainHead(x.head)); sub.push(''); merges.push({ s: { r: 1, c: top.length - 1 }, e: { r: 2, c: top.length - 1 } }); });
+    top.push('排名'); sub.push('');
+    merges.push({ s: { r: 1, c: 0 }, e: { r: 2, c: 0 } }, { s: { r: 1, c: 1 }, e: { r: 2, c: 1 } }, { s: { r: 1, c: width - 1 }, e: { r: 2, c: width - 1 } }, { s: { r: 0, c: 0 }, e: { r: 0, c: width - 1 } });
+    var aoa = [titleRow, top, sub];
+    function num(col, v) {
+      if (v == null) return '';
+      if (col.kind === 'item') return v;
+      return S.gbRound(v, col.d2 ? G.dec : 1);
+    }
+    G.students.forEach(function (s, i) {
+      var row = [s.seat === '' || s.seat == null ? '' : s.seat, s.name];
+      all.forEach(function (col) { row.push(num(col, col.values[i])); });
+      row.push(G.ranks[i] == null ? '' : G.ranks[i]);
+      aoa.push(row);
+    });
+    var avgRow = ['', '全班平均'];
+    all.forEach(function (col) { var vals = S.nonNull(col.values); avgRow.push(vals.length ? S.gbRound(S.mean(vals), col.d2 ? G.dec : 1) : ''); });
+    avgRow.push('');
+    aoa.push(avgRow);
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges'] = merges;
+    var ws0 = [{ wch: 6 }, { wch: 10 }];
+    all.forEach(function (col) { ws0.push({ wch: col.kind === 'item' ? 8 : 11 }); });
+    ws0.push({ wch: 6 });
+    ws['!cols'] = ws0;
+    all.forEach(function (col, ci) {
+      if (col.kind === 'item') return;
+      var fmt = col.d2 && G.dec === 2 ? '0.00' : '0.0';
+      for (var r = 3; r < aoa.length; r++) {
+        var cell = ws[XLSX.utils.encode_cell({ r: r, c: 2 + ci })];
+        if (cell && cell.t === 'n') cell.z = fmt;
+      }
+    });
+    return ws;
+  }
+  function downloadExcel() {
+    if (typeof XLSX === 'undefined') return AX.toast('Excel 功能需要連網載入，請確認網路後重新整理頁面', true);
+    var wb = XLSX.utils.book_new(), used = {}, done = [], skipped = [];
+    st.raw.subjects.forEach(function (d) {
+      var G = gbOf(d.subject, st.stage);
+      if (G.empty || !G.students.length || !hasGraded(G)) { skipped.push(d.subject); return; }
+      XLSX.utils.book_append_sheet(wb, sheetOf(d.subject, G), sheetName(d.subject, used));
+      done.push(d.subject);
+    });
+    if (!done.length) return AX.toast('這個學期、這個階段還沒有任何科目有成績', true);
+    XLSX.writeFile(wb, '成績總表_' + fullTerm(st.term) + '_' + STAGE_NAME[st.stage] + '.xlsx');
+    AX.toast('已下載：' + done.join('、') + (skipped.length ? '（' + skipped.join('、') + ' 這個階段還沒有成績，沒有放進去）' : ''));
+  }
+  AX.$('xlsBtn').onclick = downloadExcel;
+  AX.$('reloadBtn').onclick = load;
+  AX.$('printBtn').onclick = function () { window.print(); };
+
+  // 詳表欄位很多：列印前依紙張寬度（A4 橫式約 1060px）自動縮放，整張印在同一頁寬度內
+  window.addEventListener('beforeprint', function () {
+    var t = document.querySelector('table.gb');
+    if (!t) return;
+    t.style.zoom = '';
+    t.style.fontSize = '10.5px';
+    var w = t.scrollWidth;
+    t.style.zoom = w > 1060 ? String(1060 / w) : '';
+  });
+  window.addEventListener('afterprint', function () {
+    var t = document.querySelector('table.gb');
+    if (t) { t.style.zoom = ''; t.style.fontSize = ''; }
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

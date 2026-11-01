@@ -139,6 +139,14 @@
       return r;
     }
     if (fn === 'setCategoryKind') { state.kinds[args[0]] = args[1]; return clone(state.kinds); }
+    if (fn === 'setAttitude') {
+      state.attitude = state.attitude || [];
+      var inc = {}; args[3].forEach(function (e) { inc[String(e.name).replace(/\s+/g, '')] = e.score; });
+      state.attitude = state.attitude.filter(function (h) { return !(h.subject === args[0] && h.term === args[1] && Number(h.p) === Number(args[2]) && inc.hasOwnProperty(h.name)); });
+      Object.keys(inc).forEach(function (n) { if (inc[n] !== '' && inc[n] !== null) state.attitude.push({ subject: args[0], term: args[1], p: Number(args[2]), name: n, score: Number(inc[n]) }); });
+      return clone(state.attitude);
+    }
+    if (fn === 'setGradebookConfig') { state.gradebook = clone(args[0]); return clone(state.gradebook); }
     if (fn === 'setWeights') { state.weights = clone(args[0]); return clone(state.weights); }
     if (fn === 'setSubjectWeights') { state.subjectWeights[args[0]] = args[1] === null ? defaultWeightsFor(args[0]) : clone(args[1]); return true; }
     if (fn === 'importHistory') {

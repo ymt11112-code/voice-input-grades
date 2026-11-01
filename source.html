@@ -263,10 +263,10 @@
     .termNow { background: var(--yellow); color: var(--ink); }
     .tab { border: 2px solid var(--ink); background: #FFFCF6; color: var(--ink); font-weight: 400; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), background .15s; }
     .tab:hover { background: #E0F0F8; transform: translateY(-2px); }
-    .tab.active { background: var(--yellow); color: var(--ink); border-color: var(--ink); animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+    .tab.active { background: var(--yellow); color: var(--ink); border-color: var(--ink); animation: pop .22s cubic-bezier(.3, 1.6, .5, 1); }
     .subjectBar { border: none; background: #FAF3E3; border-radius: 26px; box-shadow: none; }
     .subjectBar select, input[type=text], input[type=number], select, textarea { border: 2px solid var(--ink); border-radius: 14px; background: #FFFCF6; }
-    .panel { border: var(--bw) solid var(--ink); border-radius: 30px; box-shadow: none; animation: rise .5s cubic-bezier(.25, .9, .3, 1) both; }
+    .panel { border: var(--bw) solid var(--ink); border-radius: 30px; box-shadow: none; animation: rise .16s ease-out both; }
     h3 { color: var(--ink); font-weight: 400; font-size: 16px; }
     button { border: 2px solid var(--ink); background: var(--yellow); color: var(--ink); font-weight: 400; transition: transform .15s cubic-bezier(.3, 1.6, .5, 1), background .15s; }
     button:hover { background: #FBE6A8; transform: translateY(-1px); }
@@ -280,7 +280,7 @@
     table { border-radius: 14px; }
     .list-item { border: none; border-radius: 18px; background: #FAF3E3; }
     .toast { color: var(--ink); border: 2px solid var(--ink); border-radius: 18px; box-shadow: none; }
-    .toast.ok { background: var(--green); animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+    .toast.ok { background: var(--green); animation: pop .22s cubic-bezier(.3, 1.6, .5, 1); }
     .toast.err { background: var(--coral); }
     .tokenGate { background: rgba(62, 58, 57, .42); }
     .tokenGate .box { border: var(--bw) solid var(--ink); border-radius: 30px; box-shadow: none; animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
@@ -291,13 +291,15 @@
     .card { border: 2px solid var(--ink); border-radius: 26px; }
     .cardHeader { background: #FDF0CD; }
     .cardHeader b { color: var(--ink); font-weight: 400; }
-    .cardBody { animation: rise .4s cubic-bezier(.25, .9, .3, 1) both; }
+    .cardBody { animation: rise .14s ease-out both; }
     .cardBody[hidden] { animation: none; }
     .cardIcon { border: none; border-radius: 12px; }
     .cardIcon.tint-gold { background: #FDF0CD; } .cardIcon.tint-purple { background: #FCE4DE; }
     .cardIcon.tint-blue { background: #E0F0F8; } .cardIcon.tint-teal { background: #E7F3DD; }
     .subjectBtn { background: #FFFCF6; color: var(--ink); border: 2px solid var(--ink); padding: 4px 14px; display: inline-flex; align-items: center; gap: 4px; }
-    .subjectBtn.active { background: var(--yellow); color: var(--ink); border-color: var(--ink); animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+    .subjectBtn.active { background: var(--yellow); color: var(--ink); border-color: var(--ink); animation: pop .22s cubic-bezier(.3, 1.6, .5, 1); }
+    .listBusy { pointer-events: none; opacity: .55; }
+    .syncStatus:empty { display: none; }
     table.itemTable th, table.itemTable td { border: 1.5px solid #EBE2D2; }
     table.itemTable th { background: #FDF0CD; }
     .bulkBar { border: none; border-radius: 18px; background: #E0F0F8; }
@@ -315,7 +317,7 @@
     @keyframes sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
     @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
     @keyframes pop { 0% { transform: scale(.82); } 45% { transform: scale(1.1, .94); } 70% { transform: scale(.97, 1.04); } 100% { transform: scale(1); } }
-    @keyframes rise { 0% { opacity: 0; transform: translateY(14px) scale(.985); } 60% { opacity: 1; transform: translateY(-3px); } 100% { opacity: 1; transform: none; } }
+    @keyframes rise { 0% { opacity: .35; transform: translateY(5px); } 100% { opacity: 1; transform: none; } }
     /* 使用者設定「減少動態效果」時，全部停掉 */
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
   </style>
@@ -328,6 +330,7 @@
     <span class="appVersion">v1.0.0</span>
     <span style="flex:1"></span>
     <a class="analysisLink" href="https://ymt11112-code.github.io/voice-input-grades/analysis/Dashboard.html" target="_blank" rel="noopener">📈 成績分析（全班概況／個人概況）</a>
+    <a class="analysisLink" href="https://ymt11112-code.github.io/voice-input-grades/analysis/Gradebook.html" target="_blank" rel="noopener">📋 成績總表（詳表／簡表）</a>
   </div>
 
   <div class="topBar">
@@ -345,7 +348,8 @@
       <span class="muted" id="subjectHint"></span>
       <span class="termPick">學期：<select id="termSelect" onchange="onViewTermChange(this.value)"></select></span>
       <span style="flex:1"></span>
-      <span id="loadingIndicator" class="pill" style="display:none;">⏳ 載入中...</span>
+      <span id="syncStatus" class="pill syncStatus"></span>
+      <span id="loadingIndicator" class="pill" style="display:none;">⏳ 處理中...</span>
     </div>
   </div>
 
@@ -628,7 +632,9 @@
           <button class="secondary" onclick="openCurrentSubjectSheet()">開啟目前科目工作表</button>
           <button class="secondary" onclick="refreshAllData()">🔄 重新整理資料</button>
         </div>
-        <p class="muted">「重新整理資料」會重新從試算表讀取科目、類別、學生、語音修正等所有設定，如果懷疑畫面跟試算表不同步，可以按這個。</p>
+        <p class="muted">「重新整理資料」會重新從試算表讀取科目、類別、學生、成績等所有資料。畫面平常會自動更新（開啟時、離開超過 30 秒再回來時），如果剛在試算表裡直接改過資料，可以按這個立刻更新。</p>
+        <label><input type="checkbox" id="noCacheToggle" onchange="onNoCacheToggle(this.checked)"> 不要把成績暫存在這台裝置（公用電腦建議勾選）</label>
+        <p class="muted">為了讓面板開啟就有畫面，成績名單會暫存在這個瀏覽器。勾選後會立刻清除暫存，以後每次開啟都要等讀取完才有畫面。</p>
       </div>
     </div>
 
@@ -663,8 +669,8 @@
     <div class="row">
       <select id="scoreCategoryFilter" onchange="renderScoreItemOptions()" style="min-width:140px"></select>
       <select id="scoreItemSelect" style="min-width:260px" onchange="loadScoreTable()"></select>
-      <button class="secondary" onclick="loadScoreTable()">載入成績表</button>
-      <button onclick="onSaveScores()">💾 儲存成績</button>
+      <button class="secondary" onclick="reloadCurrentSubject_()" title="重新從試算表讀取這個科目">從試算表重新載入</button>
+      <button onclick="onSaveScores(); flushNow_();">💾 儲存成績</button>
       <button class="danger" onclick="onClearScores()">🗑 清空此項目成績</button>
       <span id="scoreMaxHint" class="pill"></span>
     </div>
@@ -747,8 +753,8 @@
       <button class="secondary" onclick="stepStudent(-1)">◀ 上一位</button>
       <select id="studentSelectForEntry" style="min-width:200px" onchange="loadStudentScoreTable()"></select>
       <button class="secondary" onclick="stepStudent(1)">下一位 ▶</button>
-      <button class="secondary" onclick="loadStudentScoreTable()">🔄 重新載入</button>
-      <button onclick="onSaveStudentScores()">💾 儲存這位學生的所有成績</button>
+      <button class="secondary" onclick="reloadCurrentSubject_()" title="重新從試算表讀取這個科目">🔄 從試算表重新載入</button>
+      <button onclick="onSaveStudentScores(); flushNow_();">💾 儲存這位學生的所有成績</button>
       <button class="danger" onclick="onClearStudentScores()">🗑 清空這位學生的成績</button>
     </div>
 
@@ -1158,9 +1164,416 @@ function hideLoading() {
   }
 }
 
+// ============================================================
+// 快速面板的核心：畫面只看瀏覽器裡的資料，伺服器的事放到背景做
+// ------------------------------------------------------------
+// 跟「作業小幫手」同樣的做法：開啟時先用上次暫存的資料立刻畫出畫面，同時在背景向試算表
+// 要最新資料；切換科目、頁籤、項目、學生都只是重畫，不用連線。
+// 不同的地方：作業小幫手是每隔幾秒把整張表整個寫回去，成績資料不適合這樣（會蓋掉別人剛改的格子），
+// 這裡只寫真的有改的格子，而且伺服器寫入前會核對學生和項目是不是同一個（見 Code.gs 的 saveScoreCells）。
+// ============================================================
+
+// 所有會寫入試算表的動作依序一個一個做，後面的要等前面的完成，順序才不會亂
+var opChain_ = Promise.resolve();
+function enqueueOp_(fn) {
+  var p = opChain_.then(fn, fn);
+  opChain_ = p.then(function () {}, function () {});
+  return p;
+}
+
+// 做完順便帶回該科目最新資料的動作（對應 Code.gs 的 BUNDLE_FNS_）
+var BUNDLE_FNS_ = {
+  addItem: 1, addItemSeries: 1, deleteItem: 1, deleteItems: 1, moveItem: 1, updateItems: 1, reorderItems: 1,
+  addStudent: 1, addStudentsBulk: 1, copyStudentsFrom: 1, deleteStudent: 1
+};
+// 會讓欄位或列號位移的動作：做完之前，清單暫時不能點，避免用舊的位置操作到別的項目
+var SHIFT_FNS_ = { deleteItem: 1, deleteItems: 1, moveItem: 1, reorderItems: 1, deleteStudent: 1 };
+// 會動到工作表結構的動作：先把還沒寫入的成績寫完再做
+var FLUSH_FIRST_FNS_ = {
+  addSubject: 1, renameSubject: 1, deleteSubject: 1, moveSubject: 1, createExternalSubject: 1,
+  copyItemsToTerm: 1, importItemTemplate: 1, upgradeToTermLayout: 1
+};
+
 function call(fnName) {
   var args = Array.prototype.slice.call(arguments, 1);
+  if (BUNDLE_FNS_[fnName]) return callWithBundle_(fnName, args);
+  if (FLUSH_FIRST_FNS_[fnName]) {
+    return enqueueOp_(function () {
+      return flushWrites_().then(function () { return rawCall_(fnName, args); });
+    });
+  }
+  return rawCall_(fnName, args);
+}
+
+var bundleCallsInFlight_ = {};
+var listBusyCount_ = 0;
+function setListsBusy_(delta) {
+  listBusyCount_ = Math.max(0, listBusyCount_ + delta);
+  ['itemList', 'studentList'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('listBusy', listBusyCount_ > 0);
+  });
+}
+
+function callWithBundle_(fnName, args) {
+  var subject = args[0], shifts = !!SHIFT_FNS_[fnName];
+  bundleCallsInFlight_[subject] = (bundleCallsInFlight_[subject] || 0) + 1;
+  if (shifts) setListsBusy_(1);
   showLoading();
+  function done() {
+    bundleCallsInFlight_[subject]--;
+    if (shifts) setListsBusy_(-1);
+    hideLoading();
+  }
+  return enqueueOp_(function () {
+    return flushWrites_().then(function () { return rawCall_('runWithBundle', [fnName, args], true); });
+  }).then(function (res) {
+    done();
+    // 連續操作時，只採用最後一次的結果，中間的不要蓋掉畫面上已經先變好的內容
+    if (!bundleCallsInFlight_[subject]) storeBundle_(subject, res.bundle);
+    return res.result;
+  }, function (err) {
+    done();
+    reloadSubject_(subject).then(null, function () { /* 連不上時留著目前畫面 */ });  // 操作失敗：畫面回到試算表的真實狀態
+    throw err;
+  });
+}
+
+// ---- 成績寫入佇列 ------------------------------------------------
+var writeQ_ = {};           // key（科目＋列＋欄）→ 要寫入的格子
+var writeSeq_ = 0;
+var flushTimer_ = null;
+var retryDelay_ = 0;
+var SAVE_DEBOUNCE_MS_ = 1200;   // 停止輸入 1.2 秒後寫入，連續念語音時會合併成一次
+
+function pendingCount_() { return Object.keys(writeQ_).length; }
+
+function setSync_(text, autoClear) {
+  var el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = text || '';
+  clearTimeout(setSync_._h);
+  if (text && autoClear) setSync_._h = setTimeout(function () { el.textContent = ''; }, 3000);
+}
+
+function queueCell_(subject, item, student, score) {
+  var key = [subject, student.row, item.col].join('\u0001');
+  writeQ_[key] = {
+    key: key, subject: subject, row: student.row, col: item.col, score: score,
+    student: String(student.name), seat: student.seat === undefined ? '' : student.seat,
+    item: String(item.name), term: item.term || '', category: item.category || '', seq: ++writeSeq_
+  };
+  var b = store.bundles[subject];
+  if (b) setBundleScore_(b, student.row, item.col, score);
+}
+
+function setBundleScore_(b, row, col, score) {
+  var cells = b.scores[row] || (b.scores[row] = {});
+  if (score === '') delete cells[col]; else cells[col] = score;
+}
+
+function afterQueued_() {
+  persistPending_();
+  saveCacheSoon_();
+  setSync_('✏️ 待儲存 ' + pendingCount_() + ' 筆');
+  scheduleFlush_(SAVE_DEBOUNCE_MS_);
+}
+
+function scheduleFlush_(ms) {
+  clearTimeout(flushTimer_);
+  flushTimer_ = setTimeout(function () {
+    enqueueOp_(flushWrites_).then(null, function () { /* 已排定重試 */ });
+  }, ms);
+}
+
+// 只能在 enqueueOp_ 裡呼叫。把佇列裡的格子寫進試算表，失敗會保留在佇列裡並自動重試。
+function flushWrites_() {
+  clearTimeout(flushTimer_);
+  var keys = Object.keys(writeQ_);
+  if (!keys.length) return Promise.resolve();
+  var groups = {};
+  keys.forEach(function (k) {
+    var c = writeQ_[k];
+    (groups[c.subject] = groups[c.subject] || []).push({
+      key: c.key, row: c.row, col: c.col, score: c.score, student: c.student, seat: c.seat,
+      item: c.item, term: c.term, category: c.category, seq: c.seq
+    });
+  });
+  setSync_('☁️ 儲存中…（' + keys.length + ' 筆）');
+  var conflicts = [], relocated = false, chain = Promise.resolve();
+  Object.keys(groups).forEach(function (subject) {
+    chain = chain.then(function () {
+      return rawCall_('saveScoreCells', [subject, groups[subject]], true).then(function (res) {
+        var seqOf = {};
+        groups[subject].forEach(function (c) { seqOf[c.key] = c.seq; });
+        // 寫入途中又改了同一格的話（序號不同）要留著，下一輪再寫
+        function drop(k) { if (writeQ_[k] && writeQ_[k].seq === seqOf[k]) delete writeQ_[k]; }
+        (res.ok || []).forEach(drop);
+        (res.conflicts || []).forEach(function (c) { drop(c.key); conflicts.push(subject + '／' + c.item + '／' + c.student + '：' + c.why); });
+        if (res.relocated) relocated = true;
+        persistPending_();
+      });
+    });
+  });
+  return chain.then(function () {
+    retryDelay_ = 0;
+    if (conflicts.length) {
+      setSync_('⚠️ 有 ' + conflicts.length + ' 筆成績沒有寫入');
+      alert('有 ' + conflicts.length + ' 筆成績沒有寫入試算表，請確認後重新登記：\n\n' + conflicts.slice(0, 15).join('\n'));
+    } else if (pendingCount_()) {
+      setSync_('✏️ 待儲存 ' + pendingCount_() + ' 筆');
+    } else {
+      setSync_('✅ 已儲存', true);
+    }
+    if (pendingCount_()) scheduleFlush_(SAVE_DEBOUNCE_MS_);
+    if (conflicts.length || relocated) setTimeout(function () { syncAll_({ silent: true }).then(null, function () {}); }, 0);
+  }, function (err) {
+    retryDelay_ = Math.min(retryDelay_ ? retryDelay_ * 2 : 3000, 60000);
+    setSync_('⚠️ 尚未存入試算表 ' + pendingCount_() + ' 筆，' + Math.round(retryDelay_ / 1000) + ' 秒後自動重試');
+    scheduleFlush_(retryDelay_);
+    throw err;
+  });
+}
+
+function flushNow_() {
+  return enqueueOp_(flushWrites_).then(function () {
+    if (!pendingCount_()) toast('所有成績都已存入試算表');
+  }, showError);
+}
+
+// ---- 瀏覽器暫存 --------------------------------------------------
+function storeKey_(name) { return name + '|' + (WEBAPP_URL || 'panel'); }
+function lsGet_(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet_(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+function lsDel_(k) { try { localStorage.removeItem(k); } catch (e) { /* 忽略 */ } }
+
+// 還沒寫入的成績一定要先留一份，就算這時候關掉面板或當機，下次開啟也會自動補寫
+function persistPending_() {
+  if (pendingCount_()) lsSet_(storeKey_('SCORE_PENDING_V1'), JSON.stringify(writeQ_));
+  else lsDel_(storeKey_('SCORE_PENDING_V1'));
+}
+function restorePending_() {
+  var raw = lsGet_(storeKey_('SCORE_PENDING_V1'));
+  if (!raw) return;
+  try {
+    var q = JSON.parse(raw);
+    Object.keys(q).forEach(function (k) { writeQ_[k] = q[k]; if (q[k].seq > writeSeq_) writeSeq_ = q[k].seq; });
+  } catch (e) { lsDel_(storeKey_('SCORE_PENDING_V1')); }
+}
+
+function noCacheMode_() { return lsGet_('SCORE_NO_CACHE') === '1'; }
+function cacheSnapshot_() {
+  return {
+    subjects: state.subjects, categories: state.categories, textCorrections: state.textCorrections,
+    termConfig: { terms: state.terms, current: state.currentTerm }, layout: store.layout || { v1: state.legacySubjects },
+    subjectWeights: weightRows_, sheetInfo: spreadsheetInfo, bundles: store.bundles
+  };
+}
+function saveCacheSoon_() {
+  if (noCacheMode_()) return;
+  clearTimeout(saveCacheSoon_._h);
+  saveCacheSoon_._h = setTimeout(saveCacheNow_, 400);
+}
+function saveCacheNow_() {
+  clearTimeout(saveCacheSoon_._h);
+  if (noCacheMode_() || !store.ready) return;
+  if (!lsSet_(storeKey_('SCORE_CACHE_V1'), JSON.stringify(cacheSnapshot_()))) lsDel_(storeKey_('SCORE_CACHE_V1'));
+}
+function readCache_() {
+  if (noCacheMode_()) return null;
+  var raw = lsGet_(storeKey_('SCORE_CACHE_V1'));
+  if (!raw) return null;
+  try { var c = JSON.parse(raw); return c && c.bundles && c.subjects ? c : null; }
+  catch (e) { lsDel_(storeKey_('SCORE_CACHE_V1')); return null; }
+}
+function onNoCacheToggle(on) {
+  if (on) {
+    lsSet_('SCORE_NO_CACHE', '1');
+    clearTimeout(saveCacheSoon_._h);
+    lsDel_(storeKey_('SCORE_CACHE_V1'));
+    toast('已清除這台裝置的暫存成績');
+  } else {
+    lsDel_('SCORE_NO_CACHE');
+    saveCacheNow_();
+    toast('已開啟暫存，下次開啟會更快');
+  }
+}
+
+// ---- 向試算表拿資料 ----------------------------------------------
+function overlayPending_(subject, b) {
+  Object.keys(writeQ_).forEach(function (k) {
+    var c = writeQ_[k];
+    if (c.subject === subject) setBundleScore_(b, c.row, c.col, c.score);
+  });
+  return b;
+}
+
+function storeBundle_(subject, b) {
+  store.bundles[subject] = overlayPending_(subject, b);
+  saveCacheSoon_();
+}
+
+function focusIn_(id) {
+  var a = document.activeElement, box = document.getElementById(id);
+  return !!(a && box && box.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+}
+function activeTab_() {
+  var b = document.querySelector('.tab.active');
+  return b ? b.dataset.tab : '';
+}
+
+// 只重畫目前看得到的頁籤；其他頁籤切換過去時才畫，切換科目才會快
+function renderSubjectViews_() {
+  var t = activeTab_();
+  if (t === 'setup') refreshItems();
+  if (t === 'students') refreshStudents();
+  if (t === 'scores') refreshScoreItemSelect();
+}
+
+function bundleShape_(b) { return b ? JSON.stringify([b.items, b.students]) : ''; }
+
+// 背景拿到新資料後更新畫面：內容沒變就不動；正在輸入的欄位不會被蓋掉
+function refreshAfterSync_(prevAll, prevShape) {
+  var b = store.bundles[state.subject];
+  if (bundleCallsInFlight_[state.subject]) return;
+  if (b && JSON.stringify(b) === prevAll) return;
+  var t = activeTab_();
+  if (t === 'setup' && !focusIn_('itemList')) refreshItems();
+  if (t === 'students' && !focusIn_('panel-students')) refreshStudents();
+  if (t === 'scores') {
+    if (bundleShape_(b) === prevShape) patchVisibleScores_();
+    else if (!focusIn_('scoreTableBody') && !focusIn_('studentScoreTableBody')) refreshScoreItemSelect();
+  }
+}
+
+function reloadSubject_(subject) {
+  return enqueueOp_(function () {
+    return flushWrites_().then(null, function () {}).then(function () { return rawCall_('getSubjectBundle', [subject], true); });
+  }).then(function (b) {
+    var cur = store.bundles[subject];
+    var prevAll = cur ? JSON.stringify(cur) : '', prevShape = bundleShape_(cur);
+    storeBundle_(subject, b);
+    if (subject === state.subject) refreshAfterSync_(prevAll, prevShape);
+    return b;
+  });
+}
+
+function reloadCurrentSubject_() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  var tag = document.getElementById('scoreTableLoadedTag');
+  if (tag) tag.textContent = '⏳ 載入中…';
+  showLoading();
+  reloadSubject_(state.subject).then(function () {
+    hideLoading();
+    refreshScoreItemSelect();
+    toast('已重新載入「' + state.subject + '」');
+  }, function (err) { hideLoading(); refreshScoreItemSelect(); showError(deployHint_(err)); });
+}
+
+// 當前面板的科目沒有資料（例如剛新增）就去拿；拿到後自動畫出來
+function ensureBundle_() {
+  var s = state.subject;
+  if (!s) return false;
+  if (store.bundles[s]) return true;
+  if (store.syncing || store.loading[s]) return false;
+  store.loading[s] = true;
+  reloadSubject_(s).then(function () {
+    delete store.loading[s];
+    if (s === state.subject) renderSubjectViews_();
+  }, function (err) { delete store.loading[s]; showError(deployHint_(err)); });
+  return false;
+}
+
+// 網頁比後端新時（Code.gs 沒更新，或獨立頁面對應的部署還是舊版）給明確指示
+function deployHint_(err) {
+  var m = String(err && err.message ? err.message : err);
+  if (/不允許呼叫此函式|reading 'apply'|is not a function|undefined is not an object|not found/i.test(m)) {
+    return new Error('後端程式還是舊版：請把新的 Code.gs 貼到 Apps Script 並存檔；獨立語音頁面還需要到「部署 → 管理部署作業」發布新版本。');
+  }
+  return err;
+}
+
+function applyBootstrap_(data) {
+  var cur = store.bundles[state.subject];
+  var prevAll = cur ? JSON.stringify(cur) : '', prevShape = bundleShape_(cur);
+  var prevSubject = state.subject;
+  var metaBefore = store.metaSig;
+  store.metaSig = JSON.stringify([data.subjects, data.categories, data.textCorrections, data.termConfig, data.layout]);
+  var firstRender = !store.ready;
+  store.ready = true;
+  store.layout = data.layout;
+
+  store.bundles = {};
+  Object.keys(data.bundles || {}).forEach(function (n) { store.bundles[n] = overlayPending_(n, data.bundles[n]); });
+  state.subjects = data.subjects || [];
+  state.categories = data.categories || [];
+  state.textCorrections = data.textCorrections || [];
+  if (data.sheetInfo) spreadsheetInfo = data.sheetInfo;
+  if (!state.subject || state.subjects.indexOf(state.subject) === -1) state.subject = state.subjects[0] || null;
+
+  var weightsBefore = JSON.stringify(weightRows_);
+  if (data.subjectWeights) { weightRows_ = data.subjectWeights; weightsLoaded_ = true; }
+
+  if (firstRender || metaBefore !== store.metaSig || prevSubject !== state.subject) {
+    applyTermConfig_(data);
+    renderSubjectButtons();
+    renderSubjectList();
+    renderCategoryList();
+    renderCategoryOptionsForItems();
+    renderTextCorrectionList();
+  }
+  if (activeTab_() === 'setup' && weightsBefore !== JSON.stringify(weightRows_) && !focusIn_('weightTable')) renderWeightTable_();
+  if (firstRender || prevSubject !== state.subject) renderSubjectViews_();
+  else refreshAfterSync_(prevAll, prevShape);
+  saveCacheSoon_();
+}
+
+// 整份同步：先把還沒寫的成績寫完，再讀最新資料。opts.silent：背景執行，不顯示「處理中」
+function syncAll_(opts) {
+  if (store.syncing) return store.syncing;
+  opts = opts || {};
+  store.syncing = enqueueOp_(function () {
+    return flushWrites_().then(null, function () { /* 寫入失敗會自動重試；讀取照做 */ })
+      .then(function () { return rawCall_('getBootstrap', [], opts.silent); });
+  }).then(function (data) {
+    store.syncing = null;
+    store.lastSyncAt = Date.now();
+    applyBootstrap_(data);
+    if (!pendingCount_()) setSync_('');
+    return data;
+  }, function (err) {
+    store.syncing = null;
+    store.lastSyncAt = Date.now();    // 失敗也別馬上再試，等下一次時間到
+    if (store.ready) setSync_('⚠️ 暫時連不上試算表，目前顯示上次的資料');
+    throw deployHint_(err);
+  });
+  return store.syncing;
+}
+
+// 回到這個視窗時，超過 30 秒沒更新就在背景更新一次（例如剛去試算表直接改過資料）
+function maybeBackgroundSync_() {
+  if (document.hidden || !store.ready) return;
+  if (Date.now() - store.lastSyncAt < 30000) return;
+  syncAll_({ silent: true }).then(null, function () { /* 已顯示在狀態列 */ });
+}
+window.addEventListener('focus', maybeBackgroundSync_);
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) {
+    saveCacheNow_();
+    if (pendingCount_()) enqueueOp_(flushWrites_).then(null, function () {});
+  } else maybeBackgroundSync_();
+});
+window.addEventListener('pagehide', saveCacheNow_);
+window.addEventListener('beforeunload', function (e) {
+  if (!pendingCount_()) return;
+  enqueueOp_(flushWrites_).then(null, function () {});
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+function rawCall_(fnName, args, silent) {
+  args = args || [];
+  if (!silent) showLoading();
   var promise;
 
   if (window.google && google.script && google.script.run) {
@@ -1240,8 +1653,8 @@ function call(fnName) {
   }
 
   return promise.then(
-    function (result) { hideLoading(); return result; },
-    function (err) { hideLoading(); throw err; }
+    function (result) { if (!silent) hideLoading(); return result; },
+    function (err) { if (!silent) hideLoading(); throw err; }
   );
 }
 
@@ -1263,8 +1676,6 @@ var state = {
   subjects: [],
   categories: [],
   textCorrections: [],
-  items: [],
-  students: [],
   currentItemCol: null,
   terms: [],                // 學期清單（時間順序）
   currentTerm: '',          // 目前學期：新增項目的預設值
@@ -1275,11 +1686,26 @@ var state = {
   digitPairPointer: 0 // 依學生登記語音輸入：只念分數，兩位一組，依序對應勾選項目
 };
 
+// 每個科目的資料（項目、名單、全部成績）都放在瀏覽器裡
+var store = { bundles: {}, loading: {}, syncing: null, ready: false, lastSyncAt: 0, metaSig: '' };
+
+// state.items／state.students 永遠是「目前科目」的資料。設定它們沒有作用（資料由 store 統一管理），
+// 所以背景回來的結果不可能把別的科目的項目放到現在這個科目的畫面上。
+Object.defineProperty(state, 'items', {
+  get: function () { var b = store.bundles[state.subject]; return b ? b.items : []; },
+  set: function () { /* 見上方說明 */ }
+});
+Object.defineProperty(state, 'students', {
+  get: function () { var b = store.bundles[state.subject]; return b ? b.students : []; },
+  set: function () { /* 見上方說明 */ }
+});
+
 function switchScoreMode(mode) {
   state.scoreMode = mode;
   document.getElementById('scoreModeItem').hidden = mode !== 'byItem';
   document.getElementById('scoreModeStudent').hidden = mode !== 'byStudent';
-  if (mode === 'byStudent') refreshStudents();
+  if (mode === 'byStudent') renderStudentSelectForEntry();
+  else if (state.subject) renderScoreItemOptions();
 }
 
 // ============================================================
@@ -1293,7 +1719,11 @@ document.querySelectorAll('.tab').forEach(function (btn) {
     document.getElementById('panel-' + btn.dataset.tab).hidden = false;
     if (btn.dataset.tab === 'setup') { refreshItems(); loadWeights_(); }
     if (btn.dataset.tab === 'students') refreshStudents();
-    if (btn.dataset.tab === 'system') { renderTextCorrectionList(); initBackupCard_(); }
+    if (btn.dataset.tab === 'system') {
+      renderTextCorrectionList();
+      initBackupCard_();
+      if (isPanelMode_() && !refreshManualUrlDisplay._done) { refreshManualUrlDisplay._done = true; refreshManualUrlDisplay(); }
+    }
     if (btn.dataset.tab === 'scores') refreshScoreItemSelect();
   });
 });
@@ -1302,31 +1732,34 @@ document.querySelectorAll('.tab').forEach(function (btn) {
 // 初始化
 // ============================================================
 window.addEventListener('load', function () {
-  call('getInitData').then(function (data) {
-    state.subjects = data.subjects || [];
-    state.categories = data.categories || [];
-    state.textCorrections = data.textCorrections || [];
-    applyTermConfig_(data);
-    if (state.subjects.length) state.subject = state.subjects[0];
-    renderSubjectButtons();
-    renderSubjectList();
-    renderCategoryList();
-    renderCategoryOptionsForItems();
-    renderTextCorrectionList();
-    // 不管頁面預設停在哪個頁籤，載入時就把各頁籤的資料準備好，避免要先切換頁籤才會出現
-    refreshItems();
-    refreshStudents();
-    refreshScoreItemSelect();
-  }).catch(showError);
+  var nc = document.getElementById('noCacheToggle');
+  if (nc) nc.checked = noCacheMode_();
+  // 1. 上次沒存完的成績放回佇列（下面的同步會先把它們寫入）
+  restorePending_();
+  // 2. 有暫存就立刻畫出畫面
+  var cached = readCache_();
+  if (cached) applyBootstrap_(cached);
+  if (pendingCount_()) setSync_('✏️ 上次還有 ' + pendingCount_() + ' 筆成績沒存入，正在補寫');
+  // 3. 背景向試算表拿最新資料
+  syncAll_({ silent: !!cached }).catch(function (err) {
+    if (!cached) showError(err); else toast(err.message || String(err), true);
+  });
 });
 
 function selectSubject(s) {
   if (state.subject === s) return;
   state.subject = s;
-  renderSubjectButtons();
-  refreshItems();
-  refreshStudents();
-  refreshScoreItemSelect();
+  markSubjectButtons_();
+  renderSubjectViews_();
+}
+
+// 切換科目只換底色，不用重建按鈕和裡面的插圖
+function markSubjectButtons_() {
+  document.querySelectorAll('#subjectButtons .subjectBtn').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.subject === state.subject);
+  });
+  var sel = document.getElementById('subjectSelectMobile');
+  if (sel) sel.value = state.subject || '';
 }
 
 (function () { var t = document.getElementById('appTitle'); if (t && window.AXArt) t.insertBefore(AXArt.icon('book', 34), t.firstChild); })();
@@ -1337,6 +1770,7 @@ function renderSubjectButtons() {
   state.subjects.forEach(function (s) {
     var btn = document.createElement('button');
     btn.className = 'subjectBtn' + (s === state.subject ? ' active' : '');
+    btn.dataset.subject = s;
     btn.textContent = s;
     if (window.AXArt) btn.insertBefore(AXArt.subject(s, 20), btn.firstChild);
     btn.onclick = function () { selectSubject(s); };
@@ -1377,6 +1811,11 @@ function toggleCard(bodyId) {
   var card = body.closest('.card');
   body.hidden = !body.hidden;
   card.classList.toggle('collapsed', body.hidden);
+  // 備份清單要讀雲端硬碟，比較慢：第一次展開才讀，不用每次切到系統設定都等
+  if (bodyId === 'card-backup' && !body.hidden && !toggleCard._backupLoaded) {
+    toggleCard._backupLoaded = true;
+    loadBackupStatus_();
+  }
 }
 
 // ------------------------------------------------------------
@@ -1435,7 +1874,6 @@ if (isPanelMode_()) {
   var voiceStudentWarning = document.getElementById('voiceStudentPanelWarning');
   if (voiceWarning) voiceWarning.hidden = false;
   if (voiceStudentWarning) voiceStudentWarning.hidden = false;
-  refreshManualUrlDisplay();
 } else {
   // <head> 裡的 <base target="_top"> 是給 Apps Script 面板情境用的（跳出 Google 的
   // iframe），獨立頁面本身就是最上層頁面，沒有父層 iframe 可跳，留著這個屬性反而會讓
@@ -1466,22 +1904,8 @@ function openCurrentSubjectSheet() {
 }
 
 function refreshAllData() {
-  spreadsheetInfo = null;
-  call('getInitData').then(function (data) {
-    state.subjects = data.subjects || [];
-    state.categories = data.categories || [];
-    state.textCorrections = data.textCorrections || [];
-    applyTermConfig_(data);
-    if (!state.subject || state.subjects.indexOf(state.subject) === -1) {
-      state.subject = state.subjects[0] || null;
-    }
-    renderSubjectButtons();
-    renderCategoryList();
-    renderCategoryOptionsForItems();
-    renderTextCorrectionList();
-    refreshItems();
-    refreshStudents();
-    refreshScoreItemSelect();
+  syncAll_({}).then(function () {
+    renderSubjectViews_();
     toast('已重新整理資料');
   }).catch(showError);
 }
@@ -1495,9 +1919,11 @@ function onAddSubject() {
   call('addSubject', name).then(function (subjects) {
     state.subjects = subjects;
     state.subject = name;
+    weightsLoaded_ = false;
     document.getElementById('newSubjectName').value = '';
     renderSubjectButtons();
     renderSubjectList();
+    renderSubjectViews_();
     toast('已新增科目：' + name);
   }).catch(showError);
 }
@@ -1564,7 +1990,11 @@ function renderSubjectList() {
       if (nn && nn.trim() && nn.trim() !== s) {
         call('renameSubject', s, nn.trim()).then(function (subjects) {
           state.subjects = subjects;
+          if (store.bundles[s]) { store.bundles[nn.trim()] = store.bundles[s]; delete store.bundles[s]; }
           if (state.subject === s) state.subject = nn.trim();
+          weightsLoaded_ = false;
+          spreadsheetInfo = null;
+          saveCacheSoon_();
           renderSubjectButtons();
           renderSubjectList();
           toast('已更名');
@@ -1580,9 +2010,14 @@ function renderSubjectList() {
       if (!confirm('確定要刪除科目「' + s + '」嗎？此工作表所有成績資料將永久刪除！')) return;
       call('deleteSubject', s).then(function (subjects) {
         state.subjects = subjects;
+        delete store.bundles[s];
         if (state.subject === s) state.subject = subjects[0] || null;
+        weightsLoaded_ = false;
+        spreadsheetInfo = null;
+        saveCacheSoon_();
         renderSubjectButtons();
         renderSubjectList();
+        renderSubjectViews_();
         toast('已刪除科目：' + s);
       }).catch(showError);
     };
@@ -1931,11 +2366,8 @@ function renderCategoryOptionsForItems() {
 // 項目管理
 // ============================================================
 function refreshItems() {
-  if (!state.subject) return;
-  call('getItems', state.subject).then(function (items) {
-    state.items = items;
-    renderItemList();
-  }).catch(showError);
+  ensureBundle_();
+  renderItemList();
 }
 
 function onAddItem() {
@@ -2069,15 +2501,23 @@ function commitOrder_(visibleCols) {
   }).catch(function (e) { showError(e); refreshItems(); });
 }
 
+// 畫面先變，背景再存；失敗的話 callWithBundle_ 會把畫面還原成試算表的內容
 function saveItem_(it, patch, rerender) {
   var u = { col: it.col };
-  Object.keys(patch).forEach(function (k) { u[k] = patch[k]; });
-  call('updateItems', state.subject, [u]).then(function (items) {
-    Object.keys(patch).forEach(function (k) { it[k] = patch[k]; });
-    state.items = items;
-    if (rerender) renderItemList();
-    toast('已儲存');
-  }).catch(function (e) { showError(e); renderItemList(); });
+  Object.keys(patch).forEach(function (k) {
+    u[k] = patch[k];
+    if (k === 'period') {
+      it.periodSet = patch.period;
+      if (patch.period === 1 || patch.period === 2) it.period = patch.period;
+    } else it[k] = patch[k];
+  });
+  if (rerender) renderItemList();
+  setSync_('☁️ 儲存中…');
+  var subject = state.subject;
+  call('updateItems', subject, [u]).then(function () {
+    if (rerender && subject === state.subject && activeTab_() === 'setup' && !focusIn_('itemList')) renderItemList();
+    if (!pendingCount_()) setSync_('✅ 已儲存', true);
+  }).catch(function (e) { setSync_(''); showError(e); });
 }
 
 function itemRow_(it) {
@@ -2316,6 +2756,7 @@ function onImportTemplate() {
 // 各科目學期成績權重
 // ============================================================
 var weightRows_ = [];
+var weightsLoaded_ = false;
 var WEIGHT_GROUPS_ = [
   ['學期成績', [['p1', '第一次定期考查（期中）'], ['p2', '第二次定期考查（期末）']]],
   ['每次定期考查', [['daily', '平時成績'], ['exam', '段考分數']]],
@@ -2324,8 +2765,9 @@ var WEIGHT_GROUPS_ = [
 var WEIGHT_KEYS_ = [];
 WEIGHT_GROUPS_.forEach(function (g) { g[1].forEach(function (c) { WEIGHT_KEYS_.push(c[0]); }); });
 
-function loadWeights_() {
-  call('getSubjectWeights').then(function (rows) { weightRows_ = rows; renderWeightTable_(); }).catch(showError);
+function loadWeights_(force) {
+  if (weightsLoaded_ && !force) return renderWeightTable_();
+  call('getSubjectWeights').then(function (rows) { weightRows_ = rows; weightsLoaded_ = true; renderWeightTable_(); saveCacheSoon_(); }).catch(showError);
 }
 
 function renderWeightTable_() {
@@ -2364,7 +2806,7 @@ function renderWeightTable_() {
             weightRows_ = rows;
             refreshSums();
             toast('已儲存「' + row.subject + '」的權重');
-          }).catch(function (e) { showError(e); loadWeights_(); });
+          }).catch(function (e) { showError(e); loadWeights_(true); });
         };
         var td = document.createElement('td'); td.appendChild(inp); tr.appendChild(td);
       });
@@ -2387,7 +2829,7 @@ function onResetAllWeights() {
   if (!confirm('確定要把所有科目的權重都還原成預設值嗎？自訂過的數字會被覆蓋。')) return;
   var chain = Promise.resolve();
   weightRows_.forEach(function (r) { if (r.custom) chain = chain.then(function () { return call('setSubjectWeights', r.subject, null); }); });
-  chain.then(function () { loadWeights_(); toast('已還原預設'); }).catch(showError);
+  chain.then(function () { loadWeights_(true); toast('已還原預設'); }).catch(showError);
 }
 
 function onUpgradeNow() {
@@ -2404,13 +2846,9 @@ function onUpgradeNow() {
 // 名單管理
 // ============================================================
 function refreshStudents() {
-  if (!state.subject) return;
-  call('getStudents', state.subject).then(function (students) {
-    state.students = students;
-    renderStudentList();
-    renderStudentSelectForEntry();
-    renderCopySourceOptions();
-  }).catch(showError);
+  ensureBundle_();
+  renderStudentList();
+  renderCopySourceOptions();
 }
 
 function renderCopySourceOptions() {
@@ -2439,14 +2877,26 @@ function onCopyStudentsFrom() {
 function renderStudentSelectForEntry() {
   var sel = document.getElementById('studentSelectForEntry');
   if (!sel) return;
+  // 重畫時留在同一位學生（用姓名找，名單順序變了也對得上）
+  var keepName = state.currentStudentName, keepRow = '';
   sel.innerHTML = '';
   state.students.forEach(function (s) {
     var opt = document.createElement('option');
     opt.value = s.row;
     opt.textContent = (s.seat ? s.seat + '號 ' : '') + s.name;
     sel.appendChild(opt);
+    if (keepName !== undefined && String(s.name) === keepName && keepRow === '') keepRow = String(s.row);
   });
-  if (state.scoreMode === 'byStudent' && sel.options.length) loadStudentScoreTable();
+  if (keepRow) sel.value = keepRow;
+  if (state.scoreMode !== 'byStudent') return;
+  if (!sel.options.length) {
+    document.getElementById('studentScoreTableBody').innerHTML = '';
+    state.currentStudentRow = null; state.studentTableKey = ''; state.studentTableMeta = null;
+    return;
+  }
+  // 同一張表（同科目、同學生、同學期）就只更新數字，語音念到第幾項不會被重設
+  if (state.studentTableKey === studentTableKey_(Number(sel.value))) patchVisibleScores_();
+  else loadStudentScoreTable();
 }
 
 // 上一位／下一位學生，切換後自動載入該生成績表
@@ -2515,12 +2965,47 @@ function renderStudentList() {
 // 登記成績
 // ============================================================
 function refreshScoreItemSelect() {
-  if (!state.subject) return;
-  call('getItems', state.subject).then(function (items) {
-    state.items = items;
-    renderScoreCategoryFilter();
-    renderScoreItemOptions();
-  }).catch(showError);
+  ensureBundle_();
+  renderScoreCategoryFilter();
+  renderScoreItemOptions();
+  renderStudentSelectForEntry();
+}
+
+function itemKey_(it) { return [it.term, it.category, it.name].join('\u0001'); }
+function scoreOf_(b, row, col) {
+  var cells = b.scores[row];
+  var v = cells ? cells[col] : undefined;
+  return v === undefined || v === null ? '' : v;
+}
+
+// 輸入框的內容跟目前資料不同嗎？文字格（例如試算表裡直接打「缺考」）輸入框顯示不出來，
+// 除非是「清空」，否則不要因為輸入框是空的就把它蓋掉。
+function scoreChanged_(cached, value, force) {
+  if (value === '') {
+    if (cached === '') return false;
+    return isNaN(Number(cached)) ? !!force : true;
+  }
+  return cached === '' || Number(cached) !== Number(value);
+}
+
+// 背景拿到新資料時只更新數字，不重畫表格（游標、語音進度、勾選都不會動）；正在輸入的那一格不更新
+function patchVisibleScores_() {
+  var b = store.bundles[state.subject];
+  if (!b) return;
+  var active = document.activeElement;
+  if (state.scoreTableMeta && state.scoreTableMeta.subject === state.subject) {
+    var col = state.scoreTableMeta.item.col;
+    document.querySelectorAll('#scoreTableBody input[type=number]').forEach(function (input) {
+      if (input !== active && input.dataset.row) input.value = scoreOf_(b, Number(input.dataset.row), col);
+    });
+  }
+  if (state.studentTableMeta && state.studentTableMeta.subject === state.subject) {
+    var row = state.studentTableMeta.student.row;
+    document.querySelectorAll('#studentScoreTableBody tr').forEach(function (tr) {
+      var input = tr.dataset.col ? tr.querySelector('input[type=number]') : null;
+      if (input && input !== active) input.value = scoreOf_(b, row, Number(tr.dataset.col));
+    });
+  }
 }
 
 // 依項目登記時，先用類別篩選，再列出該類別底下的項目，避免項目一多下拉選單過長
@@ -2548,6 +3033,7 @@ function renderScoreItemOptions() {
   var filter = document.getElementById('scoreCategoryFilter').value;
   var sel = document.getElementById('scoreItemSelect');
   sel.innerHTML = '';
+  var keepCol = '';
   var filtered = state.items.filter(function (it) {
     return inViewTerm_(it) && (!filter || (it.category || '未分類') === filter);
   });
@@ -2556,77 +3042,90 @@ function renderScoreItemOptions() {
     opt.value = it.col;
     opt.textContent = (!state.viewTerm && it.term ? it.term + ' ' : '') + '[' + (it.category || '未分類') + '] ' + it.name + (it.max ? '（滿分' + it.max + '）' : '');
     sel.appendChild(opt);
+    // 重畫時留在同一個項目（用學期＋類別＋名稱找，欄位位置變了也對得上）
+    if (state.currentItemKey && itemKey_(it) === state.currentItemKey) keepCol = String(it.col);
   });
+  if (keepCol) sel.value = keepCol;
   if (filtered.length) loadScoreTable();
-  else document.getElementById('scoreTableBody').innerHTML = '<tr><td colspan="6" class="muted">此類別尚無項目</td></tr>';
+  else {
+    state.currentItemCol = null; state.currentItemKey = ''; state.scoreTableMeta = null;
+    var loadedTag = document.getElementById('scoreTableLoadedTag');
+    if (loadedTag) loadedTag.textContent = '';
+    document.getElementById('scoreMaxHint').textContent = '';
+    document.getElementById('scoreTableBody').innerHTML = '<tr><td colspan="6" class="muted">此類別尚無項目</td></tr>';
+  }
 }
 
 function loadScoreTable() {
   var sel = document.getElementById('scoreItemSelect');
   if (!sel.value) return;
   var col = Number(sel.value);
-  state.currentItemCol = col;
+  var b = store.bundles[state.subject];
   var item = state.items.find(function (i) { return i.col === col; });
-  document.getElementById('scoreMaxHint').textContent = item && item.max ? '滿分 ' + item.max : '';
+  if (!b || !item) return;
+  state.currentItemCol = col;
+  state.currentItemKey = itemKey_(item);
+  document.getElementById('scoreMaxHint').textContent = item.max ? '滿分 ' + item.max : '';
 
-  // 低調的「有沒有成功換成目前選的項目」提示：不用跳訊息，直接看標題旁這個小標籤
-  // 是不是跟下拉選單一致，就知道畫面是不是真的已經重新載入、還是連線失敗留著舊資料。
-  var loadedTag = document.getElementById('scoreTableLoadedTag');
-  if (loadedTag) loadedTag.textContent = '⏳ 載入中…';
+  // 這張表實際對應的科目、項目、學生，儲存時用這份，不會受之後切換科目影響
+  var byRow = {};
+  b.students.forEach(function (s) { byRow[s.row] = s; });
+  state.scoreTableMeta = { subject: state.subject, item: item, byRow: byRow };
 
-  call('getScores', state.subject, col).then(function (scores) {
-    var body = document.getElementById('scoreTableBody');
-    body.innerHTML = '';
-    if (!scores.length) {
-      body.innerHTML = '<tr><td colspan="6" class="muted">請先在「名單管理」新增學生</td></tr>';
-      if (loadedTag) loadedTag.textContent = '已載入：' + (item ? item.name : '');
-      return;
-    }
-    // 一列塞兩位學生（6欄），讓成績表能一次容納更多人，不用一直往下滾。
-    // 用「直排」順序：左欄先由上到下排完前半段學生，右欄接著由上到下排後半段，
-    // 不是左右交錯（橫排）。
-    var half = Math.ceil(scores.length / 2);
-    for (var i = 0; i < half; i++) {
-      var left = scores[i];
-      var right = scores[i + half];
-      var tr = document.createElement('tr');
-      // 表格是左右兩欄呈現（一列塞兩位學生），但 Tab 鍵預設會照 DOM 順序左右左右跳，
-      // 不是照座號順序。這裡用 tabindex 強制 Tab 鍵照資料順序走：先走完左欄全部，
-      // 再走右欄，跟座號（資料本身的順序）一致，方便手動輸入時連續按 Tab。
-      tr.innerHTML = scoreCellGroup_(left, i + 1) + (right ? scoreCellGroup_(right, i + half + 1) : '<td></td><td></td><td></td>');
-      body.appendChild(tr);
-    }
-    if (loadedTag) loadedTag.textContent = '已載入：' + (item ? item.name : '');
-  }).catch(function (err) {
-    if (loadedTag) loadedTag.textContent = '⚠️ 載入失敗';
-    showError(err);
+  var scores = b.students.map(function (s) {
+    return { row: s.row, seat: s.seat, name: s.name, score: scoreOf_(b, s.row, col) };
   });
+  var body = document.getElementById('scoreTableBody');
+  // 低調的「有沒有成功換成目前選的項目」提示：不用跳訊息，直接看標題旁這個小標籤
+  // 是不是跟下拉選單一致，就知道畫面顯示的是哪個項目。
+  var loadedTag = document.getElementById('scoreTableLoadedTag');
+  if (loadedTag) loadedTag.textContent = '已載入：' + item.name;
+  if (!scores.length) {
+    body.innerHTML = '<tr><td colspan="6" class="muted">請先在「名單管理」新增學生</td></tr>';
+    return;
+  }
+  // 一列塞兩位學生（6欄），讓成績表能一次容納更多人，不用一直往下滾。
+  // 用「直排」順序：左欄先由上到下排完前半段學生，右欄接著由上到下排後半段，
+  // 不是左右交錯（橫排）。
+  // 表格是左右兩欄呈現（一列塞兩位學生），但 Tab 鍵預設會照 DOM 順序左右左右跳，
+  // 不是照座號順序。這裡用 tabindex 強制 Tab 鍵照資料順序走：先走完左欄全部，
+  // 再走右欄，跟座號（資料本身的順序）一致，方便手動輸入時連續按 Tab。
+  var half = Math.ceil(scores.length / 2), html = '';
+  for (var i = 0; i < half; i++) {
+    var right = scores[i + half];
+    html += '<tr>' + scoreCellGroup_(scores[i], i + 1) + (right ? scoreCellGroup_(right, i + half + 1) : '<td></td><td></td><td></td>') + '</tr>';
+  }
+  body.innerHTML = html;
 }
 
 function scoreCellGroup_(s, tabIndex) {
   return '<td>' + (s.seat || '') + '</td><td>' + escapeHtml(s.name) + '</td>' +
-    '<td><input type="number" tabindex="' + tabIndex + '" data-row="' + s.row + '" data-name="' + escapeHtml(s.name) + '" data-seat="' + (s.seat || '') + '" value="' + (s.score === '' ? '' : s.score) + '"></td>';
+    '<td><input type="number" tabindex="' + tabIndex + '" data-row="' + s.row + '" data-name="' + escapeHtml(s.name) + '" data-seat="' + (s.seat || '') + '" value="' + escapeHtml(s.score) + '"></td>';
 }
 
-function onSaveScores() {
-  if (!state.currentItemCol) return;
-  var inputs = document.querySelectorAll('#scoreTableBody input[type=number]');
-  var entries = [];
-  inputs.forEach(function (input) {
-    if (!input.dataset.row) return;
-    entries.push({ row: Number(input.dataset.row), score: input.value === '' ? '' : input.value });
+// 比對畫面和目前資料，只把真的有改的格子放進寫入佇列（語音、拍照、手動輸入都走這裡）
+function onSaveScores(force) {
+  var meta = state.scoreTableMeta;
+  if (!state.currentItemCol || !meta) return;
+  var b = store.bundles[meta.subject];
+  if (!b) return;
+  var changed = 0;
+  document.querySelectorAll('#scoreTableBody input[type=number]').forEach(function (input) {
+    var stu = meta.byRow[input.dataset.row];
+    if (!stu) return;
+    var v = input.value === '' ? '' : Number(input.value);
+    if (!scoreChanged_(scoreOf_(b, stu.row, meta.item.col), input.value, force === true)) return;
+    queueCell_(meta.subject, meta.item, stu, v);
+    changed++;
   });
-  if (!entries.length) return;
-  call('saveScores', state.subject, state.currentItemCol, entries).then(function () {
-    toast('已自動儲存');
-  }).catch(showError);
+  if (changed) afterQueued_();
 }
 
 function onClearScores() {
   if (!state.currentItemCol) return toast('請先選擇項目並載入成績表', true);
   if (!confirm('確定要清空「目前這個項目」全班的成績嗎？會直接清空 Google 試算表裡的資料，且無法復原！')) return;
   document.querySelectorAll('#scoreTableBody input[type=number]').forEach(function (input) { input.value = ''; });
-  onSaveScores();
+  onSaveScores(true);
   toast('已清空此項目成績');
 }
 
@@ -2638,34 +3137,45 @@ document.getElementById('scoreTableBody').addEventListener('change', function (e
 // ------------------------------------------------------------
 // 依學生登記：選一位學生，一次輸入他所有項目的成績
 // ------------------------------------------------------------
+function studentTableKey_(row) { return [state.subject, row, state.viewTerm, bundleShape_(store.bundles[state.subject])].join('\u0001'); }
+
 function loadStudentScoreTable() {
   var sel = document.getElementById('studentSelectForEntry');
   if (!sel.value) return toast('請先選擇學生', true);
   var row = Number(sel.value);
+  var b = store.bundles[state.subject];
+  var student = state.students.find(function (s) { return s.row === row; });
+  if (!b || !student) return;
   state.currentStudentRow = row;
+  state.currentStudentName = String(student.name);
+  state.studentTableKey = studentTableKey_(row);
 
-  call('getStudentScores', state.subject, row).then(function (items) {
-    items = items.filter(inViewTerm_);
-    var body = document.getElementById('studentScoreTableBody');
-    body.innerHTML = '';
-    if (!items.length) {
-      body.innerHTML = '<tr><td colspan="6" class="muted">請先在「項目管理」建立項目</td></tr>';
-      return;
-    }
-    items.forEach(function (it) {
-      var tr = document.createElement('tr');
-      tr.dataset.col = it.col;
-      tr.dataset.name = it.name;
-      tr.innerHTML = '<td class="seqNum" title="點一下：把下一筆語音指向這一項">-</td>' +
-        '<td><input type="checkbox" class="itemCheckbox" checked></td>' +
-        '<td>' + escapeHtml(it.category || '') + '</td><td>' + escapeHtml(it.name) + '</td>' +
-        '<td>' + (it.max || '') + '</td>' +
-        '<td><input type="number" value="' + (it.score === '' ? '' : it.score) + '"></td>';
-      body.appendChild(tr);
-    });
-    renumberSeq();
-    resetDigitPairPointer();
-  }).catch(showError);
+  var items = state.items.filter(inViewTerm_);
+  // 這張表實際對應的科目、學生、項目，儲存時用這份，不會受之後切換科目影響
+  var byCol = {};
+  items.forEach(function (it) { byCol[it.col] = it; });
+  state.studentTableMeta = { subject: state.subject, student: student, byCol: byCol };
+
+  var body = document.getElementById('studentScoreTableBody');
+  body.innerHTML = '';
+  if (!items.length) {
+    body.innerHTML = '<tr><td colspan="6" class="muted">請先在「項目管理」建立項目</td></tr>';
+    return;
+  }
+  items.forEach(function (it) {
+    var score = scoreOf_(b, row, it.col);
+    var tr = document.createElement('tr');
+    tr.dataset.col = it.col;
+    tr.dataset.name = it.name;
+    tr.innerHTML = '<td class="seqNum" title="點一下：把下一筆語音指向這一項">-</td>' +
+      '<td><input type="checkbox" class="itemCheckbox" checked></td>' +
+      '<td>' + escapeHtml(it.category || '') + '</td><td>' + escapeHtml(it.name) + '</td>' +
+      '<td>' + (it.max || '') + '</td>' +
+      '<td><input type="number" value="' + escapeHtml(score) + '"></td>';
+    body.appendChild(tr);
+  });
+  renumberSeq();
+  resetDigitPairPointer();
 }
 
 // 依勾選狀態＋順序，重新編列「序」欄位，供「序號＋分數」語音模式對照
@@ -2839,29 +3349,29 @@ function applyDigitPairScores(scores, rawText) {
   updateSequentialProgress();
 }
 
-function onSaveStudentScores() {
-  if (!state.currentStudentRow) return;
-  var rows = document.querySelectorAll('#studentScoreTableBody tr');
-  var updates = [];
-  rows.forEach(function (tr) {
-    if (!tr.dataset.col) return;
+function onSaveStudentScores(force) {
+  var meta = state.studentTableMeta;
+  if (!state.currentStudentRow || !meta) return;
+  var b = store.bundles[meta.subject];
+  if (!b) return;
+  var changed = 0;
+  document.querySelectorAll('#studentScoreTableBody tr').forEach(function (tr) {
+    var item = tr.dataset.col ? meta.byCol[tr.dataset.col] : null;
+    if (!item) return;
     var input = tr.querySelector('input[type=number]');
-    updates.push({
-      col: Number(tr.dataset.col),
-      entries: [{ row: state.currentStudentRow, score: input.value === '' ? '' : input.value }]
-    });
+    var v = input.value === '' ? '' : Number(input.value);
+    if (!scoreChanged_(scoreOf_(b, meta.student.row, item.col), input.value, force === true)) return;
+    queueCell_(meta.subject, item, meta.student, v);
+    changed++;
   });
-  if (!updates.length) return;
-  call('bulkSaveScores', state.subject, updates).then(function () {
-    toast('已自動儲存');
-  }).catch(showError);
+  if (changed) afterQueued_();
 }
 
 function onClearStudentScores() {
   if (!state.currentStudentRow) return toast('請先選擇學生並載入成績表', true);
   if (!confirm('確定要清空這位學生「所有項目」的成績嗎？會直接清空 Google 試算表裡的資料，且無法復原！')) return;
   document.querySelectorAll('#studentScoreTableBody input[type=number]').forEach(function (input) { input.value = ''; });
-  onSaveStudentScores();
+  onSaveStudentScores(true);
   toast('已清空這位學生的成績');
 }
 
@@ -3203,7 +3713,6 @@ function initBackupCard_() {
   var only = document.getElementById('backupPanelOnly'), box = document.getElementById('backupBox');
   if (!isPanelMode_()) { only.hidden = false; box.hidden = true; return; }
   only.hidden = true; box.hidden = false;
-  loadBackupStatus_();
 }
 
 function loadBackupStatus_() {
