@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261101">
+  <link rel="stylesheet" href="analysis-common.css?v=20261102">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -37,6 +37,10 @@
     .low { color: #D0301C; font-weight: 700; }
     table.gb td.att { background: #FFF6DC; padding: 2px 3px; }
     table.gb input.attIn { width: 56px; text-align: center; font: inherit; border: 1.5px dashed #C9A94B; border-radius: 8px; padding: 2px 3px; background: #fff; }
+    table.gb .attSc { margin-left: 4px; font-size: 12px; color: #6B4E08; white-space: nowrap; }
+    .gbCfg .scaleCell { white-space: nowrap; }
+    .gbCfg .scaleCell input[type=number] { width: 64px; }
+    .gbCfg .scaleCell .tiny { font-size: 12.5px; padding: 3px 10px; }
     table.gb input.attIn:focus { outline: 2px solid var(--ink); border-style: solid; }
     .over { outline: 2px solid #E59A00; outline-offset: -2px; }
     .legend { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
@@ -68,8 +72,25 @@
     .gbCfg th, .gbCfg td { padding: 4px 10px; border-bottom: 2px dotted var(--line); text-align: left; font-weight: 400; }
     .gbCfg input[type=number] { width: 70px; }
 
-    @page { size: A4 landscape; margin: 8mm; }
+    .sheet .bt + .bt { margin-top: 22px; }
+    .rowPick label { display: inline-block; margin: 3px 14px 3px 0; white-space: nowrap; }
+    .rowPick .sec { margin: 6px 0 2px; font-weight: 700; }
     @media print {
+      .rowPick { display: none !important; }
+      .sheet .bt { break-inside: avoid; }
+      .sheet .bt + .bt { margin-top: 7mm; }
+      table.brief caption { font-size: 17px; padding: 0 0 4px; }
+      table.brief th, table.brief td { font-size: 12.5px; padding: 3px 1px; }
+      table.brief col.cSide { width: 50px !important; }
+      table.brief col.cLab { width: 112px !important; }
+      table.brief .side { width: 50px; font-size: 14px; }
+      table.brief .label { width: 112px; font-size: 12px; }
+      table.brief .stuName { font-size: 14px; height: 78px; letter-spacing: 1px; }
+      table.brief .diag .a { top: 8px; right: 22px; font-size: 12px; letter-spacing: 3px; }
+      table.brief .diag .b { bottom: 8px; left: 16px; font-size: 12px; letter-spacing: 3px; }
+      table.brief tr.rank td { font-size: 15px; }
+      table.brief td.foot { font-size: 12px; padding: 4px 6px; }
+      table.brief td.foot span { margin-right: 14px; }
       .gbCfg, .legend { display: none !important; }
       table.gb input.attIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
       table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -81,6 +102,7 @@
       .sheet:last-child { break-after: auto; }
     }
   </style>
+  <style id="pageStyle">@page { size: A4 landscape; margin: 8mm; }</style>
 </head>
 <body>
 <div class="app">
@@ -110,12 +132,16 @@
     <div class="bar">
       <span class="grp"><span class="lbl">未達</span><input type="number" id="optLow" min="0" max="100" style="width:64px"><span class="lbl">分標紅色</span></span>
       <span class="grp"><span class="lbl">平均取小數</span><select id="optDec"><option value="2">2 位（跟 Excel 一樣）</option><option value="1">1 位（四捨五入）</option></select></span>
-      <span class="grp" id="perPageGrp"><span class="lbl">簡表每頁</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人</span></span>
+      <span class="grp" id="perPageGrp"><span class="lbl">簡表每個表格</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人（一張 A4 直式放兩個表格）</span></span>
       <span class="spacer"></span>
       <button id="xlsBtn" title="每個科目一個工作表，一次下載全部">⬇️ 下載 Excel（全部科目）</button>
       <button class="primary" id="printBtn">🖨️ 列印 / 存成 PDF</button>
       <button id="reloadBtn" title="在試算表修改成績後，按這裡重新讀取">🔄 重新讀取試算表</button>
     </div>
+    <details class="card gbCfg rowPick noprint" id="rowBox" style="display:none">
+      <summary><b>🧾 簡表要印哪些列</b></summary>
+      <div id="rowBody"></div>
+    </details>
     <div id="main"></div>
     <details class="card gbCfg noprint" id="cfgBox">
       <summary><b>⚙️ 計分設定（這個科目）</b></summary>
@@ -125,10 +151,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261101"></script>
-<script src="analysis-demo.js?v=20261101"></script>
-<script src="analysis-art.js?v=20261101"></script>
-<script src="analysis-common.js?v=20261101"></script>
+<script src="analysis-stats.js?v=20261102"></script>
+<script src="analysis-demo.js?v=20261102"></script>
+<script src="analysis-art.js?v=20261102"></script>
+<script src="analysis-common.js?v=20261102"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -137,13 +163,14 @@
   try { saved = JSON.parse(AX.lsGet(STORE) || '{}') || {}; } catch (e) { saved = {}; }
   var st = {
     raw: null, subject: saved.subject || null, term: null, stage: null,
-    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : 'detail', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 12, G: null
+    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : 'detail', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
+    rowOpt: saved.rowOpt && typeof saved.rowOpt === 'object' ? saved.rowOpt : {}   // 簡表要印哪些列：{科目: {列的代號: true/false}}
   };
   var KIND_OPTS = [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度（課堂表現）'], ['midterm', '期中考'], ['final', '期末考'], ['skip', '不列入']];
   var STAGE_NAME = { 1: '期中考', 2: '期末考' };
 
   AX.shell();
-  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec })); }
+  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec, rowOpt: st.rowOpt })); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n1(v) { return v == null ? '' : (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
   function nd(v, dec) {
@@ -183,7 +210,7 @@
   function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, attOf(subject, stage)); }
   function gbFor(stage) { return gbOf(st.subject, stage); }
   function hasGraded(G) {
-    return G.examOn || G.groups.some(function (g) { return g.cats.some(function (c) { return c.items.some(function (x) { return x.graded; }); }); });
+    return G.examGraded || G.groups.some(function (g) { return g.cats.some(function (c) { return c.items.some(function (x) { return x.graded; }); }); });
   }
 
   function load() {
@@ -214,6 +241,8 @@
     if (!st.subject) { main.appendChild(el('div', { 'class': 'empty' }, '還沒有任何科目')); return; }
     var G = st.G = gbFor(st.stage);
     renderConfig();
+    document.getElementById('pageStyle').textContent = '@page { size: A4 ' + (st.view === 'brief' ? 'portrait' : 'landscape') + '; margin: 8mm; }';
+    renderRowPicker(G);
     if (G.empty || !G.students.length) {
       main.appendChild(el('div', { 'class': 'empty' }, G.students.length ? '這個階段還沒有登記項目' : '這個科目還沒有學生名單'));
       return;
@@ -230,7 +259,7 @@
       var single = g.cats.length === 1 && g.cats[0].items.length === 1 && !g.cats[0].base && !g.cats[0].scale;
       var start = cols.length;
       if (g.cats.length === 1 && g.cats[0].input) {
-        cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '輸入') + '</span>', cls: 'grp att', values: g.avg, input: true, raw: g.cats[0].avg, pctVal: true });
+        cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '輸入') + '</span>', cls: 'grp att', values: g.avg, input: true, raw: g.cats[0].raw, scaled: !!g.cats[0].scale, pctVal: true });
         cols[start].first = true;
         tops.push({ label: g.label, n: 1, single: true });
         return;
@@ -240,7 +269,7 @@
           c.items.forEach(function (x) {
             cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores });
           });
-          if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.avg : null, input: !!c.input, pctVal: true });
+          if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.raw : null, scaled: !!c.scale, input: !!c.input, pctVal: true });
         });
       }
       cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '不計分') + '</span>', cls: 'grp', values: g.avg, pctVal: true });
@@ -253,7 +282,7 @@
   function tailColumns(G) {
     var tail = [];
     tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: true });
-    if (G.examListed) tail.push({ head: '月考成績<span class="pct">' + pct(G.examShare) + '</span>', cls: 'dly', values: G.exam, pctVal: true });
+    if (G.examListed) tail.push({ head: STAGE_NAME[st.stage] + '<span class="pct">' + pct(G.examShare) + (G.examDefault ? '・未輸入暫' + G.blank : '') + '</span>', cls: 'dly', values: G.exam, pctVal: true });
     tail.push({ head: '平均', cls: 'fin', values: G.final, pctVal: true, d2: true });
     return tail;
   }
@@ -288,7 +317,7 @@
         if (c.kind === 'item' && v != null && v > c.item.max) { cls.push('over'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
         if (c.input) {
           var rv = c.raw ? c.raw[i] : null;
-          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表"></td>';
+          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + S.BLANK_DEFAULT + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + S.BLANK_DEFAULT + ' 分">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';
           return;
         }
         h += '<td' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + title + '>' + (c.d2 ? n2(v) : n1(v)) + '</td>';
@@ -313,6 +342,7 @@
     card.appendChild(wrap);
     var over = wrap.querySelectorAll('.over').length;
     card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」直接在表上輸入（Enter 到下一位）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
+      (shareNote(G) ? ' ' + shareNote(G) : '') +
       (over ? ' ⚠️ 有 ' + over + ' 格超過滿分（橘框），請確認有沒有打錯。' : '')));
     main.appendChild(card);
     wireAttitudeInputs(wrap, G);
@@ -352,38 +382,99 @@
   }
   function setSaved(msg) { AX.toast(msg); }
 
-  // ---- 簡表（學生橫列，方便列印） ------------------------------
-  function briefRows(G) {
+  // ---- 簡表（學生橫列，方便列印；A4 直式，一張放兩個表格） ------------------------------
+  // all＝true：列出全部可選的列（給「要印哪些列」勾選用）；否則只留下有勾的列
+  function briefRows(G, all) {
+    var opt = st.rowOpt[st.subject] || {};
+    function on(key, def) { return opt[key] == null ? def : !!opt[key]; }
     var rows = [];
     G.groups.forEach(function (g) {
-      var group = [];
+      var group = [], multi = g.cats.length > 1;
       var side = { other: '上課態度', homework: '平時作業', quiz: '平時測驗' }[g.kind];
       var total = { other: '態度', homework: '作業平均', quiz: '紙筆測驗' }[g.kind];
-      if (g.cats.length > 1) g.cats.forEach(function (c) { group.push({ label: c.category + '平均', values: c.avg }); });
-      group.push({ label: total + (g.used ? '（' + pct(g.share) + '）' : '（不計分）'), values: g.avg, cls: g.kind === 'other' ? 'att' : 'tot' });
+      g.cats.forEach(function (c) {
+        if (c.input) return;
+        var key = 'c:' + c.category, def = multi;   // 只有一個類別時，類別那列跟總列一樣，預設不重複印
+        group.push({ key: key, label: c.category + '平均', values: c.avg, on: on(key, def) });
+      });
+      var gk = 'g:' + g.kind;
+      group.push({ key: gk, label: total + (g.used ? '（' + pct(g.share) + '）' : '（不計分）'), values: g.avg, cls: g.kind === 'other' ? 'att' : 'tot', on: on(gk, true) });
       rows.push({ side: side, rows: group, cls: g.kind === 'other' ? 'att' : '' });
     });
-    var fin = [{ label: '平時成績（' + pct(G.dailyShare) + '）', values: G.daily, cls: 'sum' }];
-    if (G.examListed) fin.push({ label: '月考成績（' + pct(G.examShare) + '）', values: G.exam, cls: 'sum' });
-    fin.push({ label: '平均', values: G.final, d2: true, cls: 'avg' });
-    fin.push({ label: '排名', values: G.ranks, rank: true, cls: 'rank' });
-    rows.push({ side: '學期總成績', rows: fin });
-    return rows;
+    var fin = [{ key: 'daily', label: '平時成績（' + pct(G.dailyShare) + '）', values: G.daily, cls: 'sum', on: on('daily', true) }];
+    if (G.examListed) fin.push({ key: 'exam', label: STAGE_NAME[st.stage] + '（' + pct(G.examShare) + '）', values: G.exam, cls: 'sum', on: on('exam', true) });
+    fin.push({ key: 'final', label: '平均', values: G.final, d2: true, cls: 'avg', on: on('final', true) });
+    fin.push({ key: 'rank', label: '排名', values: G.ranks, rank: true, cls: 'rank', on: on('rank', true) });
+    rows.push({ side: (st.stage === 2 ? '期末' : '期中') + '總成績', rows: fin });
+    if (all) return rows;
+    return rows.map(function (s) { return { side: s.side, cls: s.cls, rows: s.rows.filter(function (r) { return r.on; }) }; })
+      .filter(function (s) { return s.rows.length; });
+  }
+
+  // 勾選簡表要印哪些列（例如只印「作業平均」，不印底下各種簿本；不想印態度就取消）
+  function renderRowPicker(G) {
+    var box = AX.$('rowBox'), body = AX.$('rowBody');
+    box.style.display = st.view === 'brief' && G && !G.empty ? '' : 'none';
+    AX.clear(body);
+    if (st.view !== 'brief' || !G || G.empty) return;
+    body.appendChild(el('p', { 'class': 'muted small' }, '打勾的列才會出現在簡表和列印裡（這個設定每個科目各自記住）。例如平時作業底下有國習、筆記等簿本，可以只勾想印的。'));
+    briefRows(G, true).forEach(function (sec) {
+      body.appendChild(el('div', { 'class': 'sec' }, sec.side));
+      sec.rows.forEach(function (r) {
+        var cb = el('input', { type: 'checkbox' });
+        cb.checked = r.on;
+        cb.onchange = function () {
+          var o = st.rowOpt[st.subject] || (st.rowOpt[st.subject] = {});
+          o[r.key] = cb.checked;
+          remember(); render();
+        };
+        var lab = el('label');
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode(' ' + (r.key.indexOf('c:') === 0 ? '類別：' : '') + r.label.replace(/（.*）$/, '')));
+        body.appendChild(lab);
+      });
+    });
+  }
+
+  // 態度還沒輸入（或某一項沒資料）時，那一項不計分，其餘項目的比例會自動換算成合計 100%，所以才會看到 46.7%、53.3% 這種數字
+  function shareNote(G) {
+    var parts = [];
+    var attCat = null;
+    G.groups.forEach(function (g) { g.cats.forEach(function (c) { if (c.input) attCat = c; }); });
+    if (attCat && attCat.raw) {
+      var miss = attCat.raw.filter(function (v) { return v == null; }).length;
+      if (miss) parts.push('＊態度還沒輸入的 ' + miss + ' 位同學，先當作 ' + G.blank + ' 分計算（輸入後改用實際分數）。');
+    }
+    if (G.examDefault) parts.push('＊' + STAGE_NAME[st.stage] + '還沒有成績，全班先當作 ' + G.blank + ' 分計算。如果已經登記了卻沒出現，請到下方「計分設定」確認那個類別「算在哪一項」是「' + STAGE_NAME[st.stage] + '」。');
+    var s2 = shareNote2(G);
+    if (s2) parts.push(s2);
+    return parts.join(' ');
+  }
+  function shareNote2(G) {
+    var unused = G.groups.filter(function (g) { return !g.used && g.weight > 0; });
+    if (!unused.length) return '';
+    var used = G.groups.filter(function (g) { return g.used; });
+    var set = G.groups.filter(function (g) { return g.weight > 0; });
+    return '＊' + unused.map(function (g) { return g.label; }).join('、') + '還沒有成績，所以不計分；平時成績依其餘項目的設定比例（' +
+      used.map(function (g) { return g.label + ' ' + g.weight; }).join('：') + '）換算成合計 100%（' +
+      used.map(function (g) { return pct(g.share); }).join('、') + '）。輸入後會恢復成設定的 ' + set.map(function (g) { return g.weight; }).join('：') +
+      '。如果這科不計' + unused[0].label + '，到「計分設定」把它的比例改成 0 即可。';
   }
 
   function renderBrief(main, G) {
-    var per = st.perPage, rows = briefRows(G), n = G.students.length;
+    var per = st.perPage, rows = briefRows(G, false), n = G.students.length;
     var below = G.final.filter(isLow).length;
+    function blankCells(tag, k) { var s = ''; for (var b = 0; b < k; b++) s += '<' + tag + '></' + tag + '>'; return s; }
+    var tables = [];
     for (var start = 0; start < n; start += per) {
       var idx = [];
       for (var i = start; i < Math.min(n, start + per); i++) idx.push(i);
       var blanks = per - idx.length;
-      function blankCells(tag) { var s = ''; for (var b = 0; b < blanks; b++) s += '<' + tag + '></' + tag + '>'; return s; }
       var cap = fullTerm(st.term) + '　' + st.subject + '　' + STAGE_NAME[st.stage] + '　成績紀錄（座號 ' + G.students[idx[0]].seat + '～' + G.students[idx[idx.length - 1]].seat + '）';
-      var h = '<table class="brief"><caption>' + esc(cap) + '</caption><colgroup><col class="side" style="width:66px"><col style="width:156px"></colgroup>';
-      h += '<tr class="head"><th class="head" colspan="2">座號</th>' + idx.map(function (i) { return '<th class="head">' + esc(G.students[i].seat) + '</th>'; }).join('') + blankCells('th') + '</tr>';
+      var h = '<table class="brief"><caption>' + esc(cap) + '</caption><colgroup><col class="cSide" style="width:66px"><col class="cLab" style="width:156px"></colgroup>';
+      h += '<tr class="head"><th class="head" colspan="2">座號</th>' + idx.map(function (i) { return '<th class="head">' + esc(G.students[i].seat) + '</th>'; }).join('') + blankCells('th', blanks) + '</tr>';
       h += '<tr><th class="diag" colspan="2"><span class="a">姓名</span><span class="b">項目</span></th>' +
-        idx.map(function (i) { return '<th class="head stuName">' + esc(G.students[i].name) + '</th>'; }).join('') + blankCells('th') + '</tr>';
+        idx.map(function (i) { return '<th class="head stuName">' + esc(G.students[i].name) + '</th>'; }).join('') + blankCells('th', blanks) + '</tr>';
       rows.forEach(function (sec) {
         sec.rows.forEach(function (r, ri) {
           var trCls = [r.cls || ''];
@@ -396,37 +487,103 @@
             var text = r.rank ? (v == null ? '' : v) : (r.d2 ? n2(v) : (v == null ? '' : (Math.round(v * 10) / 10).toString()));
             h += '<td' + (!r.rank && isLow(v) ? ' class="low"' : '') + '>' + text + '</td>';
           });
-          h += blankCells('td') + '</tr>';
+          h += blankCells('td', blanks) + '</tr>';
         });
       });
       h += '<tr><td class="foot" colspan="' + (2 + per) + '"><span>＊全班人數：' + n + ' 人</span><span>＊全班平均：' + (G.mean == null ? '—' : nd(G.mean, st.dec)) + '</span><span>＊未達 ' + st.low + ' 分者：' + below + ' 人</span></td></tr></table>';
+      tables.push(h);
+    }
+    // 一張 A4 放兩個表格
+    for (var t = 0; t < tables.length; t += 2) {
       var sheet = el('div', { 'class': 'sheet' });
-      sheet.innerHTML = h;
+      sheet.innerHTML = '<div class="bt">' + tables[t] + '</div>' + (tables[t + 1] ? '<div class="bt">' + tables[t + 1] + '</div>' : '');
       main.appendChild(sheet);
     }
+    var note = shareNote(G);
+    if (note) main.appendChild(el('p', { 'class': 'legend noprint' }, note));
   }
 
   // ---- 計分設定 ------------------------------------------------
   function renderConfig() {
     var body = AX.$('cfgBody'), d = dataOf(st.subject), cfg = cfgOf(st.subject), W = weightsOf(st.subject);
     AX.clear(body);
-    body.appendChild(el('p', { 'class': 'muted small' }, '下面的比例和學期成績權重是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一組只看比例，不用剛好是 100。'));
-    var wb = el('div', { 'class': 'bar' });
-    [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度'], ['daily', '平時成績'], ['exam', '月考成績']].forEach(function (x) {
-      var inp = el('input', { type: 'number', min: '0', step: 'any', value: W[x[0]] });
-      inp.onchange = function () { saveWeight(x[0], inp.value); };
-      var g = el('span', { 'class': 'grp' });
-      g.appendChild(el('span', { 'class': 'lbl' }, x[1]));
-      g.appendChild(inp);
-      wb.appendChild(g);
+    body.appendChild(el('p', { 'class': 'muted small' }, '比例分三層，跟「科目設定 → 學期成績權重」是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一層只看比例，不用剛好是 100。態度、期中／期末考還沒輸入時，先當作 ' + S.BLANK_DEFAULT + ' 分計算，輸入後改用實際分數。'));
+    [
+      ['① 平時成績 ＝', [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度']]],
+      ['② 定期考查總成績（期中、期末各一次）＝', [['daily', '平時成績'], ['exam', st.stage === 2 ? '期末考' : '期中考']]],
+      ['③ 學期成績 ＝', [['p1', '期中定期考查'], ['p2', '期末定期考查']]]
+    ].forEach(function (layer) {
+      var wb = el('div', { 'class': 'bar' }), inputs = [], sumEl = el('span', { 'class': 'lbl' });
+      wb.appendChild(el('span', { 'class': 'lbl', style: 'font-weight:700;min-width:15em' }, layer[0]));
+      function refreshSum() {
+        var t = 0; inputs.forEach(function (i) { t += Number(i.value) || 0; });
+        sumEl.textContent = '合計 ' + Math.round(t * 100) / 100;
+      }
+      layer[1].forEach(function (x) {
+        var inp = el('input', { type: 'number', min: '0', step: 'any', value: W[x[0]] == null ? 0 : W[x[0]] });
+        inp.oninput = refreshSum;
+        inp.onchange = function () { saveWeight(x[0], inp.value); };
+        inputs.push(inp);
+        var g = el('span', { 'class': 'grp' });
+        g.appendChild(el('span', { 'class': 'lbl' }, x[1]));
+        g.appendChild(inp);
+        wb.appendChild(g);
+      });
+      refreshSum();
+      wb.appendChild(sumEl);
+      body.appendChild(wb);
     });
-    body.appendChild(wb);
 
     var cats = [];
     d.items.forEach(function (it) { if ((it.term || '') === (st.term || '') && cats.indexOf(it.category) === -1) cats.push(it.category); });
     var tb = el('table'), head = el('tr');
-    ['類別', '算在哪一項', '同一項裡的比例', '底分', '換算下限', '換算上限'].forEach(function (t) { head.appendChild(el('th', null, t)); });
+    ['類別', '算在哪一項', '同一項裡的比例', '底分', '換算（總分不是 100 才需要）'].forEach(function (t) { head.appendChild(el('th', null, t)); });
     tb.appendChild(head);
+    // 換算：一般類別都不需要，只有「筆記」（總分不是 100）和「態度」會用到，所以預設只在這兩種顯示開關；其他類別要用再按「設定換算」
+    function scaleCell(c, cur, always) {
+      var td = el('td', { 'class': 'scaleCell' }), on = Number(cur.hi) > (Number(cur.lo) || 0) && Number(cur.hi) > 0;
+      function set(lo, hi) {
+        var cc = cfg[c] || (cfg[c] = {});
+        cc.lo = lo; cc.hi = hi;
+        render();
+        AX.call('setGradebookConfig', st.raw.gradebook).then(function () { AX.toast('已儲存'); }).catch(function (e) { AX.showError(e); });
+      }
+      if (!on && !always && !/筆記/.test(c)) {
+        var more = el('button', { 'class': 'secondary tiny', type: 'button' }, '設定換算');
+        more.onclick = function () { set(70, 100); };
+        td.appendChild(more);
+        return td;
+      }
+      var sel = el('select');
+      sel.appendChild(el('option', { value: '0' }, '不換算'));
+      sel.appendChild(el('option', { value: '1' }, '換算成'));
+      sel.value = on ? '1' : '0';
+      sel.onchange = function () { if (sel.value === '1') set(70, 100); else set(0, 0); };
+      td.appendChild(sel);
+      if (on) {
+        var lo = el('input', { type: 'number', min: '0', max: '99', step: 'any', value: cur.lo || 0 });
+        var hi = el('input', { type: 'number', min: '1', max: '100', step: 'any', value: cur.hi });
+        lo.title = '全班最低分換成這個分數'; hi.title = '全班最高分換成這個分數';
+        lo.onchange = hi.onchange = function () { set(Number(lo.value) || 0, Number(hi.value) || 0); };
+        td.appendChild(document.createTextNode(' '));
+        td.appendChild(lo);
+        td.appendChild(document.createTextNode(' ～ '));
+        td.appendChild(hi);
+        td.appendChild(el('div', { 'class': 'muted small' }, c === '態度' ? '用全班輸入的態度分數：最低分→' + (cur.lo || 0) + '，最高分→' + cur.hi + '，其他照比例' : '用班上現有的分數：最低分→' + (cur.lo || 0) + '，最高分→' + cur.hi + '，沒交算 ' + (cur.lo || 0)));
+      }
+      return td;
+    }
+    if (cats.indexOf('態度') === -1) {
+      var atr = el('tr'), acur = cfg['態度'] || {};
+      atr.appendChild(el('td', null, '態度'));
+      atr.appendChild(el('td', { 'class': 'muted' }, '態度（在詳表直接輸入）'));
+      var aw = el('input', { type: 'number', min: '0', step: 'any', value: acur.weight == null ? 1 : acur.weight });
+      aw.onchange = function () { saveCfg('態度', 'weight', aw.value); };
+      var atd = el('td'); atd.appendChild(aw); atr.appendChild(atd);
+      atr.appendChild(el('td', { 'class': 'muted' }, '—'));
+      atr.appendChild(scaleCell('態度', acur, true));
+      tb.appendChild(atr);
+    }
     cats.forEach(function (c) {
       var tr = el('tr'), kind = st.raw.kinds[c] || S.defaultKind(c), cur = cfg[c] || {};
       tr.appendChild(el('td', null, c || '（未分類）'));
@@ -443,14 +600,7 @@
       b.title = '例如筆記填 50：分數＝50＋得分÷2，空白就是 50 分，超過滿分不計入';
       b.onchange = function () { saveCfg(c, 'base', b.value); };
       var td3 = el('td'); td3.appendChild(b); tr.appendChild(td3);
-      var lo = el('input', { type: 'number', min: '0', max: '99', step: 'any', value: cur.lo || '', placeholder: '70' });
-      lo.title = '總分不是 100 的類別（例如筆記）：用班上現有的分數，最低分換成這個分數';
-      lo.onchange = function () { saveCfg(c, 'lo', lo.value); };
-      var td4 = el('td'); td4.appendChild(lo); tr.appendChild(td4);
-      var hi = el('input', { type: 'number', min: '1', max: '100', step: 'any', value: cur.hi || '', placeholder: '100' });
-      hi.title = '最高分換成這個分數；上下限都填才會啟用換算，空白＝不換算';
-      hi.onchange = function () { saveCfg(c, 'hi', hi.value); };
-      var td5 = el('td'); td5.appendChild(hi); tr.appendChild(td5);
+      tr.appendChild(scaleCell(c, cur, false));
       tb.appendChild(tr);
     });
     body.appendChild(tb);

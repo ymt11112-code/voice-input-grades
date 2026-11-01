@@ -102,6 +102,8 @@
   //   第二層 定期考查總成績＝平時成績 × daily ＋ 段考分數 × exam
   //   第三層 平時成績＝紙筆測驗 × quiz ＋ 作業 × homework ＋ 課堂 × other
   var DEFAULT_WEIGHTS = { daily: 50, exam: 50, quiz: 40, homework: 35, other: 25, p1: 50, p2: 50 };
+  // 成績總表：態度、期中／期末考還沒有輸入時，先當作這個分數，避免其餘項目的比例被重新分配而亂掉
+  var BLANK_DEFAULT = 70;
 
   function defaultKind(cat) {
     var c = String(cat);
@@ -1124,14 +1126,22 @@
     var attOn = !!att && !(byKind.other && byKind.other.catMap['態度']);
     if (attOn) {
       var og = byKind.other || (byKind.other = { catMap: {}, cats: [] }), ac = cfg['態度'] || {};
-      og.cats.unshift({ category: '態度', items: [], weight: ac.weight == null ? 1 : Number(ac.weight), base: 0, input: true, input_vals: att.map(function (v) { return v == null || v === '' || !isFinite(Number(v)) ? null : Number(v); }) });
+      var araw = att.map(function (v) { return v == null || v === '' || !isFinite(Number(v)) ? null : Number(v); });
+      // 態度也可以換算：用全班輸入的分數，最低分換成 lo、最高分換成 hi，中間照比例（沒輸入的人不算）
+      var alo = Number(ac.lo) || 0, ahi = Number(ac.hi) || 0, ascale = ahi > alo && ahi > 0;
+      var aok = araw.filter(function (v) { return v != null; }), amn = aok.length ? Math.min.apply(null, aok) : 0, amx = aok.length ? Math.max.apply(null, aok) : 0;
+      og.cats.unshift({
+        category: '態度', items: [], weight: ac.weight == null ? 1 : Number(ac.weight), base: 0, input: true, input_vals: araw, scale: ascale, lo: alo, hi: ahi,
+        // 還沒輸入的同學先當作 BLANK_DEFAULT（70）分，免得比例亂掉；輸入後就改用實際（換算後）的分數
+        input_avg: araw.map(function (v) { return v == null ? BLANK_DEFAULT : (ascale ? gbRound(amx > amn ? alo + (v - amn) / (amx - amn) * (ahi - alo) : ahi, 1) : v); })
+      });
     }
     var groups = [];
     DEFS.forEach(function (def) {
       var g = byKind[def[0]];
       if (!g) return;
       g.cats.forEach(function (cat) {
-        if (cat.input) { cat.avg = cat.input_vals; cat.used = hasData(cat.avg) && cat.weight > 0; return; }
+        if (cat.input) { cat.raw = cat.input_vals; cat.avg = cat.input_avg; cat.used = hasData(cat.avg) && cat.weight > 0; return; }
         var graded = cat.items.filter(function (x) { return x.graded; });
         // 換算（例如筆記：總分不是 100，改用班上現有的分數，最低分換成 lo、最高分換成 hi，中間照比例）。
         // 每個項目各自換算；空白（沒交）算下限 lo；超過滿分的視為打錯，不計入換算範圍也不計入平均。
@@ -1180,6 +1190,9 @@
       gradedExam.forEach(function (x) { if (x.scores[i] != null) ps.push(x.scores[i] / x.max * 100); });
       return ps.length ? gbRound(mean(ps), 1) : null;
     });
+    // 這一次的考試全班都還沒有成績（還沒考、或還沒登記）：全班先當作 BLANK_DEFAULT 分；只有個別同學缺考則維持空白
+    var examDefault = W.exam > 0 && !gradedExam.length;
+    if (examDefault) exam = exam.map(function () { return BLANK_DEFAULT; });
     var dailyOn = hasData(daily), examOn = hasData(exam) && W.exam > 0;
     var bothTotal = (dailyOn ? W.daily : 0) + (examOn ? W.exam : 0);
 
@@ -1190,7 +1203,7 @@
     var vals = nonNull(final);
     return {
       term: term, stage: stage, students: students, groups: groups, examItems: examItems, exam: exam, examOn: examOn,
-      examListed: W.exam > 0 && examItems.length > 0, daily: daily, dailyOn: dailyOn,
+      examListed: W.exam > 0, examDefault: examDefault, examGraded: gradedExam.length > 0, blank: BLANK_DEFAULT, daily: daily, dailyOn: dailyOn,
       dailyShare: dailyOn && bothTotal > 0 ? W.daily / bothTotal * 100 : 0, examShare: examOn && bothTotal > 0 ? W.exam / bothTotal * 100 : 0,
       final: final, ranks: final.map(function (v) { return v == null ? null : compRank(vals, v); }),
       ranked: vals.length, mean: vals.length ? gbRound(mean(vals), dec) : null, dec: dec,
@@ -1199,7 +1212,7 @@
   }
 
   AX.stats = {
-    periodMap: periodMap, gradebook: gradebook, gbRound: gbRound,
+    periodMap: periodMap, gradebook: gradebook, gbRound: gbRound, BLANK_DEFAULT: BLANK_DEFAULT,
     defaultDomainOf: defaultDomainOf, semesterByDomain: semesterByDomain, domainParsedFromSystem: domainParsedFromSystem, compareDomainScores: compareDomainScores,
     sum: sum, mean: mean, median: median, sd: sd, describe: describe, scoreBands: scoreBands, nonNull: nonNull, tiers: tiers, tierName: tierName,
     TIER_DEFS: TIER_DEFS, compRank: compRank, topPercent: topPercent, histogram: histogram, fmt: fmt, signed: signed,
