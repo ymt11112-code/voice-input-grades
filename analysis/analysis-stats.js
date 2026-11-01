@@ -1176,7 +1176,9 @@
           if (!stemItems[s]) { stemItems[s] = []; stemOrder.push(s); }
           stemItems[s].push(x);
         });
-        cat.subs = stemOrder.length >= 2 ? stemOrder.map(function (s) { return { label: s, avg: avgOf(stemItems[s]) }; }) : [];
+        // 只有「同一組至少 2 個項目」才算一組，而且要有兩組以上才提供（像數卷U1～U5 加上單獨的數複A，不會被硬拆出「數複A平均」）
+        var stemGroups = stemOrder.filter(function (s) { return stemItems[s].length >= 2; });
+        cat.subs = stemGroups.length >= 2 ? stemGroups.map(function (s) { return { label: s, avg: avgOf(stemItems[s]), names: stemItems[s].map(function (x) { return x.name; }) }; }) : [];
         cat.used = graded.length > 0 && cat.weight > 0;
       });
       var usedCats = g.cats.filter(function (c) { return c.used; });
