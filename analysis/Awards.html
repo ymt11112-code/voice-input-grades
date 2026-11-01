@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261109">
+  <link rel="stylesheet" href="analysis-common.css?v=20261110">
   <style>
     .list li.off { opacity: .45; text-decoration: line-through; }
     .list li label { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 0; cursor: pointer; }
@@ -82,10 +82,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261109"></script>
-<script src="analysis-demo.js?v=20261109"></script>
-<script src="analysis-art.js?v=20261109"></script>
-<script src="analysis-common.js?v=20261109"></script>
+<script src="analysis-stats.js?v=20261110"></script>
+<script src="analysis-demo.js?v=20261110"></script>
+<script src="analysis-art.js?v=20261110"></script>
+<script src="analysis-common.js?v=20261110"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt;
@@ -227,24 +227,88 @@
   function titleText() { return S.termLabel(st.term) + ' ' + PHASE_NAME[st.phase] + (st.last && st.last.provisional && st.last.provisional.length ? '（暫定）' : ''); }
   function unitOf(s) { return st.phase === 'term' || st.o.basis === 'term' ? ' 分' : ' %'; }
 
-  // ---- 提醒：別位老師的科目（例如自然）要貼在哪裡。還沒有這個科目、或這個科目沒有成績時預設展開
+  // ---- 別位老師的科目（例如自然）：直接在網頁上建立、貼上 Excel，不用開 Google 試算表
+  var EXT_TARGETS = [['p1', '期中平時成績', '第一階段　平時'], ['e1', '期中考', '第一階段　定期'], ['p2', '期末平時成績', '第二階段　平時'], ['e2', '期末考', '第二階段　定期']];
+  function natSubject() { var f = null; st.raw.subjects.forEach(function (d) { if (!f && /自然/.test(d.subject)) f = d; }); return f; }
+  function reloadAfterExt(msg) {
+    return AX.load().then(function (r) { init(r, true); st.domSel = null; renderBar(); render(); if (msg) AX.toast(msg); });
+  }
   function externalGuide(R) {
-    var hasNat = st.raw.subjects.some(function (d) { return /自然/.test(d.subject); });
+    var nat = natSubject();
     var natMissing = R && R.missing && R.missing.some(function (x) { return /自然/.test(x.subject); });
     var d = el('details', { 'class': 'card noprint' });
-    if (!hasNat || natMissing) d.setAttribute('open', '');
-    d.appendChild(el('summary', { style: 'cursor:pointer; font-weight:700' }, '📘 自然（別位老師的科目）的成績要貼在哪裡？' + (!hasNat ? '　← 還沒建立「自然」科目' : (natMissing ? '　← 「自然」還沒有成績' : ''))));
-    var ol = el('ol', { style: 'line-height:1.9; margin:10px 0 0; padding-left:22px' });
-    [
-      '建立貼上區（只要做一次）：打開 Google 試算表，上方選單「📊 登記分數 → 建立外科成績貼上區（例如自然）」，科目名稱輸入「自然」。（也可以在登記面板「科目設定 → 科目管理 → 建立外科成績貼上區」按按鈕。）系統會新增一張「自然」工作表，自動帶入座號、姓名，並標好四欄淡黃色的區域：C 欄＝期中平時成績、D 欄＝期中考、E 欄＝期末平時成績、F 欄＝期末考。',
-      '複製老師給的 Excel：「第一階段」的「平時」「定期」這兩欄（不要選「總分」），從第一位學生選到最後一位，複製後貼到「自然」工作表淡黃色區域的 C 欄第一位學生那一列（會貼滿 C、D 兩欄＝期中平時、期中考）。',
-      '再複製「第二階段」的「平時」「定期」兩欄，貼到同一張工作表的 E 欄第一位學生那一列（E、F 兩欄＝期末平時、期末考）。還沒有第二階段成績時先不用貼，留空即可。',
-      '不用貼「總分」、「學期成績」、「第三階段」：總分和學期成績系統會依各科的比例自己算，貼了反而會算兩次。',
-      '貼之前先核對順序：Excel 的座號有缺號時（例如沒有 13 號）會直接跳過，「自然」工作表左邊的座號姓名要和 Excel 一樣，一位對一位，貼完請對一下第一位、最後一位和中間缺號附近的姓名，錯位一列整排都會錯。',
-      '貼完回到這一頁，按上方「🔄 重新讀取試算表」，「自然」就會出現在下面「納入的科目」，並加入期中、期末的獎狀名單。'
-    ].forEach(function (t) { ol.appendChild(el('li', null, t)); });
-    d.appendChild(ol);
-    d.appendChild(el('p', { 'class': 'muted small', style: 'margin:10px 0 0' }, '學期總成績（各領域前五名）不用另外貼自然：改選上方「學期總成績」，貼學校系統匯出的領域成績表就有了。'));
+    if (!nat || natMissing) d.setAttribute('open', '');
+    d.appendChild(el('summary', { style: 'cursor:pointer; font-weight:700' }, '📘 自然（別位老師的科目）的成績：在這裡貼上就好' + (!nat ? '　← 還沒建立「自然」科目' : (natMissing ? '　← 「自然」還沒有成績' : ''))));
+    var body = el('div', { style: 'margin-top:10px; line-height:1.9' }); d.appendChild(body);
+
+    body.appendChild(el('p', { style: 'margin:0 0 6px' }, '① 建立「自然」科目（只要做一次）'));
+    var row1 = el('div', { style: 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px' });
+    var mk = el('button', null, nat ? '✅ 已建立「' + nat.subject + '」' : '建立「自然」科目');
+    mk.disabled = !!nat;
+    mk.onclick = function () {
+      mk.disabled = true; mk.textContent = '建立中…';
+      AX.call('createExternalSubject', '自然', st.term).then(function () { return reloadAfterExt('已建立「自然」科目，請貼上成績'); }).catch(function (e) { mk.disabled = false; mk.textContent = '建立「自然」科目'; AX.showError(e); });
+    };
+    row1.appendChild(mk); row1.appendChild(el('span', { 'class': 'muted small' }, nat ? '' : '會用目前的學期（' + S.termLabel(st.term) + '）建立，名單自動帶入其他科目的座號姓名。'));
+    body.appendChild(row1);
+
+    body.appendChild(el('p', { style: 'margin:0 0 6px' }, '② 複製自然老師的 Excel：從標題列（班級、座號、姓名、第一階段…）一路選到最後一位學生，整張表複製後貼到下面的框。「第一階段」的平時、定期會放進期中平時成績、期中考，「第二階段」的平時、定期會放進期末平時成績、期末考；總分、學期成績、第三階段不會用到（系統會自己依比例算）。'));
+    var ta = el('textarea', { rows: '5', style: 'width:100%', placeholder: '在 Excel 選取整張表 → 複製 → 在這裡按 Ctrl＋V' });
+    if (!nat) ta.disabled = true;
+    body.appendChild(ta);
+    var row2 = el('div', { style: 'display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0' });
+    var chk = el('button', { 'class': 'secondary' }, '檢查貼上的內容'), wr = el('button', null, '寫入「自然」成績');
+    chk.disabled = !nat; wr.disabled = true;
+    row2.appendChild(chk); row2.appendChild(wr); body.appendChild(row2);
+    var out = el('div', { 'class': 'muted small', style: 'white-space:pre-line' }); body.appendChild(out);
+    body.appendChild(el('p', { 'class': 'muted small', style: 'margin:10px 0 0' }, '學期總成績（各領域前五名）不用貼自然：改選上方「學期總成績」，貼學校匯出的領域成績表即可。想直接在 Google 試算表操作也可以：選單「📊 登記分數 → 建立外科成績貼上區」，再把成績貼到「自然」工作表的 C～F 欄。'));
+
+    var plan = null;
+    function itemOf(name) {
+      var hit = null; nat.items.forEach(function (it) { if (it.name === name && (!hit || it.term === st.term)) hit = it; }); return hit;
+    }
+    chk.onclick = function () {
+      plan = null; wr.disabled = true;
+      var P = S.parseExternalPaste(ta.value);
+      if (!P.ok) { out.textContent = '⚠️ ' + P.error; return; }
+      var byName = {}, bySeat = {};
+      nat.students.forEach(function (s) { byName[String(s.name).replace(/\s+/g, '')] = s; if (s.seat !== '' && s.seat != null) bySeat[Number(s.seat)] = s; });
+      var matched = [], warn = [], lost = [], used = {};
+      P.rows.forEach(function (r) {
+        var s = byName[r.name.replace(/\s+/g, '')];
+        if (!s && bySeat[r.seat]) { s = bySeat[r.seat]; warn.push(r.seat + ' 號 Excel「' + r.name + '」／名單「' + s.name + '」'); }
+        if (!s) { lost.push(r.seat + ' 號 ' + r.name); return; }
+        used[s.row] = true; matched.push({ s: s, r: r });
+      });
+      var noData = nat.students.filter(function (s) { return !used[s.row]; }).map(function (s) { return (s.seat ? s.seat + ' 號 ' : '') + s.name; });
+      var cols = EXT_TARGETS.filter(function (t) { return matched.some(function (m) { return m.r[t[0]] != null; }); });
+      if (!cols.length) { out.textContent = '⚠️ 讀到了學生，但沒有任何「平時」「定期」分數。請確認複製的範圍有包含這些欄位。'; return; }
+      var missingItem = cols.filter(function (t) { return !itemOf(t[1]); });
+      if (missingItem.length) { out.textContent = '⚠️ 「' + nat.subject + '」裡找不到項目：' + missingItem.map(function (t) { return t[1]; }).join('、') + '（請用這裡的按鈕建立科目，或不要改項目名稱）。'; return; }
+      plan = { matched: matched, cols: cols };
+      out.textContent = '讀到 ' + P.rows.length + ' 位學生，對上名單 ' + matched.length + ' 位；會寫入：' + cols.map(function (t) { return t[2]; }).join('、') + '。' +
+        (P.stages < 2 ? '\n（只讀到第一階段，第二階段還沒有就先不寫。）' : '') +
+        (warn.length ? '\n⚠️ 姓名不同、但座號對上，仍會寫入，請確認：' + warn.join('；') : '') +
+        (lost.length ? '\n⚠️ Excel 有、名單找不到（不會寫入）：' + lost.join('、') : '') +
+        (noData.length ? '\n名單有、Excel 沒有（維持空白）：' + noData.join('、') : '') +
+        '\n確認沒問題就按「寫入」。已經有分數的格子會被蓋過；Excel 空白的格子不會動。';
+      wr.disabled = false;
+    };
+    wr.onclick = function () {
+      if (!plan) return;
+      if (!confirm('要把 ' + plan.matched.length + ' 位學生的成績寫進「' + nat.subject + '」嗎？同一格原本的分數會被蓋過。')) return;
+      wr.disabled = true; chk.disabled = true; out.textContent = '寫入中…';
+      var chain = Promise.resolve(), done = 0;
+      plan.cols.forEach(function (t) {
+        chain = chain.then(function () {
+          var it = itemOf(t[1]), cells = [];
+          plan.matched.forEach(function (m) { if (m.r[t[0]] != null) cells.push({ row: m.s.row, score: m.r[t[0]] }); });
+          return AX.call('saveScores', nat.subject, it.col, cells).then(function () { done++; out.textContent = '寫入中… ' + done + ' / ' + plan.cols.length; });
+        });
+      });
+      chain.then(function () { return reloadAfterExt('已寫入「' + nat.subject + '」的成績（' + plan.cols.length + ' 欄）'); })
+        .catch(function (e) { wr.disabled = false; chk.disabled = false; AX.showError(e); out.textContent = '⚠️ 寫入沒有全部完成：' + (e && e.message ? e.message : e) + '\n請按「重新讀取試算表」確認目前狀況。'; });
+    };
     return d;
   }
 

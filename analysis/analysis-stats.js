@@ -1232,7 +1232,33 @@
     };
   }
 
+  // 別位老師給的「第一階段／第二階段，各有 平時、定期、總分」Excel：把整張表（含標題列）複製貼上，
+  // 找出座號、姓名欄，以及每個階段的「平時」「定期」欄。總分、學期成績、第三階段不用。
+  function parseExternalPaste(text) {
+    var lines = String(text || '').replace(/\r/g, '').split('\n').map(function (l) { return l.split('\t').map(function (c) { return String(c).replace(/\s+/g, ' ').trim(); }); })
+      .filter(function (cells) { return cells.some(function (c) { return c !== ''; }); });
+    if (!lines.length) return { ok: false, error: '還沒有貼上內容' };
+    var head = -1, i;
+    for (i = 0; i < Math.min(lines.length, 8) && head < 0; i++) { if (lines[i].some(function (c) { return c === '平時'; })) head = i; }
+    if (head < 0) return { ok: false, error: '找不到「平時」「定期」的標題列。請從標題列（班級、座號、姓名、第一階段…）開始，一路選到最後一位學生再複製。' };
+    var ping = [], ding = [];
+    lines[head].forEach(function (c, k) { if (c === '平時') ping.push(k); if (c === '定期') ding.push(k); });
+    var seatCol = -1, nameCol = -1;
+    for (i = 0; i <= head; i++) lines[i].forEach(function (c, k) { if (c === '座號') seatCol = k; if (c === '姓名') nameCol = k; });
+    if (seatCol < 0 || nameCol < 0) return { ok: false, error: '找不到「座號」「姓名」欄。請連同這兩欄一起複製（例如從「班級」那欄開始選）。' };
+    var rows = [];
+    function num(cells, k) { if (k === undefined || k < 0) return null; var v = cells[k]; if (v === undefined || v === '' || !isFinite(Number(v))) return null; return Number(v); }
+    for (i = head + 1; i < lines.length; i++) {
+      var cells = lines[i], seat = cells[seatCol], name = cells[nameCol];
+      if (!/^\d{1,3}$/.test(seat || '') || !name) continue;
+      rows.push({ seat: Number(seat), name: name, p1: num(cells, ping[0]), e1: num(cells, ding[0]), p2: num(cells, ping[1]), e2: num(cells, ding[1]) });
+    }
+    if (!rows.length) return { ok: false, error: '標題列下面沒有讀到學生資料（座號要是數字）。' };
+    return { ok: true, rows: rows, stages: Math.min(ping.length, ding.length, 2) };
+  }
+
   AX.stats = {
+    parseExternalPaste: parseExternalPaste,
     periodMap: periodMap, gradebook: gradebook, gbRound: gbRound, BLANK_DEFAULT: BLANK_DEFAULT,
     defaultDomainOf: defaultDomainOf, semesterByDomain: semesterByDomain, domainParsedFromSystem: domainParsedFromSystem, compareDomainScores: compareDomainScores,
     sum: sum, mean: mean, median: median, sd: sd, describe: describe, scoreBands: scoreBands, nonNull: nonNull, tiers: tiers, tierName: tierName,
