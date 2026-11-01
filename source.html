@@ -462,10 +462,10 @@
       <div class="cardBody" id="card-categories" hidden>
         <h3>新增成績類別</h3>
         <div class="row">
-          <input type="text" id="newCategoryName" placeholder="例如：考卷、作業、期中考試卷">
+          <input type="text" id="newCategoryName" placeholder="可一次輸入多個，用頓號分開，例如：國習、筆記、聽考">
           <button onclick="onAddCategory()">新增類別</button>
         </div>
-        <p class="muted">類別是共用的，會出現在所有科目「新增項目」的下拉選單中。</p>
+        <p class="muted">類別是共用的，會出現在所有科目「新增項目」的下拉選單中。一次要新增好幾個，用頓號（、）分開就好，例如「國習、國卷、聽考、筆記」會變成四個類別；已經存在的會自動略過。</p>
         <h3>類別清單</h3>
         <div id="categoryList"></div>
       </div>
@@ -2185,16 +2185,36 @@ function inViewTerm_(it) {
 // ============================================================
 // 類別管理
 // ============================================================
+// 可以一次輸入多個類別，用頓號（、）、逗號、分號或換行分開，例如「國習、國卷、聽考、筆記」會新增四個類別
 function onAddCategory() {
-  var name = document.getElementById('newCategoryName').value.trim();
-  if (!name) return toast('請輸入類別名稱', true);
-  call('addCategory', name).then(function (cats) {
-    state.categories = cats;
+  var names = [];
+  document.getElementById('newCategoryName').value.split(/[、，,；;\n]+/).forEach(function (n) {
+    n = n.trim();
+    if (n && names.indexOf(n) === -1) names.push(n);
+  });
+  if (!names.length) return toast('請輸入類別名稱', true);
+  var todo = names.filter(function (n) { return state.categories.indexOf(n) === -1; });
+  var skipped = names.length - todo.length;
+  if (!todo.length) return toast('這些類別都已經存在了', true);
+  var added = [], chain = Promise.resolve();
+  todo.forEach(function (n, i) {
+    chain = chain.then(function () {
+      if (todo.length > 1) setSync_('☁️ 新增類別 ' + (i + 1) + ' / ' + todo.length);
+      return call('addCategory', n);
+    }).then(function (cats) { state.categories = cats; added.push(n); });
+  });
+  chain.then(function () {
     document.getElementById('newCategoryName').value = '';
+    setSync_('');
     renderCategoryList();
     renderCategoryOptionsForItems();
-    toast('已新增類別：' + name);
-  }).catch(showError);
+    toast('已新增 ' + added.length + ' 個類別：' + added.join('、') + (skipped ? '（' + skipped + ' 個已存在，略過）' : ''));
+  }).catch(function (e) {
+    setSync_('');
+    renderCategoryList();
+    renderCategoryOptionsForItems();
+    showError(e);
+  });
 }
 
 function renderCategoryList() {
@@ -2444,22 +2464,36 @@ function onAutoSplitCategories() {
   });
   var lines = fromOrder.map(function (f) { return '「' + (f || '未分類') + '」→ ' + byFrom[f].join('、'); });
   if (!confirm('要這樣分類嗎？\n\n' + lines.join('\n') + '\n\n沒有被列出的項目維持原來的類別。')) return;
-  var chain = Promise.resolve(), cats = state.categories.slice();
-  plan.forEach(function (p) {
-    if (cats.indexOf(p.stem) > -1) return;
-    cats.push(p.stem);
-    // 新類別沿用原本類別的分析方式（作業、平時測驗…），免得名稱不在預設規則裡時被當成別的
-    chain = chain.then(function () { return call('addCategory', p.stem); }).then(function (list) {
-      state.categories = list;
-      return p.kind ? call('setCategoryKind', p.stem, p.kind) : null;
-    });
-  });
   var updates = [];
   plan.forEach(function (p) { p.items.forEach(function (it) { updates.push({ col: it.col, category: p.stem }); }); });
-  chain.then(function () { return call('updateItems', subject, updates); }).then(function () {
+  // 先改項目的類別（這一步畫面就會看到結果），再補上類別清單和分析方式；每一步都是向試算表要資料，各要幾秒，所以用狀態列顯示進度
+  var newCats = [], seen = {};
+  plan.forEach(function (p) { if (state.categories.indexOf(p.stem) === -1 && !seen[p.stem]) { seen[p.stem] = 1; newCats.push(p); } });
+  var steps = 1 + newCats.length * 2, done = 0;
+  function progress() { setSync_('☁️ 分類中… ' + done + ' / ' + steps); }
+  progress();
+  call('updateItems', subject, updates).then(function (items) {
+    done++; progress();
+    state.items = items;
+    renderItemList();
+    toast('已把 ' + updates.length + ' 個項目分到新類別，正在補上類別設定…');
+    var chain = Promise.resolve();
+    newCats.forEach(function (p) {
+      chain = chain.then(function () { return call('addCategory', p.stem); }).then(function (list) {
+        state.categories = list; done++; progress();
+        // 新類別沿用原本類別的分析方式（作業、平時測驗…），免得名稱不在預設規則裡時被當成別的
+        return p.kind ? call('setCategoryKind', p.stem, p.kind) : null;
+      }).then(function () { done++; progress(); });
+    });
+    return chain;
+  }).then(function () {
     renderCategoryList(); renderCategoryOptionsForItems(); renderItemList();
-    toast('已分類 ' + updates.length + ' 個項目，到成績總表看各簿本的小計平均');
-  }).catch(showError);
+    setSync_('✅ 分類完成', true);
+    toast('分類完成（' + updates.length + ' 個項目），到成績總表看各簿本的小計平均');
+  }).catch(function (e) {
+    setSync_('');
+    alert('分類沒有全部完成：' + (e && e.message ? e.message : e) + '\n\n項目的類別可能已經改了一部分，請按「系統設定 → 資料庫 → 重新整理資料」確認目前的狀態。');
+  });
 }
 
 // ============================================================
