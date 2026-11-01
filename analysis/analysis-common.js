@@ -430,6 +430,11 @@
       svg.appendChild(sv('text', { x: m.l - 6, y: y + 4, 'text-anchor': 'end', 'class': 'ax-text' }, o.yFmt ? o.yFmt(t) : String(t)));
     });
     svg.appendChild(sv('line', { x1: m.l, x2: W - m.r, y1: m.t + ph, y2: m.t + ph, 'class': 'ax-base' }));
+    // 基準線（例如「與班平均的差距」圖的 0 線）：o.refLine = { value, label }
+    if (o.refLine) {
+      svg.appendChild(sv('line', { x1: m.l, x2: W - m.r, y1: Y(o.refLine.value), y2: Y(o.refLine.value), 'class': 'ax-mark' }));
+      if (o.refLine.label) svg.appendChild(sv('text', { x: W - m.r - 2, y: Y(o.refLine.value) - 5, 'text-anchor': 'end', 'class': 'ax-text' }, o.refLine.label));
+    }
 
     // 學期分隔：在不同學期之間畫一條細線，下方標學期名
     if (o.groups) o.groups.forEach(function (g, gi) {
@@ -464,7 +469,7 @@
         if (sg.length > 1) svg.appendChild(sv('path', { d: 'M' + sg.map(function (p) { return p[0] + ' ' + p[1]; }).join('L'), fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       });
       if (n <= 24) s.values.forEach(function (v, i) {
-        if (v != null) svg.appendChild(sv('circle', { cx: X(i), cy: Y(v), r: 4, fill: s.color, stroke: 'var(--surface)', 'stroke-width': 2 }));
+        if (v != null) svg.appendChild(sv('circle', { cx: X(i), cy: Y(v), r: 4, fill: (o.ptColor && o.ptColor(i, v)) || s.color, stroke: 'var(--surface)', 'stroke-width': 2 }));
       });
     });
 

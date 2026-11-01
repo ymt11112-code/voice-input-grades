@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261111">
+  <link rel="stylesheet" href="analysis-common.css?v=20261112">
 </head>
 <body>
 <div class="app">
@@ -41,14 +41,14 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261111"></script>
-<script src="analysis-demo.js?v=20261111"></script>
-<script src="analysis-art.js?v=20261111"></script>
-<script src="analysis-common.js?v=20261111"></script>
+<script src="analysis-stats.js?v=20261112"></script>
+<script src="analysis-demo.js?v=20261112"></script>
+<script src="analysis-art.js?v=20261112"></script>
+<script src="analysis-common.js?v=20261112"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
-  var st = { raw: null, model: null, subject: null, term: null, cats: null, pick: 0 };
+  var st = { raw: null, model: null, subject: null, term: null, cats: null, pick: -1, sort: 'seat', attAll: {} };
 
   AX.shell();
   AX.onResize(function () { if (st.model) renderMain(); });
@@ -74,7 +74,7 @@
     var s = sm();
     if (keep && (st.term === ALL ? s.terms.length > 1 : s.terms.indexOf(st.term) > -1)) return;
     st.term = S.defaultTerm(st.model, s);
-    st.cats = null; st.pick = 0;
+    st.cats = null; st.pick = -1;
   }
   load(false);
 
@@ -86,7 +86,7 @@
     });
     var items = s.terms.map(function (t) { return { label: S.termLabel(t), value: t }; });
     if (s.terms.length > 1) items.push({ label: '全部學期', value: ALL });
-    AX.btnGroup(AX.$('termBtns'), items, st.term, function (v) { st.term = v; st.cats = null; st.pick = 0; renderBar(); renderMain(); });
+    AX.btnGroup(AX.$('termBtns'), items, st.term, function (v) { st.term = v; st.cats = null; st.pick = -1; renderBar(); renderMain(); });
     renderCatBtns();
   }
   function scope() {
@@ -110,7 +110,7 @@
       b.onclick = function () {
         if (it.value === ALL) st.cats = null;
         else { var cur = st.cats ? st.cats.slice() : [], i = cur.indexOf(it.value); if (i > -1) cur.splice(i, 1); else cur.push(it.value); st.cats = cur.length ? cur : null; }
-        st.pick = 0; renderCatBtns(); renderMain();
+        st.pick = -1; renderCatBtns(); renderMain();
       };
       box.appendChild(b);
     });
@@ -140,9 +140,12 @@
       main.appendChild(el('div', { 'class': 'card empty' }, '這個學期還沒有登記任何成績（或所有類別都設成「不分析」）。'));
       renderCrossTerm(main); renderCrossSubject(main); return;
     }
-    if (st.pick >= qs.length) st.pick = Math.max(0, qs.length - 1);
+    if (st.pick >= qs.length) st.pick = -1;
     var agg = S.studentAgg(A, st.cats);
     var term = sc.isAll ? null : st.term;
+
+    // ---- 1. 需關注名單（老師打開這頁最想知道的事，放最上面）
+    renderWatch(main, qs, agg, sc, term);
 
     // ---- 數據卡
     var tiles = el('div', { 'class': 'tiles' });
@@ -166,8 +169,9 @@
     main.appendChild(tiles);
     if (qs.some(function (q) { return q.maxAssumed; })) main.appendChild(el('div', { 'class': 'note' }, '部分項目沒有填滿分，得分率以滿分 100 計算（表格中滿分標 * 者）。'));
 
+    // ---- 2. 學生 × 測驗熱力圖 → 趨勢 → 一覽表（點某次測驗才展開分布）
+    if (qs.length) { renderHeatmap(main, qs, sc, agg, term); renderTrend(main, qs); renderTable(main, qs, sc.isAll, term); }
     if (T && T.stats.n) renderTermScore(main, A, T, term);
-    if (qs.length) { renderTrend(main, qs); renderTable(main, qs, sc.isAll); renderDetail(main, qs[st.pick], term); }
     if (!T && qs.length) renderCumulative(main, agg);
     renderHomework(main, sc);
     renderCrossTerm(main);
@@ -189,8 +193,10 @@
       if (!pr.used) notes.push('第' + (pr.p === 1 ? '一' : '二') + '次定期考查還沒有資料');
       else if (!pr.complete) notes.push('第' + (pr.p === 1 ? '一' : '二') + '次定期考查的' + (pr.p === 1 ? '期中考' : '期末考') + '還沒有成績，' + (T.provisional ? '目前學期成績暫以已有的平時成績計算' : '先不計入學期成績'));
     });
-    var c = AX.card(S.termLabel(st.term) + ' 學期成績', how + (notes.length ? '（' + notes.join('；') + '）' : '') +
-      (T.hwNoMax ? ' 作業項目沒填滿分，無法換算成得分率，未計入。' : '') + (T.partial.some(Boolean) ? ' 缺考某個成分的同學會依其餘成分重新分配比例。' : ''));
+    var c = el('details', { 'class': 'fold' });
+    c.appendChild(el('summary', null, S.termLabel(st.term) + ' 學期成績：分布與計算方式'));
+    c.appendChild(el('p', { 'class': 'sub' }, how + (notes.length ? '（' + notes.join('；') + '）' : '') +
+      (T.hwNoMax ? ' 作業項目沒填滿分，無法換算成得分率，未計入。' : '') + (T.partial.some(Boolean) ? ' 缺考某個成分的同學會依其餘成分重新分配比例。' : '')));
     var t = T.tiers;
     var examChips = [];
     T.periods.forEach(function (pr) { if (pr.used) examChips.push(['第' + (pr.p === 1 ? '一' : '二') + '次定期考查平均', fmt(S.mean(S.nonNull(pr.total))) + '%']); });
@@ -198,7 +204,11 @@
       .concat(examChips).concat(used.map(function (p) { return [p[1] + '平均', fmt(S.mean(S.nonNull(T.comp[p[0]]))) + '%']; }))));
     var cols = el('div', { 'class': 'cols' }); cols.style.marginTop = '12px';
     var left = el('div'), right = el('div'); cols.appendChild(left); cols.appendChild(right); c.appendChild(cols); main.appendChild(c);
-    AX.barChart(left, { bins: AX.pctBins(A.students, T.scores), color: 'var(--series-1)', markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: '學期成績', ariaLabel: '學期成績組距分布' });
+    var drawn = false;
+    c.addEventListener('toggle', function () {
+      if (!c.open || drawn) return; drawn = true;
+      AX.barChart(left, { bins: AX.pctBins(A.students, T.scores), color: 'var(--series-1)', markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: '學期成績', ariaLabel: '學期成績組距分布' });
+    });
     var order = []; T.scores.forEach(function (v, i) { if (v != null) order.push(i); });
     order.sort(function (a, b) { return T.scores[b] - T.scores[a]; });
     right.appendChild(el('div', { 'class': 'h3' }, '前 5 名'));
@@ -236,14 +246,156 @@
     });
   }
 
+  // ---------- 需關注名單：低於及格或後標／連續退步／有缺交 ----------
+  function watchGroups(qs, agg, sc) {
+    var A = sc.A, T = sc.T, N = A.students.length, i, k;
+    var useT = !!(T && T.stats.n);
+    var vals = useT ? T.scores : agg.rows.map(function (r) { return r.eligible ? r.avg : null; });
+    var ranks = useT ? T.ranks : agg.rows.map(function (r) { return r.rank; });
+    var back = useT ? T.tiers.back : (agg.eligibleN ? agg.tiers.back : null);
+    var low = [], decl = [], miss = [];
+    for (i = 0; i < N; i++) {
+      var v = vals[i];
+      if (v != null) {
+        if (v < A.passPct) low.push({ idx: i, rank: ranks[i], v: v, fail: true });
+        else if (back != null && v < back) low.push({ idx: i, rank: ranks[i], v: v, fail: false });
+      }
+      // 連續退步：最近幾次測驗「與當次班平均的差距」連續變小，且合計掉 5 分以上
+      var ser = S.studentSeries(A, i, st.cats);
+      if (ser.length >= 3) {
+        var m = ser.length, run = 0;
+        while (m - 1 - run > 0 && ser[m - 1 - run].diff < ser[m - 2 - run].diff) run++;
+        var drop = run >= 2 ? ser[m - 1 - run].diff - ser[m - 1].diff : 0;
+        if (run >= 2 && drop >= 5) decl.push({ idx: i, run: run, drop: drop, from: ser[m - 1 - run].diff, to: ser[m - 1].diff });
+      }
+      var hm = 0;
+      A.homework.forEach(function (h) { hm += h.missing[i]; });
+      var ab = qs.filter(function (q) { return q.scores[i] == null; }).length;
+      if (hm || ab) miss.push({ idx: i, hm: hm, ab: ab });
+    }
+    low.sort(function (a, b) { return (b.fail - a.fail) || (a.v - b.v); });
+    decl.sort(function (a, b) { return b.drop - a.drop; });
+    miss.sort(function (a, b) { return (b.hm + b.ab) - (a.hm + a.ab); });
+    return { low: low, decl: decl, miss: miss, useT: useT, back: back, pass: A.passPct };
+  }
+
+  function renderWatch(main, qs, agg, sc, term) {
+    var g = watchGroups(qs, agg, sc);
+    var c = AX.card('需關注名單', '點名字看個人概況。三種情況：低於及格線或後標、最近連續退步（相對班平均）、有缺交或缺考。');
+    var cols = [
+      { key: 'low', title: '低於及格或後標', rows: g.low, line: function (x) { return { idx: x.idx, rank: x.rank, value: fmt(x.v) + ' 分・' + (x.fail ? '不及格' : '低於後標') }; }, empty: '沒有人低於及格線或後標' },
+      { key: 'decl', title: '連續退步', rows: g.decl, line: function (x) { return { idx: x.idx, rank: null, value: '連降 ' + x.run + ' 次（' + sg(x.from) + '→' + sg(x.to) + '）' }; }, empty: '沒有連續退步的同學' },
+      { key: 'miss', title: '有缺交', rows: g.miss, line: function (x) { return { idx: x.idx, rank: null, value: (x.hm ? '作業缺 ' + x.hm + ' 次' : '') + (x.hm && x.ab ? '・' : '') + (x.ab ? '缺考 ' + x.ab + ' 次' : '') }; }, empty: '全班都沒有缺交' }
+    ];
+    var grid = el('div', { 'class': 'attGrid' });
+    cols.forEach(function (col) {
+      var box = el('div'), h = el('div', { 'class': 'h3' }, col.title + '　');
+      h.appendChild(el('b', null, col.rows.length + ' 人'));
+      box.appendChild(h);
+      if (!col.rows.length) box.appendChild(el('div', { 'class': 'muted small' }, col.empty));
+      else {
+        var all = !!st.attAll[col.key], shown = all ? col.rows : col.rows.slice(0, 6);
+        box.appendChild(slist(shown.map(col.line), term));
+        if (col.rows.length > 6) {
+          var b = el('button', { 'class': 'secondary noprint' }, all ? '收合' : '顯示全部 ' + col.rows.length + ' 人');
+          b.style.marginTop = '8px';
+          b.onclick = function () { st.attAll[col.key] = !all; renderMain(); };
+          box.appendChild(b);
+        }
+      }
+      grid.appendChild(box);
+    });
+    c.appendChild(grid);
+    c.appendChild(el('p', { 'class': 'muted small', style: 'margin:10px 0 0' }, '後標＝全班由高到低排，位於後 25% 的那個分數（目前 ' + (g.back == null ? '—' : fmt(g.back)) + '）；及格線 ' + g.pass + '。更細的警示條件與門檻在「關注名單」頁。'));
+    main.appendChild(c);
+  }
+
+  // ---------- 學生 × 測驗熱力圖 ----------
+  // 每格依「與當次班平均的差距」上色：綠＝高於平均，紅＝低於平均，灰＝缺交／缺考；格子裡仍寫出得分，不只靠顏色
+  function hmColor(d) {
+    if (Math.abs(d) < 2) return '#EFEBE3';
+    var a = 0.14 + 0.5 * Math.min(1, (Math.abs(d) - 2) / 23);
+    return d > 0 ? 'rgba(59,125,52,' + a.toFixed(2) + ')' : 'rgba(193,71,51,' + a.toFixed(2) + ')';
+  }
+  function weakTests(qs) {
+    var pass = scope().A.passPct;
+    return qs.map(function (q, k) { return { q: q, k: k }; })
+      .sort(function (a, b) { return a.q.pctStats.mean - b.q.pctStats.mean; })
+      .slice(0, 3)
+      .filter(function (x) { return x.q.pctStats.mean < 80 || x.q.pcts.filter(function (p) { return p != null && p < pass; }).length >= Math.max(2, x.q.n * 0.2); });
+  }
+  function renderHeatmap(main, qs, sc, agg, term) {
+    var A = sc.A, T = sc.T, s = sm(), N = A.students.length;
+    var c = AX.card('學生 × 測驗熱力圖', '每格依「與當次班平均的差距」上色，格子裡是原始得分。點欄位標題，下方「各次測驗一覽」會展開那次測驗的分布。');
+    var weak = weakTests(qs);
+    if (weak.length) {
+      var wl = el('div', { 'class': 'note', style: 'margin:0 0 8px' });
+      wl.appendChild(document.createTextNode('較弱的單元：' + weak.map(function (x) {
+        return x.q.name + '（平均得分率 ' + fmt(x.q.pctStats.mean) + '%，不及格 ' + x.q.pcts.filter(function (p) { return p != null && p < A.passPct; }).length + ' 人）';
+      }).join('、')));
+      c.appendChild(wl);
+    }
+    var lg = el('div', { 'class': 'hmLegend' });
+    lg.appendChild(document.createTextNode('低於班平均 '));
+    [-25, -15, -8, 0, 8, 15, 25].forEach(function (d) { var i = el('i'); i.style.background = hmColor(d); lg.appendChild(i); });
+    lg.appendChild(document.createTextNode(' 高於班平均（滿色約差 25 分以上）　'));
+    var na = el('i'); na.style.background = '#E4E1DD'; lg.appendChild(na); lg.appendChild(document.createTextNode(' 缺交／缺考'));
+    c.appendChild(lg);
+
+    var bar = el('div', { 'class': 'bar noprint' }); bar.style.marginBottom = '8px';
+    [['seat', '依座號'], ['low', '由低分排起']].forEach(function (o) {
+      var b = el('button', { 'class': st.sort === o[0] ? 'on' : '' }, o[1]);
+      b.onclick = function () { st.sort = o[0]; renderMain(); };
+      bar.appendChild(b);
+    });
+    c.appendChild(bar);
+
+    var avg = T && T.stats.n ? T.scores : agg.rows.map(function (r) { return r.eligible ? r.avg : null; });
+    var order = [], i;
+    for (i = 0; i < N; i++) order.push(i);
+    if (st.sort === 'low') order.sort(function (a, b) { return (avg[a] == null ? 1e9 : avg[a]) - (avg[b] == null ? 1e9 : avg[b]); });
+
+    var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'hm' }), thead = el('thead'), hr = el('tr');
+    hr.appendChild(el('th'));
+    qs.forEach(function (q, k) {
+      var th = el('th', { 'class': 'col' + (k === st.pick ? ' sel' : ''), title: (q.term ? q.term + ' ' : '') + q.name + '（平均 ' + fmt(q.stats.mean) + '）' }, q.name);
+      th.onclick = function () { st.pick = k; renderMain(); var d = AX.$('detail'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+      hr.appendChild(th);
+    });
+    hr.appendChild(el('th', { style: 'text-align:left;padding-left:8px' }, T && T.stats.n ? '學期成績' : '累計平均'));
+    thead.appendChild(hr); tb.appendChild(thead);
+    var body = el('tbody');
+    order.forEach(function (idx) {
+      var tr = el('tr'), nm = el('td', { 'class': 'nm' });
+      nm.appendChild(el('a', { 'class': 'link', href: personalUrl(idx, term), title: '看個人概況' }, AX.seatLabel(A.students[idx])));
+      tr.appendChild(nm);
+      qs.forEach(function (q) {
+        var v = q.scores[idx], td;
+        if (v == null) td = el('td', { 'class': 'na', title: q.name + '：缺交／缺考' }, '—');
+        else {
+          var d = q.pcts[idx] - q.pctStats.mean;
+          td = el('td', { title: q.name + '：' + fmt(v) + (q.max !== 100 ? ' / ' + fmt(q.max) : '') + '，與班平均 ' + sg(d) + ' 分' }, fmt(v, 0));
+          td.style.background = hmColor(d);
+        }
+        tr.appendChild(td);
+      });
+      var a = el('td', { 'class': 'avg' }, avg[idx] == null ? '—' : fmt(avg[idx]));
+      if (avg[idx] != null && avg[idx] < A.passPct) a.className = 'avg down';
+      tr.appendChild(a);
+      body.appendChild(tr);
+    });
+    tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap); main.appendChild(c);
+  }
+
   // ---------- 各項目一覽表 ----------
   // 組距：100 分、90 幾、80 幾、70 幾、60 幾、不及格（60 分以下，不含 60）。依「得分率」分，滿分不是 100 的測驗也適用。
-  function renderTable(main, qs, isAll) {
+  function renderTable(main, qs, isAll, term) {
     var more = AX.lsGet('AX_MORECOLS') === '1';
-    var c = AX.card('各次測驗一覽', '點選任一列，下方會顯示該次測驗的完整分布與名單。五標＝成績由高到低排，位於前 12%／25% 位置的那個分數（頂標、前標）。右邊是各分數段的人數，依得分率計算；缺考者不列入統計。');
+    var weak = weakTests(qs).map(function (x) { return x.q; });
+    var c = AX.card('各次測驗一覽', '點選任一列，會在那一列下方展開該次測驗的分數分布與名單，再點一次收起。淡紅色的列＝較弱的單元（平均得分率偏低或不及格人數多）。五標＝成績由高到低排，位於前 12%／25% 位置的那個分數（頂標、前標）。');
     var bar = el('div', { 'class': 'bar noprint' });
     bar.style.marginBottom = '8px';
-    var tg = el('button', null, more ? '收合額外欄位' : '顯示更多欄位（得分率、最高最低、均標後標底標、及格率）');
+    var tg = el('button', null, more ? '收合額外欄位' : '顯示更多欄位（得分率、最高最低、均標後標底標、各分數段人數、及格率）');
     tg.onclick = function () { AX.lsSet('AX_MORECOLS', more ? '0' : '1'); renderMain(); };
     bar.appendChild(tg); c.appendChild(bar);
 
@@ -266,11 +418,11 @@
       { h: '均標', extra: true, v: function (q) { return fmt(q.tiers.mid); } },
       { h: '後標', extra: true, v: function (q) { return fmt(q.tiers.back); } },
       { h: '底標', extra: true, v: function (q) { return fmt(q.tiers.bottom); } },
-      { h: '100分', band: true, v: function (q, b) { return String(b.b100); } },
-      { h: '90幾', band: true, v: function (q, b) { return String(b.b90); } },
-      { h: '80幾', band: true, v: function (q, b) { return String(b.b80); } },
-      { h: '70幾', band: true, v: function (q, b) { return String(b.b70); } },
-      { h: '60幾', band: true, v: function (q, b) { return String(b.b60); } },
+      { h: '100分', band: true, extra: true, v: function (q, b) { return String(b.b100); } },
+      { h: '90幾', band: true, extra: true, v: function (q, b) { return String(b.b90); } },
+      { h: '80幾', band: true, extra: true, v: function (q, b) { return String(b.b80); } },
+      { h: '70幾', band: true, extra: true, v: function (q, b) { return String(b.b70); } },
+      { h: '60幾', band: true, extra: true, v: function (q, b) { return String(b.b60); } },
       { h: '不及格', band: true, v: function (q, b) { return String(b.fail); } },
       { h: '及格率', extra: true, v: function (q) { return fmt(q.passRate, 0) + '%'; } }
     ]).filter(function (col) { return more || !col.extra; });
@@ -285,28 +437,32 @@
     thead.appendChild(hr); tb.appendChild(thead);
     var body = el('tbody');
     qs.forEach(function (q, i) {
-      var tr = el('tr', { 'class': 'row' + (i === st.pick ? ' pick' : '') });
+      var tr = el('tr', { 'class': 'row' + (i === st.pick ? ' pick' : '') + (weak.indexOf(q) > -1 ? ' weakRow' : '') });
       var b = S.scoreBands(q.pcts);
       cols.forEach(function (col) {
         var td = el('td', { 'class': col.left ? 'l' : '' }, col.v(q, b));
         if (col.h === '不及格' && b.fail > 0) td.className = 'down';
         tr.appendChild(td);
       });
-      tr.onclick = function () { st.pick = i; renderMain(); var d = AX.$('detail'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+      tr.onclick = function () { st.pick = st.pick === i ? -1 : i; renderMain(); var d = AX.$('detail'); if (d) d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
       body.appendChild(tr);
+      if (i === st.pick) {
+        var ex = el('tr', { 'class': 'expand' }), td = el('td', { colspan: String(cols.length), id: 'detail' });
+        renderDetail(td, q, term); ex.appendChild(td); body.appendChild(ex);
+      }
     });
     tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap); main.appendChild(c);
   }
 
-  // ---------- 單次測驗細節 ----------
-  function renderDetail(main, q, term) {
+  // ---------- 單次測驗細節（在一覽表那一列下方展開） ----------
+  function renderDetail(box, q, term) {
     var A = scope().A;
-    var c = AX.card(q.name + ' 的分數分布', (q.term ? q.term + '・' : '') + '類別：' + (q.category || '未分類') + '・滿分 ' + fmt(q.max) + '・實考 ' + q.n + ' 人' + (q.absent ? '・缺考 ' + q.absent + ' 人' : ''));
-    c.id = 'detail';
+    box.appendChild(el('div', { 'class': 'h3' }, q.name + ' 的分數分布'));
+    box.appendChild(el('div', { 'class': 'muted small' }, (q.term ? q.term + '・' : '') + '類別：' + (q.category || '未分類') + '・滿分 ' + fmt(q.max) + '・實考 ' + q.n + ' 人' + (q.absent ? '・缺考 ' + q.absent + ' 人' : '')));
     var t = q.tiers;
-    c.appendChild(AX.chips([['頂標', fmt(t.top)], ['前標', fmt(t.front)], ['均標', fmt(t.mid)], ['後標', fmt(t.back)], ['底標', fmt(t.bottom)], ['平均', fmt(q.stats.mean)], ['標準差', fmt(q.stats.sd)]]));
+    box.appendChild(AX.chips([['頂標', fmt(t.top)], ['前標', fmt(t.front)], ['均標', fmt(t.mid)], ['後標', fmt(t.back)], ['底標', fmt(t.bottom)], ['平均', fmt(q.stats.mean)], ['標準差', fmt(q.stats.sd)]]));
     var cols = el('div', { 'class': 'cols' }); cols.style.marginTop = '12px';
-    var left = el('div'), right = el('div'); cols.appendChild(left); cols.appendChild(right); c.appendChild(cols); main.appendChild(c);
+    var left = el('div'), right = el('div'); cols.appendChild(left); cols.appendChild(right); box.appendChild(cols);
     AX.barChart(left, { bins: AX.pctBins(A.students, q.pcts), color: 'var(--series-1)', markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct + '%', xTitle: '得分率（%）', ariaLabel: q.name + '得分率組距分布' });
     var idxs = []; q.scores.forEach(function (v, i) { if (v != null) idxs.push(i); });
     idxs.sort(function (a, b) { return q.scores[b] - q.scores[a]; });
