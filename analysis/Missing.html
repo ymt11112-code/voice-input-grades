@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261121">
+  <link rel="stylesheet" href="analysis-common.css?v=20261122">
   <style>
     table.stats td input[type=number] { width: 78px; padding: 4px 6px; text-align: right; }
     table.stats td input.noteIn { width: 100%; min-width: 150px; padding: 4px 8px; }
@@ -21,6 +21,9 @@
     .doneRow { opacity: .5; }
     tr.badRow td { background: #F9E0DA; }
     tr.badRow td.l:first-child { background: #F9E0DA; }
+    tr.lowRow td, tr.lowRow td.l:first-child { background: #FFF1D6; }
+    tr.lowRow .badWhy { color: #B35A00; }
+    tr.lowRow .badCur { background: #B35A00; }
     .badWhy { color: #C14733; font-weight: 700; white-space: normal; }
     .badCur { display: inline-block; background: #7B1E1E; color: #fff; border-radius: 10px; padding: 1px 10px; font-weight: 700; margin-right: 6px; }
   </style>
@@ -57,7 +60,7 @@
         <select id="fType">
           <option value="*">全部（缺分＋分數可疑）</option>
           <option value="missing">只看缺分（空白）</option>
-          <option value="bad">只看分數可疑（超過滿分）</option>
+          <option value="bad">只看分數可疑（超過滿分、偏低）</option>
         </select></span>
       <span class="grp"><span class="lbl">狀態</span>
         <select id="fStatus">
@@ -79,10 +82,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261121"></script>
-<script src="analysis-demo.js?v=20261121"></script>
-<script src="analysis-art.js?v=20261121"></script>
-<script src="analysis-common.js?v=20261121"></script>
+<script src="analysis-stats.js?v=20261122"></script>
+<script src="analysis-demo.js?v=20261122"></script>
+<script src="analysis-art.js?v=20261122"></script>
+<script src="analysis-common.js?v=20261122"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, ALL = '*';
@@ -147,7 +150,12 @@
           var cur = s.scores[ii];
           if (cur != null) {
             // 明顯有問題的分數：超過滿分（沒設滿分就用 100）或是負數，列出來讓老師一併修正
-            if (!scaled && (cur > limit + 1e-9 || cur < 0)) {
+            // 另外：作業低於 80%、測驗或段考低於 50%（得分率），也列為可疑，請老師對照原始成績確認
+            var lowThr = kind === 'homework' ? 80 : ((kind === 'quiz' || kind === 'midterm' || kind === 'final') ? 50 : 0);
+            if (!scaled && cur >= 0 && cur <= limit + 1e-9 && lowThr && cur / limit * 100 < lowThr - 1e-9) {
+              out.push({ bad: true, low: true, thr: lowThr, score: cur, limit: limit, subject: d.subject, si: si, ii: ii, sIdx: sIdx, term: it.term || '', item: it.name, category: it.category, max: it.max, col: it.col,
+                row: s.row, seat: s.seat, name: s.name, kind: kind });
+            } else if (!scaled && (cur > limit + 1e-9 || cur < 0)) {
               out.push({ bad: true, score: cur, limit: limit, subject: d.subject, si: si, ii: ii, sIdx: sIdx, term: it.term || '', item: it.name, category: it.category, max: it.max, col: it.col,
                 row: s.row, seat: s.seat, name: s.name, kind: kind });
             }
@@ -204,7 +212,7 @@
     var tiles = el('div', { 'class': 'tiles' });
     var nBad = list.filter(function (e) { return e.bad; }).length, nBadOpen = list.filter(function (e) { return e.bad && !isOk(e); }).length;
     tiles.appendChild(AX.tile('缺分筆數', String(list.length - nBad), '筆', '目前篩選條件下'));
-    if (nBad) tiles.appendChild(AX.tile('分數可疑', String(nBad), '筆', nBadOpen ? '超過滿分，請確認有沒有打錯（紅色列）' : '都已確認無誤', nBadOpen ? 'down' : 'up'));
+    if (nBad) tiles.appendChild(AX.tile('分數可疑', String(nBad), '筆', nBadOpen ? '超過滿分（紅色列）或偏低（橘色列），請確認有沒有打錯' : '都已確認無誤', nBadOpen ? 'down' : 'up'));
     tiles.appendChild(AX.tile('涉及學生', String(Object.keys(uniqueStudents).length), '人'));
     tiles.appendChild(AX.tile('尚未備註原因', String(unmarked), '筆', unmarked ? '請選擇原因，或直接補登分數' : '全部都處理好了', unmarked ? 'down' : 'up'));
     main.appendChild(tiles);
@@ -213,7 +221,7 @@
     if (rk.length) { var c0 = AX.card('原因統計'); c0.appendChild(AX.chips(rk.map(function (k) { return [k, reasonCount[k] + ' 筆']; }))); main.appendChild(c0); }
 
     var card = AX.card('缺分與可疑分數總表',
-      '這裡列出所有「已經登記過、但這位同學還是空白」的項目（作業的空白＝缺交）。可以直接在右邊輸入分數補登，補登後這筆會從表中消失。另外，分數超過滿分（沒設滿分就以 100 計）或是負數的格子也會用紅色列出來，右邊已經填好目前的分數，直接改成正確的再按「修正」；如果那個分數是故意的（例如加分），在原因選「確認無誤」就不會再提醒。沒有成績的同學可以選擇原因、加備註，原因只是紀錄，不會改變成績計算（缺分仍視為缺考／缺交）。');
+      '這裡列出所有「已經登記過、但這位同學還是空白」的項目（作業的空白＝缺交）。可以直接在右邊輸入分數補登，補登後這筆會從表中消失。另外，分數超過滿分（沒設滿分就以 100 計）或是負數的格子也會用紅色列出來，右邊已經填好目前的分數，直接改成正確的再按「修正」；另外，作業低於 80%、測驗或段考低於 50%（得分率）的格子會用橘色列出來，請對照原始成績確認有沒有登記錯。如果那個分數是故意的（例如加分、真的考得不好、缺考登記 0 分），在原因選「確認無誤」就不會再提醒。沒有成績的同學可以選擇原因、加備註，原因只是紀錄，不會改變成績計算（缺分仍視為缺考／缺交）。');
     if (!all.length) { card.appendChild(el('div', { 'class': 'empty' }, '目前沒有任何缺分，全班成績都登記完整 🎉')); main.appendChild(card); return; }
     if (!list.length) { card.appendChild(el('div', { 'class': 'empty' }, '沒有符合篩選條件的缺分。')); main.appendChild(card); return; }
 
@@ -237,7 +245,7 @@
   }
 
   function row(e) {
-    var tr = el('tr', e.bad ? { 'class': 'badRow' } : null), key = noteKey(e.subject, e.term, e.item, e.name), cur = st.notes[key] || { reason: '', note: '' };
+    var tr = el('tr', e.bad ? { 'class': e.low ? 'lowRow' : 'badRow' } : null), key = noteKey(e.subject, e.term, e.item, e.name), cur = st.notes[key] || { reason: '', note: '' };
     tr.appendChild(el('td', { 'class': 'l' }, AX.seatLabel(e)));
     tr.appendChild(el('td', { 'class': 'l' }, e.subject));
     tr.appendChild(el('td', { 'class': 'l' }, e.term || '—'));
@@ -255,7 +263,8 @@
 
     // 原因與備註（改了就自動存）
     var tdR = el('td', { 'class': 'cell' }), sel = el('select');
-    if (e.bad) tdR.appendChild(el('div', { 'class': 'badWhy' }, '⚠️ ' + e.score + ' 超過' + (e.max > 0 ? '滿分 ' + e.max : ' 100 分') + '，可能打錯了'));
+    if (e.low) tdR.appendChild(el('div', { 'class': 'badWhy' }, '🔍 ' + e.score + (e.limit !== 100 ? ' / ' + e.limit : '') + ' 分（' + fmt(e.score / e.limit * 100) + '%），' + (e.kind === 'homework' ? '作業' : (e.kind === 'quiz' ? '測驗' : '段考')) + '低於 ' + e.thr + '%，請對照原始成績確認'));
+    else if (e.bad) tdR.appendChild(el('div', { 'class': 'badWhy' }, '⚠️ ' + e.score + ' 超過' + (e.max > 0 ? '滿分 ' + e.max : ' 100 分') + '，可能打錯了'));
     sel.appendChild(el('option', { value: '' }, e.bad ? '（這個分數沒有錯？選「確認無誤」）' : '（選擇原因）'));
     (e.bad ? [OK_REASON] : REASONS).forEach(function (r) { var o = el('option', { value: r }, r); if (r === cur.reason) o.selected = true; sel.appendChild(o); });
     tdR.appendChild(sel);
@@ -280,8 +289,10 @@
     if (v === '' || isNaN(Number(v))) { AX.toast('請輸入分數', true); inp.focus(); return; }
     var n = Number(v);
     if (n < 0) { AX.toast('分數不可以是負數', true); return; }
-    var limit = e.max > 0 ? Number(e.max) : (e.bad ? 100 : Infinity), stillOver = n > limit;
-    if (stillOver && !confirm('「' + e.item + '」這個項目' + (e.max > 0 ? '滿分是 ' : '沒有設滿分，以 ') + limit + (e.max > 0 ? '' : ' 分計') + '，你輸入的是 ' + n + '，確定要登記嗎？')) return;
+    var limit = e.max > 0 ? Number(e.max) : (e.bad ? 100 : Infinity), over = n > limit;
+    var stillLow = !!e.low && !over && n / (e.max > 0 ? Number(e.max) : 100) * 100 < e.thr, stillOver = over || stillLow;
+    if (over && !confirm('「' + e.item + '」這個項目' + (e.max > 0 ? '滿分是 ' : '沒有設滿分，以 ') + limit + (e.max > 0 ? '' : ' 分計') + '，你輸入的是 ' + n + '，確定要登記嗎？')) return;
+    if (stillLow && !confirm('你輸入的是 ' + n + '，仍低於檢查標準（' + e.thr + '%）。確定要登記嗎？登記後會標成「確認無誤」，不再提醒。')) return;
     btn.disabled = true;
     AX.call('saveScores', e.subject, e.col, [{ row: e.row, score: n }]).then(function () {
       st.raw.subjects[e.si].students[e.sIdx].scores[e.ii] = n;

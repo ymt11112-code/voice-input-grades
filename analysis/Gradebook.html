@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261121">
+  <link rel="stylesheet" href="analysis-common.css?v=20261122">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -175,10 +175,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261121"></script>
-<script src="analysis-demo.js?v=20261121"></script>
-<script src="analysis-art.js?v=20261121"></script>
-<script src="analysis-common.js?v=20261121"></script>
+<script src="analysis-stats.js?v=20261122"></script>
+<script src="analysis-demo.js?v=20261122"></script>
+<script src="analysis-art.js?v=20261122"></script>
+<script src="analysis-common.js?v=20261122"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -343,7 +343,8 @@
       pos += t.n;
     });
     h += '</tr></thead><tbody>';
-    var susList = [];
+    var susList = [], okSus = {};
+    (st.raw.missingNotes || []).forEach(function (n) { if (n.reason === '確認無誤') okSus[[n.subject, n.term, n.item, n.student].join('')] = true; });
     G.students.forEach(function (s, i) {
       h += '<tr><td class="seat">' + esc(s.seat) + '</td><td class="name">' + esc(s.name) + '</td>';
       all.forEach(function (c) {
@@ -356,6 +357,7 @@
         if (c.kind !== 'item' && !c.input && v != null && v > 100.0001) { cls.push('bad'); title = ' title="超過 100 分，請檢查原始分數有沒有打錯"'; }
         if (c.kind === 'item' && !c.scaled && v != null && v > c.item.max) { cls.push('over'); cls.push('bad'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
         var sus = susInfo(c, pctOfItem), susId = '';
+        if (sus && c.kind === 'item' && okSus[[st.subject, st.term, c.item.name, s.name].join('')]) sus = null;   // 已在「缺分紀錄」確認無誤的不再標
         if (sus) {
           cls.push('sus'); susId = ' id="sus' + susList.length + '"';
           var nmItem = c.kind === 'item' ? c.item.name : c.susName;
@@ -442,6 +444,10 @@
     var d = el('details', { 'class': 'susBox noprint' });
     d.open = list.length <= 12;
     d.appendChild(el('summary', null, '🔍 可疑分數 ' + list.length + ' 格（作業低於 ' + SUS_HW + '、測驗與段考低於 ' + SUS_EXAM + '），請對照原始成績確認；表格裡以橘色框標出'));
+    var lk = el('p', { 'class': 'muted small', style: 'margin:8px 0 0' });
+    lk.appendChild(document.createTextNode('在「缺分紀錄」頁可以逐筆修正，或標成「確認無誤」（之後這裡就不再標出）：'));
+    lk.appendChild(el('a', { href: AX.pageUrl('Missing.html', {}), 'class': 'link' }, '前往缺分紀錄 ›'));
+    d.appendChild(lk);
     var box = el('div', { 'class': 'susList' });
     list.forEach(function (x) {
       var b = el('button', { 'class': 'susItem', title: '點一下，表格會捲到這一格' }, (x.seat ? x.seat + ' 號 ' : '') + x.name + '　' + x.item + '　' + n1(x.v) + (x.max !== 100 ? ' / ' + x.max : '') + ' 分');
