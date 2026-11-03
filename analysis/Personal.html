@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261115">
+  <link rel="stylesheet" href="analysis-common.css?v=20261116">
 </head>
 <body>
 <div class="app">
@@ -42,10 +42,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261115"></script>
-<script src="analysis-demo.js?v=20261115"></script>
-<script src="analysis-art.js?v=20261115"></script>
-<script src="analysis-common.js?v=20261115"></script>
+<script src="analysis-stats.js?v=20261116"></script>
+<script src="analysis-demo.js?v=20261116"></script>
+<script src="analysis-art.js?v=20261116"></script>
+<script src="analysis-common.js?v=20261116"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
@@ -617,7 +617,7 @@
   // ---------- 摺疊區內容 ----------
   function gapChart(d, s) {
     var qs = s.A.quiz, i = s.i, sc = s.sc, weak = s.weak;
-    d.appendChild(el('p', { 'class': 'sub' }, '0 線＝當次班平均，點在 0 線上方就是贏過班平均；用差距比較，不受考卷難易影響。名次、得分放在滑過時的提示裡。缺考的測驗線會中斷。' + (weak.length ? '紅點＝明顯低於自己水準的測驗。' : '')));
+    d.appendChild(el('p', { 'class': 'sub' }, '0 線＝當次班平均，點在 0 線上方就是贏過班平均；用差距比較，不受考卷難易影響。點旁的數字是該次得分，名次放在滑過時的提示裡。缺考的測驗線會中斷。' + (weak.length ? '紅點＝明顯低於自己水準的測驗。' : '')));
     var b1 = el('div'); d.appendChild(b1);
     var vals = qs.map(function (q) { return q.pcts[i] == null ? null : q.pcts[i] - q.pctStats.mean; });
     var mx = Math.max.apply(null, [5].concat(vals.filter(function (v) { return v != null; }).map(Math.abs)));
@@ -631,6 +631,7 @@
       labels: qs.map(function (q) { return q.name; }), yMin: -m, yMax: m, ticks: ticks, yFmt: function (v) { return (v > 0 ? '+' : '') + v; }, groups: groups,
       series: [{ name: '與班平均的差距', color: 'var(--me)', values: vals }], refLine: { value: 0, label: '班平均' },
       ptColor: function (k) { return weak.some(function (w) { return w.q === qs[k]; }) ? 'var(--bad)' : null; },
+      ptLabel: function (k) { var q = qs[k]; return q.scores[i] == null ? '' : fmt(q.scores[i]); },
       ariaLabel: '個人與班平均的差距折線圖',
       tipRows: function (k) {
         var q = qs[k], rows = [];

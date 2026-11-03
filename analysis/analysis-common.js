@@ -471,6 +471,12 @@
       if (n <= 24) s.values.forEach(function (v, i) {
         if (v != null) svg.appendChild(sv('circle', { cx: X(i), cy: Y(v), r: 4, fill: (o.ptColor && o.ptColor(i, v)) || s.color, stroke: 'var(--surface)', 'stroke-width': 2 }));
       });
+      if (o.ptLabel && n <= 24) s.values.forEach(function (v, i) {
+        if (v == null) return;
+        var tx = o.ptLabel(i, v);
+        if (tx == null || tx === '') return;
+        svg.appendChild(sv('text', { x: X(i), y: Y(v) + (v >= 0 ? -10 : 18), 'text-anchor': 'middle', 'class': 'ax-val', style: 'pointer-events:none' }, String(tx)));
+      });
     });
 
     var cross = sv('line', { y1: m.t, y2: m.t + ph, 'class': 'ax-cross', visibility: 'hidden' });
