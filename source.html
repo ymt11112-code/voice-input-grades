@@ -139,7 +139,7 @@
     .pill { display:inline-block; padding:2px 10px; border-radius:999px; background:var(--mint-bg); color: var(--forest); font-size:12px; margin-left:6px;}
 
     /* 成績表下方的總平均／組距 */
-    .scoreStats { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+    .scoreStats { margin-top: 12px; }
     .statRow { display: flex; flex-wrap: wrap; gap: 8px; }
     .statBox { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--mint-bg); color: var(--forest); font-size: 13px; }
     .statBox b { font-size: 17px; }
@@ -148,8 +148,8 @@
     table.statTable { margin-top: 4px; }
     table.statTable th, table.statTable td { padding: 3px 8px; font-size: 13px; }
     table.statTable tr.totalRow td { font-weight: 700; background: var(--mint-bg); }
-    .rankLists { display: flex; flex-wrap: wrap; gap: 14px; }
-    .rankBox { flex: 1 1 200px; min-width: 200px; }
+    .rankLists { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 4px; }
+    .rankBox { flex: 1 1 260px; min-width: 240px; }
 
     /* 科目／類別／項目設定：合併一個頁籤，用可收合卡片區分，節省頁籤數量 */
     .card { border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
@@ -747,33 +747,34 @@
             <tbody id="scoreTableBody"></tbody>
           </table>
         </div>
+      </div>
+    </div>
 
-        <div class="scoreStats" id="scoreStats">
-          <div class="statRow">
-            <span class="statBox"><span class="statLabel">總平均</span><b id="statAvg">–</b></span>
-            <span class="statBox"><span class="statLabel">已登記</span><b id="statCount">–</b></span>
-            <span class="statBox"><span class="statLabel">最高</span><b id="statMax">–</b></span>
-            <span class="statBox"><span class="statLabel">最低</span><b id="statMin">–</b></span>
-          </div>
-          <div class="statRow" style="margin-top:8px">
-            <span class="statBox" title="由高到低排序，位於全班前 25% 位置的那位同學的分數"><span class="statLabel">前標</span><b id="statQ1">–</b></span>
-            <span class="statBox" title="由高到低排序，位於全班 75% 位置的那位同學的分數"><span class="statLabel">後標</span><b id="statQ3">–</b></span>
-          </div>
-          <div class="statDistTitle">組距人數與比例<span class="muted" id="statDistNote"></span></div>
+    <div class="subpanel scoreStats" id="scoreStats">
+      <h3 style="margin-top:0">📊 成績統計<span class="muted" id="statDistNote"></span></h3>
+      <div class="statRow">
+        <span class="statBox"><span class="statLabel">總平均</span><b id="statAvg">–</b></span>
+        <span class="statBox"><span class="statLabel">已登記</span><b id="statCount">–</b></span>
+        <span class="statBox"><span class="statLabel">最高</span><b id="statMax">–</b></span>
+        <span class="statBox"><span class="statLabel">最低</span><b id="statMin">–</b></span>
+        <span class="statBox" title="由高到低排序，位於全班前 25% 位置的那位同學的分數"><span class="statLabel">前標</span><b id="statQ1">–</b></span>
+        <span class="statBox" title="由高到低排序，位於全班 75% 位置的那位同學的分數"><span class="statLabel">後標</span><b id="statQ3">–</b></span>
+      </div>
+      <div class="rankLists">
+        <div class="rankBox">
+          <div class="statDistTitle">組距人數與比例</div>
           <table class="statTable"><thead><tr><th>組距</th><th>人數</th><th>比例</th></tr></thead><tbody id="statDist"></tbody></table>
-          <div class="rankLists">
-            <div class="rankBox">
-              <div class="statDistTitle">前五名</div>
-              <table class="statTable"><thead><tr><th>名次</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead><tbody id="statTop"></tbody></table>
-            </div>
-            <div class="rankBox">
-              <div class="statDistTitle">後五名</div>
-              <table class="statTable"><thead><tr><th>倒數</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead><tbody id="statBottom"></tbody></table>
-            </div>
-          </div>
-          <p class="muted" style="margin:6px 0 0">前標／後標：全班由高到低排序，位於前 25%／75% 位置那位同學的分數（同大考中心的算法）。</p>
+        </div>
+        <div class="rankBox">
+          <div class="statDistTitle">前五名</div>
+          <table class="statTable"><thead><tr><th>名次</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead><tbody id="statTop"></tbody></table>
+        </div>
+        <div class="rankBox">
+          <div class="statDistTitle">後五名</div>
+          <table class="statTable"><thead><tr><th>倒數</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead><tbody id="statBottom"></tbody></table>
         </div>
       </div>
+      <p class="muted" style="margin:6px 0 0">前標／後標：全班由高到低排序，位於前 25%／75% 位置那位同學的分數（同大考中心的算法）。</p>
     </div>
 
     <div class="card collapsed" style="margin-top:12px;">
