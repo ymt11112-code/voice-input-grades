@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261117">
+  <link rel="stylesheet" href="analysis-common.css?v=20261118">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -97,7 +97,10 @@
       table.gb input.attIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
       table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       .gbWrap { overflow: visible; max-height: none; border: 1.5px solid #222; border-radius: 0; }
-      table.gb { font-size: 10.5px; }
+      table.gb { font-size: 10.5px; width: 100%; }
+      .gbWrap.sparse table.gb { font-size: 13.5px; }
+      .gbWrap.sparse table.gb th, .gbWrap.sparse table.gb td { padding: var(--padv, 5px) 4px; }
+      .gbWrap { box-sizing: border-box; }
       table.gb th, table.gb td { padding: 2px 3px; min-width: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       table.gb thead th, table.gb .seat, table.gb .name, table.gb tfoot td { position: static; }
       .sheet { padding: 0; margin: 0; break-after: page; }
@@ -154,10 +157,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261117"></script>
-<script src="analysis-demo.js?v=20261117"></script>
-<script src="analysis-art.js?v=20261117"></script>
-<script src="analysis-common.js?v=20261117"></script>
+<script src="analysis-stats.js?v=20261118"></script>
+<script src="analysis-demo.js?v=20261118"></script>
+<script src="analysis-art.js?v=20261118"></script>
+<script src="analysis-common.js?v=20261118"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -245,7 +248,7 @@
     if (!st.subject) { main.appendChild(el('div', { 'class': 'empty' }, '還沒有任何科目')); return; }
     var G = st.G = gbFor(st.stage);
     renderConfig();
-    document.getElementById('pageStyle').textContent = '@page { size: A4 ' + (st.view === 'brief' ? 'portrait' : 'landscape') + '; margin: 8mm; }';
+    setPageOrient(st.view === 'brief' ? 'portrait' : 'landscape');
     renderRowPicker(G);
     if (G.empty || !G.students.length) {
       main.appendChild(el('div', { 'class': 'empty' }, G.students.length ? '這個階段還沒有登記項目' : '這個科目還沒有學生名單'));
@@ -253,6 +256,9 @@
     }
     if (st.view === 'detail') renderDetail(main, G); else renderBrief(main, G);
   }
+
+  // 列印方向：簡表一律直式；詳表欄位少（例如自然只有幾欄）用直式，欄位多用橫式
+  function setPageOrient(o) { document.getElementById('pageStyle').textContent = '@page { size: A4 ' + o + '; margin: 8mm; }'; }
 
   function isLow(v) { return v != null && v < st.low; }
 
@@ -342,6 +348,13 @@
     card.appendChild(el('div', { 'class': 'gbTitle' }, fullTerm(st.term) + '　' + st.subject + '　' + STAGE_NAME[st.stage] + '成績'));
     var wrap = el('div', { 'class': 'gbWrap', id: 'gbPrint' });
     wrap.innerHTML = h;
+    var sparse = all.length + 3 <= 11;   // 座號、姓名、排名 ＋ 其餘欄位
+    if (sparse) {
+      wrap.className += ' sparse';
+      // 列數少就把列拉高一點，讓直式 A4 不會看起來很空；列數多就維持緊湊
+      wrap.style.setProperty('--padv', G.students.length <= 24 ? '8px' : (G.students.length <= 32 ? '5px' : '3px'));
+    }
+    setPageOrient(sparse ? 'portrait' : 'landscape');
     var solos = wrap.querySelectorAll('th[data-solo]'), si = 0, p = 0;
     built.tops.forEach(function (t) { if (t.single) solos[si++].innerHTML = cols[p].head; p += t.n; });
     card.appendChild(wrap);
