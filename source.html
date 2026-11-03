@@ -145,11 +145,11 @@
     .statBox b { font-size: 17px; }
     .statLabel { font-size: 12px; color: var(--muted); }
     .statDistTitle { margin: 10px 0 4px; font-size: 13px; font-weight: 600; color: var(--forest); }
-    .distRow { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 13px; }
-    .distLabel { width: 78px; flex: none; color: var(--forest); }
-    .distBarWrap { flex: 1; height: 14px; background: var(--mint-bg); border-radius: 7px; overflow: hidden; }
-    .distBar { height: 100%; background: #F6C760; border-radius: 7px; min-width: 0; transition: width .2s; }
-    .distNum { width: 28px; flex: none; text-align: right; font-weight: 600; }
+    table.statTable { margin-top: 4px; }
+    table.statTable th, table.statTable td { padding: 3px 8px; font-size: 13px; }
+    table.statTable tr.totalRow td { font-weight: 700; background: var(--mint-bg); }
+    .rankLists { display: flex; flex-wrap: wrap; gap: 14px; }
+    .rankBox { flex: 1 1 200px; min-width: 200px; }
 
     /* 科目／類別／項目設定：合併一個頁籤，用可收合卡片區分，節省頁籤數量 */
     .card { border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
@@ -755,8 +755,23 @@
             <span class="statBox"><span class="statLabel">最高</span><b id="statMax">–</b></span>
             <span class="statBox"><span class="statLabel">最低</span><b id="statMin">–</b></span>
           </div>
-          <div class="statDistTitle">組距（人數）<span class="muted" id="statDistNote"></span></div>
-          <div id="statDist"></div>
+          <div class="statRow" style="margin-top:8px">
+            <span class="statBox" title="由高到低排序，位於全班前 25% 位置的那位同學的分數"><span class="statLabel">前標</span><b id="statQ1">–</b></span>
+            <span class="statBox" title="由高到低排序，位於全班 75% 位置的那位同學的分數"><span class="statLabel">後標</span><b id="statQ3">–</b></span>
+          </div>
+          <div class="statDistTitle">組距人數與比例<span class="muted" id="statDistNote"></span></div>
+          <table class="statTable"><thead><tr><th>組距</th><th>人數</th><th>比例</th></tr></thead><tbody id="statDist"></tbody></table>
+          <div class="rankLists">
+            <div class="rankBox">
+              <div class="statDistTitle">前五名</div>
+              <table class="statTable"><thead><tr><th>名次</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead><tbody id="statTop"></tbody></table>
+            </div>
+            <div class="rankBox">
+              <div class="statDistTitle">後五名</div>
+              <table class="statTable"><thead><tr><th>倒數</th><th>座號</th><th>姓名</th><th>成績</th></tr></thead><tbody id="statBottom"></tbody></table>
+            </div>
+          </div>
+          <p class="muted" style="margin:6px 0 0">前標／後標：全班由高到低排序，位於前 25%／75% 位置那位同學的分數（同大考中心的算法）。</p>
         </div>
       </div>
     </div>
@@ -3251,55 +3266,79 @@ function scoreCellGroup_(s, tabIndex) {
     '<td><input type="number" tabindex="' + tabIndex + '" data-row="' + s.row + '" data-name="' + escapeHtml(s.name) + '" data-seat="' + (s.seat || '') + '" value="' + escapeHtml(s.score) + '"></td>';
 }
 
-// 成績表下方的總平均／組距：直接讀畫面上輸入框的數字，所以手動輸入、語音、拍照帶入都會即時更新。
+// 成績表下方的統計：總平均、前標／後標、組距人數與比例、前五名／後五名。
+// 直接讀畫面上輸入框的數字，所以手動輸入、語音、拍照帶入都會即時更新。
 // 滿分不是 100 的項目，組距改用「得分率」（分數 ÷ 滿分）分級，才有可比性。
 function updateScoreStats_() {
   var inputs = document.querySelectorAll('#scoreTableBody input[type=number]');
   var meta = state.scoreTableMeta;
   var max = meta && Number(meta.item.max) > 0 ? Number(meta.item.max) : 0;
   var byPct = max > 0 && max !== 100;
-  var vals = [];
+  var rows = [];
   inputs.forEach(function (input) {
     if (input.value === '') return;
     var n = Number(input.value);
-    if (!isNaN(n)) vals.push(n);
+    if (!isNaN(n)) rows.push({ score: n, seat: input.dataset.seat || '', name: input.dataset.name || '' });
   });
+  var vals = rows.map(function (r) { return r.score; });
+  var n = vals.length;
   var set = function (id, t) { var el = document.getElementById(id); if (el) el.textContent = t; };
-  var fmt = function (n) { return String(Math.round(n * 10) / 10); };
-  if (!vals.length) {
-    set('statAvg', '–'); set('statMax', '–'); set('statMin', '–');
+  var fmt = function (x) { return String(Math.round(x * 10) / 10); };
+
+  // 由高到低排序；前標＝位於前 25% 位置的分數，後標＝位於 75% 位置的分數
+  var desc = vals.slice().sort(function (a, b) { return b - a; });
+  var at = function (p) { return desc[Math.min(n, Math.max(1, Math.ceil(n * p))) - 1]; };
+  if (!n) {
+    set('statAvg', '–'); set('statMax', '–'); set('statMin', '–'); set('statQ1', '–'); set('statQ3', '–');
   } else {
     var sum = 0;
     vals.forEach(function (v) { sum += v; });
-    set('statAvg', fmt(sum / vals.length));
-    set('statMax', fmt(Math.max.apply(null, vals)));
-    set('statMin', fmt(Math.min.apply(null, vals)));
+    set('statAvg', fmt(sum / n));
+    set('statMax', fmt(desc[0]));
+    set('statMin', fmt(desc[n - 1]));
+    set('statQ1', fmt(at(0.25)));
+    set('statQ3', fmt(at(0.75)));
   }
-  set('statCount', vals.length + ' / ' + inputs.length);
+  set('statCount', n + ' / ' + inputs.length);
   set('statDistNote', byPct ? '　依得分率（滿分 ' + max + '）' : '');
 
   var bands = [
-    { label: byPct ? '100%' : '100', test: function (p) { return p >= 100; } },
-    { label: byPct ? '90–99%' : '90–99', test: function (p) { return p >= 90 && p < 100; } },
-    { label: byPct ? '80–89%' : '80–89', test: function (p) { return p >= 80 && p < 90; } },
-    { label: byPct ? '70–79%' : '70–79', test: function (p) { return p >= 70 && p < 80; } },
-    { label: byPct ? '60–69%' : '60–69', test: function (p) { return p >= 60 && p < 70; } },
-    { label: byPct ? '未滿 60%' : '60 以下', test: function (p) { return p < 60; } }
+    { label: '100', test: function (p) { return p >= 100; } },
+    { label: '90–99', test: function (p) { return p >= 90 && p < 100; } },
+    { label: '80–89', test: function (p) { return p >= 80 && p < 90; } },
+    { label: '70–79', test: function (p) { return p >= 70 && p < 80; } },
+    { label: '60–69', test: function (p) { return p >= 60 && p < 70; } },
+    { label: '60 以下', test: function (p) { return p < 60; } }
   ];
+  if (byPct) bands.forEach(function (bd) { bd.label = bd.label.replace('60 以下', '未滿 60') + '%'; });
   var counts = bands.map(function () { return 0; });
   vals.forEach(function (v) {
     var p = byPct ? v / max * 100 : v;
     for (var i = 0; i < bands.length; i++) if (bands[i].test(p)) { counts[i]++; break; }
   });
-  var top = Math.max.apply(null, counts.concat([1]));
   var html = '';
   bands.forEach(function (bd, i) {
-    html += '<div class="distRow"><span class="distLabel">' + bd.label + '</span>' +
-      '<span class="distBarWrap"><span class="distBar" style="display:block;width:' + (counts[i] / top * 100) + '%"></span></span>' +
-      '<span class="distNum">' + counts[i] + '</span></div>';
+    html += '<tr><td>' + bd.label + '</td><td>' + counts[i] + '</td><td>' + (n ? fmt(counts[i] / n * 100) + '%' : '–') + '</td></tr>';
   });
+  html += '<tr class="totalRow"><td>合計</td><td>' + n + '</td><td>' + (n ? '100%' : '–') + '</td></tr>';
   var box = document.getElementById('statDist');
   if (box) box.innerHTML = html;
+
+  // 前五名／後五名：名次相同的並列（第 5 名同分的會一起列出）
+  var rankHtml = function (list, desc2) {
+    if (!list.length) return '<tr><td colspan="4" class="muted">尚無成績</td></tr>';
+    var out = '', rank = 0, prev = null;
+    var sorted = list.slice().sort(function (a, b) { return desc2 ? b.score - a.score : a.score - b.score; });
+    for (var i = 0; i < sorted.length; i++) {
+      if (sorted[i].score !== prev) { rank = i + 1; prev = sorted[i].score; }
+      if (rank > 5) break;
+      out += '<tr><td>' + rank + '</td><td>' + escapeHtml(sorted[i].seat) + '</td><td>' + escapeHtml(sorted[i].name) + '</td><td>' + fmt(sorted[i].score) + '</td></tr>';
+    }
+    return out;
+  };
+  var top = document.getElementById('statTop'), bottom = document.getElementById('statBottom');
+  if (top) top.innerHTML = rankHtml(rows, true);
+  if (bottom) bottom.innerHTML = rankHtml(rows, false);
 }
 
 document.getElementById('scoreTableBody').addEventListener('input', updateScoreStats_);
