@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261116">
+  <link rel="stylesheet" href="analysis-common.css?v=20261117">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -154,10 +154,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261116"></script>
-<script src="analysis-demo.js?v=20261116"></script>
-<script src="analysis-art.js?v=20261116"></script>
-<script src="analysis-common.js?v=20261116"></script>
+<script src="analysis-stats.js?v=20261117"></script>
+<script src="analysis-demo.js?v=20261117"></script>
+<script src="analysis-art.js?v=20261117"></script>
+<script src="analysis-common.js?v=20261117"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -211,7 +211,7 @@
     (st.raw.attitude || []).forEach(function (a) { if (a.subject === subject && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
     return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? map[k] : null; });
   }
-  function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, attOf(subject, stage), st.blank); }
+  function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, S.isExternalSubject(dataOf(subject)) ? null : attOf(subject, stage), st.blank); }
   function gbFor(stage) { return gbOf(st.subject, stage); }
   function hasGraded(G) {
     return G.examGraded || G.groups.some(function (g) { return g.cats.some(function (c) { return c.items.some(function (x) { return x.graded; }); }); });
@@ -602,7 +602,7 @@
       }
       return td;
     }
-    if (cats.indexOf('態度') === -1) {
+    if (cats.indexOf('態度') === -1 && !S.isExternalSubject(dataOf(st.subject))) {
       var atr = el('tr'), acur = cfg['態度'] || {};
       atr.appendChild(el('td', null, '態度'));
       atr.appendChild(el('td', { 'class': 'muted' }, '態度（在詳表直接輸入）'));

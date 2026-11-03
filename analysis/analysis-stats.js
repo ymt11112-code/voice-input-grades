@@ -1100,6 +1100,14 @@
     return Math.round(v * f + 1e-9) / f;
   }
 
+  // 別位老師的科目（例如自然）：用「建立外科成績貼上區」建立，項目只有 期中平時成績／期中考／期末平時成績／期末考。
+  // 這種科目的態度已經包含在對方給的平時成績裡，成績總表不可以再加「態度」欄或預設分數。
+  var EXT_ITEMS = ['期中平時成績', '期中考', '期末平時成績', '期末考'];
+  function isExternalSubject(d) {
+    var items = (d && d.items) || [];
+    return items.length > 0 && items.every(function (it) { return EXT_ITEMS.indexOf(String(it.name == null ? '' : it.name).trim()) > -1; });
+  }
+
   function gradebook(d, term, stage, kinds, weights, cfg, dec, att, blank) {
     // 還沒輸入的態度、還沒有成績的段考，先當作這個分數（預設 70；成績總表頁的「還沒輸入時先當作」可以改）
     var BLANK = blank !== undefined && blank !== null && blank !== '' && isFinite(Number(blank)) && Number(blank) >= 0 && Number(blank) <= 100 ? Number(blank) : BLANK_DEFAULT;
@@ -1259,7 +1267,7 @@
 
   AX.stats = {
     parseExternalPaste: parseExternalPaste,
-    periodMap: periodMap, gradebook: gradebook, gbRound: gbRound, BLANK_DEFAULT: BLANK_DEFAULT,
+    periodMap: periodMap, gradebook: gradebook, isExternalSubject: isExternalSubject, gbRound: gbRound, BLANK_DEFAULT: BLANK_DEFAULT,
     defaultDomainOf: defaultDomainOf, semesterByDomain: semesterByDomain, domainParsedFromSystem: domainParsedFromSystem, compareDomainScores: compareDomainScores,
     sum: sum, mean: mean, median: median, sd: sd, describe: describe, scoreBands: scoreBands, nonNull: nonNull, tiers: tiers, tierName: tierName,
     TIER_DEFS: TIER_DEFS, compRank: compRank, topPercent: topPercent, histogram: histogram, fmt: fmt, signed: signed,
