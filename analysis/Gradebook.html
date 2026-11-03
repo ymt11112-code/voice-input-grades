@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261120">
+  <link rel="stylesheet" href="analysis-common.css?v=20261121">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -24,6 +24,14 @@
     table.gb .seat { left: 0; min-width: 38px; }
     table.gb .name { left: 38px; min-width: 72px; }
     table.gb thead .seat, table.gb thead .name { z-index: 3; background: var(--yellow-soft); }
+    table.gb td.sus { box-shadow: inset 0 0 0 2px #E8892B; background: #FFF1D6; font-weight: 700; }
+    table.gb td.susFlash { animation: susFlash 1.4s ease 2; }
+    @keyframes susFlash { 0%, 100% { background: #FFF1D6; } 50% { background: #F6B26B; } }
+    .susBox { margin-top: 10px; background: #FFF8EA; border: 2px dashed #E8892B; border-radius: 16px; padding: 8px 14px; font-size: 13.5px; }
+    .susBox summary { cursor: pointer; font-weight: 700; }
+    .susList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .susItem { font-size: 12.5px; padding: 3px 10px; background: #fff; border: 1.5px solid #E8892B; border-radius: 999px; cursor: pointer; }
+    .susItem:hover { background: #FFE2B8; }
     table.gb .pct { display: block; font-size: 11px; color: var(--muted); }
     table.gb td.cat { background: var(--aqua-soft); }
     table.gb td.grp { background: var(--coral-soft); }
@@ -94,6 +102,7 @@
       table.brief td.foot { font-size: 12px; padding: 4px 6px; }
       table.brief td.foot span { margin-right: 14px; }
       .gbCfg, .legend { display: none !important; }
+      table.gb td.sus { box-shadow: none; background: #fff; font-weight: inherit; }
       table.gb input.attIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
       table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       .gbWrap { overflow: visible; max-height: none; border: 1.5px solid #222; border-radius: 0; }
@@ -166,10 +175,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261120"></script>
-<script src="analysis-demo.js?v=20261120"></script>
-<script src="analysis-art.js?v=20261120"></script>
-<script src="analysis-common.js?v=20261120"></script>
+<script src="analysis-stats.js?v=20261121"></script>
+<script src="analysis-demo.js?v=20261121"></script>
+<script src="analysis-art.js?v=20261121"></script>
+<script src="analysis-common.js?v=20261121"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -271,6 +280,15 @@
   function setPageOrient(o) { document.getElementById('pageStyle').textContent = '@page { size: A4 ' + o + '; margin: 8mm; }'; }
 
   function isLow(v) { return v != null && v < st.low; }
+  // 可疑分數：作業低於 80、測驗或段考低於 50，請對照原始考卷確認有沒有登記錯（換算過的類別不檢查）
+  var SUS_HW = 80, SUS_EXAM = 50;
+  function susInfo(c, pctOfItem) {
+    if (pctOfItem == null || c.input || c.scaled) return null;
+    var k = c.kind === 'item' ? c.gkind : c.susKind;
+    if (k === 'homework' && pctOfItem < SUS_HW) return { type: '作業', thr: SUS_HW };
+    if ((k === 'quiz' || k === 'exam' || k === 'midterm' || k === 'final') && pctOfItem < SUS_EXAM) return { type: k === 'quiz' ? '測驗' : '段考', thr: SUS_EXAM };
+    return null;
+  }
 
   // ---- 詳表 --------------------------------------------------
   function detailColumns(G) {
@@ -287,12 +305,12 @@
       if (!single) {
         g.cats.forEach(function (c) {
           c.items.forEach(function (x) {
-            cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores, scaled: !!c.scale });
+            cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores, scaled: !!c.scale, gkind: g.kind });
           });
           if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.raw : null, scaled: !!c.scale, input: !!c.input, pctVal: true });
         });
       }
-      cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '不計分') + '</span>', cls: 'grp', values: g.avg, pctVal: true });
+      cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '不計分') + '</span>', cls: 'grp', values: g.avg, pctVal: true, susKind: single ? g.kind : null, susName: single ? g.cats[0].items[0].name : '' });
       cols[start].first = true;
       tops.push({ label: g.label, n: cols.length - start, single: cols.length - start === 1 });
     });
@@ -302,7 +320,7 @@
   function tailColumns(G) {
     var tail = [];
     tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: true });
-    if (G.examListed) tail.push({ head: STAGE_NAME[st.stage] + '<span class="pct">' + pct(G.examShare) + (G.examDefault ? '・未輸入暫' + G.blank : '') + '</span>', cls: 'dly', values: G.exam, pctVal: true });
+    if (G.examListed) tail.push({ head: STAGE_NAME[st.stage] + '<span class="pct">' + pct(G.examShare) + (G.examDefault ? '・未輸入暫' + G.blank : '') + '</span>', cls: 'dly', values: G.exam, pctVal: true, susKind: G.examDefault ? null : 'exam', susName: STAGE_NAME[st.stage] });
     tail.push({ head: '平均', cls: 'fin', values: G.final, pctVal: true, d2: true });
     return tail;
   }
@@ -325,6 +343,7 @@
       pos += t.n;
     });
     h += '</tr></thead><tbody>';
+    var susList = [];
     G.students.forEach(function (s, i) {
       h += '<tr><td class="seat">' + esc(s.seat) + '</td><td class="name">' + esc(s.name) + '</td>';
       all.forEach(function (c) {
@@ -336,12 +355,19 @@
         var title = '';
         if (c.kind !== 'item' && !c.input && v != null && v > 100.0001) { cls.push('bad'); title = ' title="超過 100 分，請檢查原始分數有沒有打錯"'; }
         if (c.kind === 'item' && !c.scaled && v != null && v > c.item.max) { cls.push('over'); cls.push('bad'); title = ' title="超過滿分 ' + c.item.max + '，請確認有沒有打錯"'; }
+        var sus = susInfo(c, pctOfItem), susId = '';
+        if (sus) {
+          cls.push('sus'); susId = ' id="sus' + susList.length + '"';
+          var nmItem = c.kind === 'item' ? c.item.name : c.susName;
+          title = ' title="' + sus.type + '低於 ' + sus.thr + ' 分，請對照原始成績確認' + (sus.type === '測驗' ? '（缺考登記的 0 分可以忽略）' : '') + '"';
+          susList.push({ id: 'sus' + susList.length, seat: s.seat, name: s.name, item: nmItem, v: c.kind === 'item' ? v : v, max: c.kind === 'item' ? c.item.max : 100, type: sus.type });
+        }
         if (c.input) {
           var rv = c.raw ? c.raw[i] : null;
           h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + st.blank + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + st.blank + ' 分">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';
           return;
         }
-        h += '<td' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + title + '>' + (c.d2 ? n2(v) : n1(v)) + '</td>';
+        h += '<td' + susId + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + title + '>' + (c.d2 ? n2(v) : n1(v)) + '</td>';
       });
       var r = G.ranks[i];
       h += '<td class="rnk">' + (r == null ? '' : r) + '</td></tr>';
@@ -372,6 +398,7 @@
     card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」直接在表上輸入（Enter 到下一位）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
       (shareNote(G) ? ' ' + shareNote(G) : '') +
       (wrap.querySelectorAll('td.bad').length ? ' ⚠️ 有 ' + wrap.querySelectorAll('td.bad').length + ' 格超過滿分或超過 100 分（深紅色底），請檢查原始分數有沒有打錯。' : '')));
+    if (susList.length) card.appendChild(susBox(susList, wrap));
     main.appendChild(card);
     wireAttitudeInputs(wrap, G);
   }
@@ -409,6 +436,26 @@
       .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
   }
   function setSaved(msg) { AX.toast(msg); }
+
+  // 可疑分數清單：點一列，上面的表格會捲到那一格並閃一下
+  function susBox(list, wrap) {
+    var d = el('details', { 'class': 'susBox noprint' });
+    d.open = list.length <= 12;
+    d.appendChild(el('summary', null, '🔍 可疑分數 ' + list.length + ' 格（作業低於 ' + SUS_HW + '、測驗與段考低於 ' + SUS_EXAM + '），請對照原始成績確認；表格裡以橘色框標出'));
+    var box = el('div', { 'class': 'susList' });
+    list.forEach(function (x) {
+      var b = el('button', { 'class': 'susItem', title: '點一下，表格會捲到這一格' }, (x.seat ? x.seat + ' 號 ' : '') + x.name + '　' + x.item + '　' + n1(x.v) + (x.max !== 100 ? ' / ' + x.max : '') + ' 分');
+      b.onclick = function () {
+        var td = document.getElementById(x.id);
+        if (!td) return;
+        td.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+        td.classList.remove('susFlash'); void td.offsetWidth; td.classList.add('susFlash');
+      };
+      box.appendChild(b);
+    });
+    d.appendChild(box);
+    return d;
+  }
 
   // ---- 態度分數一鍵設定：全班（或全部科目）一次填同一個分數 ----
   // mode：'all'＝全班蓋過、'blank'＝只補還沒輸入的、'clear'＝清除
