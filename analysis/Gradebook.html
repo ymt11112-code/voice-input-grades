@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261119">
+  <link rel="stylesheet" href="analysis-common.css?v=20261120">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -136,9 +136,9 @@
     </div>
     <div class="bar">
       <span class="grp"><span class="lbl">未達</span><input type="number" id="optLow" min="0" max="100" style="width:64px"><span class="lbl">分標紅色</span></span>
-      <span class="grp"><span class="lbl">平均取小數</span><select id="optDec"><option value="2">2 位（跟 Excel 一樣）</option><option value="1">1 位（四捨五入）</option></select></span>
-      <span class="grp"><span class="lbl">還沒輸入時先當作</span><input type="number" id="optBlank" min="0" max="100" style="width:64px"><span class="lbl">分（態度、還沒有成績的段考）</span></span>
-      <span class="grp" id="perPageGrp"><span class="lbl">簡表每個表格</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人（一張 A4 直式放兩個表格）</span></span>
+      <span class="grp"><span class="lbl">平均取小數</span><select id="optDec"><option value="2">2 位</option><option value="1">1 位</option></select></span>
+      <span class="grp"><span class="lbl">還沒輸入時暫定</span><input type="number" id="optBlank" min="0" max="100" style="width:64px"><span class="lbl">分</span></span>
+      <span class="grp" id="perPageGrp"><span class="lbl">簡表每排</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人</span></span>
       <span class="spacer"></span>
       <button id="xlsBtn" title="每個科目一個工作表，一次下載全部">⬇️ 下載 Excel（全部科目）</button>
       <button class="primary" id="printBtn">🖨️ 列印 / 存成 PDF</button>
@@ -166,10 +166,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261119"></script>
-<script src="analysis-demo.js?v=20261119"></script>
-<script src="analysis-art.js?v=20261119"></script>
-<script src="analysis-common.js?v=20261119"></script>
+<script src="analysis-stats.js?v=20261120"></script>
+<script src="analysis-demo.js?v=20261120"></script>
+<script src="analysis-art.js?v=20261120"></script>
+<script src="analysis-common.js?v=20261120"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
