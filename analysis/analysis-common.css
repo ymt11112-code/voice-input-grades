@@ -368,3 +368,4 @@ button.fx:hover { background: #fff; }
 .closeBtn { float: right; margin-top: 2px; }
 table.stats tbody tr.pick td { background: var(--aqua-soft); }
 #detail { margin-top: 4px; scroll-margin-top: 12px; }
+.whyTxt { flex: 1 1 11em; min-width: 0; }

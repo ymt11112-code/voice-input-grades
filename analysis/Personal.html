@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261113">
+  <link rel="stylesheet" href="analysis-common.css?v=20261114">
 </head>
 <body>
 <div class="app">
@@ -42,14 +42,14 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261113"></script>
-<script src="analysis-demo.js?v=20261113"></script>
-<script src="analysis-art.js?v=20261113"></script>
-<script src="analysis-common.js?v=20261113"></script>
+<script src="analysis-stats.js?v=20261114"></script>
+<script src="analysis-demo.js?v=20261114"></script>
+<script src="analysis-art.js?v=20261114"></script>
+<script src="analysis-common.js?v=20261114"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
-  var st = { raw: null, model: null, key: null, term: null, subject: null, sums: [], lazy: [], cur: null };
+  var st = { raw: null, model: null, key: null, term: null, subject: null, sums: [], lazy: [], stage: null, jr: null };
   var TYPE_LABEL = { quiz: '測驗', midterm: '段考', final: '段考', other: '課堂', homework: '作業' };
 
   AX.shell();
@@ -59,6 +59,7 @@
 
   AX.load().then(function (r) {
     st.raw = r.raw; st.model = r.model;
+    try { st.stage = S.stageMatrix(r.model, { partial: true }); } catch (e) { st.stage = null; }
     var q = AX.qs(), M = st.model;
     if (!M.subjects.length || !M.roster.length) { AX.$('main').appendChild(el('div', { 'class': 'card empty' }, '試算表還沒有任何科目或學生，請先到「登記分數」面板建立。')); return; }
     st.key = M.roster.some(function (x) { return x.key === q.key; }) ? q.key : M.roster[0].key;
@@ -131,6 +132,41 @@
     return series.filter(function (x) { return x.diff <= mu - 10; });
   }
 
+  // ---------- 長期趨勢：現在這一次定期考查，和「前兩次」定期考查（期中、期末各算一次）比 ----------
+  // 例如現在是五上期中，就拿四下期末、四下期中來比。用「相對班平均的差距」比較，才不受每次考卷難易影響。
+  // 定期考查總成績＝平時成績＋段考（現在這次還沒考完段考時，只含已登記的成績，標＊）。包含匯入的歷史成績。
+  function journeyNow() {
+    if (!st.stage) return null;
+    var r = -1;
+    st.model.roster.forEach(function (x, k) { if (x.key === st.key) r = k; });
+    return r < 0 ? null : S.studentJourney(st.stage, r);
+  }
+  function longOf(name) {
+    var J = st.jr; if (!J) return null;
+    var rows = J.rows, curIdx = -1, lastIn = -1, k;
+    // 「現在」＝所選學期裡最後一次「已經考完」的定期考查（例如期中考完、期末還沒考完，現在就是期中）；
+    // 整個學期都還沒考完段考時，才用進行中的那一次（標＊）
+    for (k = 0; k < rows.length; k++) {
+      if (st.term !== ALL && rows[k].term !== st.term) continue;
+      lastIn = k;
+      if (rows[k].label.indexOf('＊') === -1) curIdx = k;
+    }
+    if (curIdx < 0) curIdx = lastIn;
+    if (curIdx < 0) return null;
+    var L = [];
+    for (k = 0; k <= curIdx; k++) {
+      var c = rows[k].subj[name];
+      if (c && c.v != null) L.push({ label: rows[k].label, term: rows[k].term, v: c.v, rank: c.rank, n: c.n, mean: c.mean, diff: c.v - c.mean, partial: rows[k].label.indexOf('＊') > -1 });
+    }
+    if (L.length < 2) return null;
+    var cur = L[L.length - 1];
+    if (cur.label !== rows[curIdx].label) return null;
+    var prev = L.slice(Math.max(0, L.length - 3), L.length - 1);
+    var base = S.mean(prev.map(function (x) { return x.diff; })), delta = cur.diff - base;
+    return { rows: prev.concat([cur]), cur: cur, prev: prev, base: base, delta: delta, label: delta >= 5 ? '進步' : (delta <= -5 ? '退步' : '持平') };
+  }
+  function prevNames(lg) { return lg.prev.map(function (x) { return x.label.replace('＊', ''); }).join('、'); }
+
   // ---------- 資料整理：每一科算出「成績、名次、趨勢、各項目表現、亮點與拖累」 ----------
   function summarize(sub) {
     var i = sub.index[st.key]; if (i === undefined) return null;
@@ -153,6 +189,7 @@
     if (tr) { s.score = tr.score; s.diff = tr.diff; s.rank = tr.rank; s.n = tr.n; s.tier = tr.tier; s.label = '學期成績'; s.partial = tr.partial; }
     else if (me.eligible) { s.score = me.avg; s.diff = me.avg - agg.stats.mean; s.rank = me.rank; s.n = agg.eligibleN; s.tier = S.tierName(agg.tiers, me.avg); s.label = '累計平均'; }
     else { s.score = me.avg; s.diff = null; s.rank = null; s.n = agg.eligibleN; s.tier = ''; s.label = '累計平均'; }
+    s.long = longOf(sub.name);
     s.cats = categoryRows(s);
     var f = factors(s.cats);
     s.good = f.good; s.bad = f.bad;
@@ -234,6 +271,7 @@
     if (s.score != null && s.score < s.passPct) f.push('低於及格線');
     if (s.rank != null && s.n >= 4 && s.rank / s.n > 0.75) f.push('全班後段');
     if (s.tj && s.tj.label === '退步') f.push('近期退步');
+    if (s.long && s.long.label === '退步') f.push('長期退步');
     if (s.hw.total) f.push('作業缺交');
     if (s.absent.length) f.push('缺考');
     if (s.bad.some(function (x) { return x.w <= -5; })) f.push('有項目明顯落後');
@@ -248,6 +286,7 @@
       if (s.diff != null && Math.abs(s.diff) >= 0.05) t += '，' + (s.diff > 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(s.diff)) + ' 分';
     } else t = s.score != null ? '缺考過多，未列入排名' : '尚無成績';
     if (s.tj && s.tj.label !== '持平') t += '，近期' + s.tj.label;
+    if (s.long && s.long.label !== '持平') t += '，長期' + s.long.label;
     if (s.good.length) t += '；亮點：' + s.good.slice(0, 2).map(function (x) { return x.text; }).join('、');
     if (s.bad.length) t += '；拖累：' + s.bad.slice(0, 2).map(function (x) { return x.text; }).join('、');
     else if (!s.good.length) t += '；各項目與班上差不多';
@@ -268,6 +307,10 @@
     var downs = sums.filter(function (s) { return s.tj && s.tj.label === '退步'; }).map(function (s) { return s.name; });
     if (ups.length) a.push('近期進步：' + ups.join('、'));
     if (downs.length) a.push('近期退步：' + downs.join('、'));
+    var lups = sums.filter(function (s) { return s.long && s.long.label === '進步'; }).map(function (s) { return s.name; });
+    var ldowns = sums.filter(function (s) { return s.long && s.long.label === '退步'; }).map(function (s) { return s.name; });
+    if (lups.length) a.push('長期進步：' + lups.join('、'));
+    if (ldowns.length) a.push('長期退步：' + ldowns.join('、'));
     var warn = sums.filter(function (s) { return s.flags.length; });
     if (warn.length) a.push('需要留意：' + warn.map(function (s) { return s.name + '（' + s.flags.slice(0, 2).join('、') + '）'; }).join('、'));
     else a.push('目前沒有需要特別處理的地方');
@@ -294,6 +337,7 @@
     var main = AX.$('main'); AX.clear(main); st.lazy = [];
     var M = st.model, r0 = null;
     M.roster.forEach(function (r) { if (r.key === st.key) r0 = r; });
+    st.jr = journeyNow();
     st.sums = M.subjects.map(summarize).filter(function (x) { return x; });
     try { history.replaceState(null, '', AX.pageUrl('Personal.html', { subject: st.subject, key: st.key, term: st.term })); } catch (e) { /* 本機檔案可能不允許，忽略 */ }
     if (!st.sums.length) { main.appendChild(el('div', { 'class': 'card empty' }, '這位學生在所選學期還沒有登記任何成績。')); return; }
@@ -333,6 +377,11 @@
     var downs = sums.filter(function (s) { return s.tj && s.tj.label === '退步'; }).length;
     tiles.appendChild(metricTile('近期趨勢', downs ? (ups ? '有進有退' : '有退步') : (ups ? '進步中' : '大致持平'), '',
       sums.map(function (s) { return { name: s.name, text: s.tj ? s.tj.label + '（' + sg(s.tj.delta) + '）' : '資料不足', cls: trCls(s.tj) }; })));
+    var lu = sums.filter(function (s) { return s.long && s.long.label === '進步'; }).length;
+    var ld = sums.filter(function (s) { return s.long && s.long.label === '退步'; }).length;
+    var lany = sums.some(function (s) { return s.long; });
+    tiles.appendChild(metricTile('長期趨勢', !lany ? '資料不足' : (ld ? (lu ? '有進有退' : '有退步') : (lu ? '進步中' : '大致持平')), lany ? '對比前兩次' : '',
+      sums.map(function (s) { return { name: s.name, text: s.long ? s.long.label + '（' + sg(s.long.delta) + '）' : '資料不足', cls: trCls(s.long) }; })));
     main.appendChild(tiles);
 
     // 3. 各科概況：亮點與拖累，點下去打開下方卡片
@@ -369,8 +418,14 @@
       if (s.tj) {
         var tr = el('div', { 'class': 'whyRow' });
         tr.appendChild(el('b', null, '近期'));
-        tr.appendChild(el('span', { 'class': trCls(s.tj) }, s.tj.label + '（最近 ' + s.tj.recentN + ' 次相對班平均 ' + sg(s.tj.delta) + ' 分）'));
+        tr.appendChild(el('span', { 'class': trCls(s.tj) + ' whyTxt' }, s.tj.label + '（最近 ' + s.tj.recentN + ' 次相對班平均 ' + sg(s.tj.delta) + ' 分）'));
         why.appendChild(tr);
+      }
+      if (s.long) {
+        var lr = el('div', { 'class': 'whyRow' });
+        lr.appendChild(el('b', null, '長期'));
+        lr.appendChild(el('span', { 'class': trCls(s.long) + ' whyTxt' }, s.long.label + '（對比' + prevNames(s.long) + '，相對班平均 ' + sg(s.long.delta) + ' 分）'));
+        why.appendChild(lr);
       }
       t.appendChild(why);
       t.onclick = function () { openDetail(s.name); };
@@ -421,6 +476,32 @@
     cb.appendChild(el('span', { 'class': 'tag' }, cc.flags ? '需要留意' : '整體狀況'));
     cb.appendChild(document.createTextNode(cc.text));
     card.appendChild(cb);
+
+    // 長期趨勢：現在 vs 前兩次定期考查
+    if (s.long) {
+      var lg = s.long;
+      card.appendChild(el('div', { 'class': 'h3' }, '長期趨勢（和前兩次定期考查比）'));
+      var lw = el('div', { 'class': 'tbl-wrap' }), lt = el('table', { 'class': 'stats' }), lh = el('tr');
+      ['階段', '定期考查總成績', '班平均', '與班平均差', '名次'].forEach(function (h, j) { lh.appendChild(el('th', { 'class': j === 0 ? 'l' : '' }, h)); });
+      var lhead = el('thead'); lhead.appendChild(lh); lt.appendChild(lhead);
+      var lb = el('tbody');
+      lg.rows.forEach(function (x, k) {
+        var tr = el('tr', { 'class': k === lg.rows.length - 1 ? 'pick' : '' });
+        [x.label.replace('＊', '') + (k === lg.rows.length - 1 ? '（現在）' : ''), fmt(x.v) + (x.partial ? '＊' : ''), fmt(x.mean), sg(x.diff) + ' 分', x.rank + ' / ' + x.n + ' 人'].forEach(function (v, j) {
+          var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
+          if (j === 3) td.className = AX.cls(x.diff);
+          tr.appendChild(td);
+        });
+        lb.appendChild(tr);
+      });
+      lt.appendChild(lb); lw.appendChild(lt); card.appendChild(lw);
+      var lp = el('p', { 'class': 'sub' });
+      lp.style.marginTop = '8px';
+      lp.appendChild(document.createTextNode('現在相對班平均 ' + sg(lg.cur.diff) + ' 分，前兩次平均 ' + sg(lg.base) + ' 分，差了 ' + sg(lg.delta) + ' 分 → '));
+      lp.appendChild(el('b', { 'class': trCls(lg) }, '長期' + lg.label));
+      lp.appendChild(document.createTextNode('（差 5 分以上才算進步或退步）。用「與班平均差」比較，不受考卷難易影響。' + (lg.cur.partial ? '＊現在這一次定期考查還沒考完段考，分數只含已登記的成績，之後會再變動。' : '')));
+      card.appendChild(lp);
+    }
 
     // 各項目表現：只和同一個項目比
     card.appendChild(el('div', { 'class': 'h3' }, '各項目表現'));
