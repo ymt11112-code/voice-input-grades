@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261114">
+  <link rel="stylesheet" href="analysis-common.css?v=20261115">
 </head>
 <body>
 <div class="app">
@@ -42,10 +42,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261114"></script>
-<script src="analysis-demo.js?v=20261114"></script>
-<script src="analysis-art.js?v=20261114"></script>
-<script src="analysis-common.js?v=20261114"></script>
+<script src="analysis-stats.js?v=20261115"></script>
+<script src="analysis-demo.js?v=20261115"></script>
+<script src="analysis-art.js?v=20261115"></script>
+<script src="analysis-common.js?v=20261115"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
@@ -110,6 +110,24 @@
   function levelOf(rank, n) {
     var p = rank / n;
     return p <= 0.25 ? '前段' : (p <= 0.5 ? '中前段' : (p <= 0.75 ? '中後段' : '後段'));
+  }
+  // PR 值（百分等級）：約有幾成同學排在自己後面。第 1 名 ≈ 接近 100，最後一名 ≈ 接近 0，50 ＝ 正中間
+  function prOf(rank, n) { return Math.max(1, Math.min(99, Math.round((n - rank + 0.5) / n * 100))); }
+  function prCls(pr) { return pr >= 75 ? 'up' : (pr <= 25 ? 'down' : ''); }
+  // 各科近期趨勢：每個項目（聽考、國卷、國習…）只跟自己比，再把各項目的進退步平均
+  function trendOf(cats) {
+    var parts = cats.filter(function (c) { return c.trend; });
+    if (!parts.length) return null;
+    var delta = S.mean(parts.map(function (c) { return c.trend.delta; }));
+    var label = delta >= 5 ? '進步' : (delta <= -5 ? '退步' : '持平');
+    var drivers = parts.filter(function (c) { return c.trend.label !== '持平'; });
+    drivers.sort(function (a, b) { return Math.abs(b.trend.delta) - Math.abs(a.trend.delta); });
+    var sorted = parts.slice().sort(function (a, b) { return Math.abs(b.trend.delta) - Math.abs(a.trend.delta); });
+    return {
+      delta: delta, label: label, parts: sorted,
+      note: drivers.map(function (c) { return c.name + c.trend.label; }).join('、'),
+      detail: sorted.map(function (c) { return c.name + ' ' + (c.trend.label === '持平' ? '持平' : c.trend.label) + ' ' + sg(c.trend.delta); }).join('、')
+    };
   }
   function hwList(sub, sc) {
     var list = [];
@@ -191,6 +209,7 @@
     else { s.score = me.avg; s.diff = null; s.rank = null; s.n = agg.eligibleN; s.tier = ''; s.label = '累計平均'; }
     s.long = longOf(sub.name);
     s.cats = categoryRows(s);
+    s.tj = trendOf(s.cats);
     var f = factors(s.cats);
     s.good = f.good; s.bad = f.bad;
     judge(s);
@@ -282,10 +301,11 @@
   function shortLine(s) {
     var t;
     if (s.rank != null) {
-      t = '第 ' + s.rank + ' 名／' + s.n + ' 人（' + levelOf(s.rank, s.n) + '）';
+      t = 'PR ' + prOf(s.rank, s.n) + '（第 ' + s.rank + ' 名／' + s.n + ' 人，' + levelOf(s.rank, s.n) + '）';
       if (s.diff != null && Math.abs(s.diff) >= 0.05) t += '，' + (s.diff > 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(s.diff)) + ' 分';
     } else t = s.score != null ? '缺考過多，未列入排名' : '尚無成績';
     if (s.tj && s.tj.label !== '持平') t += '，近期' + s.tj.label;
+    else if (s.tj && s.tj.note) t += '，近期整體持平（但' + s.tj.note + '）';
     if (s.long && s.long.label !== '持平') t += '，長期' + s.long.label;
     if (s.good.length) t += '；亮點：' + s.good.slice(0, 2).map(function (x) { return x.text; }).join('、');
     if (s.bad.length) t += '；拖累：' + s.bad.slice(0, 2).map(function (x) { return x.text; }).join('、');
@@ -299,7 +319,7 @@
     if (withRank.length) {
       var avgP = S.mean(withRank.map(function (s) { return s.rank / s.n; }));
       var lv = avgP <= 0.25 ? '前段' : (avgP <= 0.5 ? '中前段' : (avgP <= 0.75 ? '中後段' : '後段'));
-      a.push(sums.length + ' 科整體落在全班' + lv + '（各科平均約前 ' + Math.max(1, Math.round(avgP * 100)) + '%）');
+      a.push(sums.length + ' 科整體落在全班' + lv + '（各科平均 PR ' + Math.round(S.mean(withRank.map(function (s) { return prOf(s.rank, s.n); }))) + '）');
       var best = withRank.filter(function (s) { return s.rank / s.n <= 0.25; }).map(function (s) { return s.name; });
       if (best.length && best.length < withRank.length) a.push('表現最好：' + best.join('、'));
     } else a.push('這個範圍的成績還不夠判斷整體位置');
@@ -371,18 +391,30 @@
         return { name: s.name, text: s.score == null ? '—' : fmt(s.score) + (s.diff == null ? '' : '（' + sg(s.diff) + '）'), cls: s.diff == null ? '' : AX.cls(s.diff) };
       })));
     var ranked = sums.filter(function (s) { return s.rank != null; });
-    tiles.appendChild(metricTile('名次', ranked.length ? '前 ' + Math.round(S.mean(ranked.map(function (s) { return S.topPercent(s.rank, s.n); }))) + '%' : '—', ranked.length ? '各科平均位置' : '',
-      sums.map(function (s) { return { name: s.name, text: s.rank == null ? '不列入排名' : s.rank + ' / ' + s.n + ' 人・' + s.tier }; })));
+    tiles.appendChild(metricTile('PR 值（班上位置）', ranked.length ? 'PR ' + Math.round(S.mean(ranked.map(function (s) { return prOf(s.rank, s.n); }))) : '—', ranked.length ? '各科平均，越高越好' : '',
+      sums.map(function (s) {
+        return s.rank == null ? { name: s.name, text: '不列入排名' } : { name: s.name, text: 'PR ' + prOf(s.rank, s.n) + '（第 ' + s.rank + ' / ' + s.n + ' 名）', cls: prCls(prOf(s.rank, s.n)) };
+      })));
     var ups = sums.filter(function (s) { return s.tj && s.tj.label === '進步'; }).length;
     var downs = sums.filter(function (s) { return s.tj && s.tj.label === '退步'; }).length;
     tiles.appendChild(metricTile('近期趨勢', downs ? (ups ? '有進有退' : '有退步') : (ups ? '進步中' : '大致持平'), '',
-      sums.map(function (s) { return { name: s.name, text: s.tj ? s.tj.label + '（' + sg(s.tj.delta) + '）' : '資料不足', cls: trCls(s.tj) }; })));
+      sums.map(function (s) { return { name: s.name, text: s.tj ? s.tj.label + (s.tj.note ? '（' + s.tj.note + '）' : '') : '資料不足', cls: trCls(s.tj) }; })));
     var lu = sums.filter(function (s) { return s.long && s.long.label === '進步'; }).length;
     var ld = sums.filter(function (s) { return s.long && s.long.label === '退步'; }).length;
     var lany = sums.some(function (s) { return s.long; });
     tiles.appendChild(metricTile('長期趨勢', !lany ? '資料不足' : (ld ? (lu ? '有進有退' : '有退步') : (lu ? '進步中' : '大致持平')), lany ? '對比前兩次' : '',
       sums.map(function (s) { return { name: s.name, text: s.long ? s.long.label + '（' + sg(s.long.delta) + '）' : '資料不足', cls: trCls(s.long) }; })));
     main.appendChild(tiles);
+    var how = el('details', { 'class': 'howto' });
+    how.appendChild(el('summary', null, '這些數字怎麼算？（PR 值、近期趨勢、長期趨勢）'));
+    var hl = el('ul');
+    ['PR 值：約有幾成同學排在你後面。PR 90 ＝ 約贏過 9 成同學，PR 50 ＝ 正中間，PR 10 ＝ 約只贏過 1 成同學。由名次換算：(人數 − 名次 + 0.5) ÷ 人數 × 100。',
+     '近期趨勢：每個項目只跟自己比（聽考比聽考、國習比國習）。把該項目「最近幾次」與班平均的差距，減去「之前幾次」與班平均的差距，差 5 分以上才算進步或退步；各科的結果＝各項目進退步的平均。各項目的數字都列在下方「各項目表現」表裡。',
+     '所以各科可能出現「整體持平，但某個項目退步」：一個項目退步被其他持平的項目平均掉了，括號裡會特別標出來。',
+     '長期趨勢：現在這一次定期考查總成績，與前兩次定期考查比，同樣用「與班平均的差距」，差 5 分以上才算進步或退步。'
+    ].forEach(function (t) { hl.appendChild(el('li', null, t)); });
+    how.appendChild(hl);
+    main.appendChild(how);
 
     // 3. 各科概況：亮點與拖累，點下去打開下方卡片
     var tt = el('h2', { 'class': 'secTitle' }, '各科概況');
@@ -399,7 +431,7 @@
       var v = el('div', { 'class': 'v' }, s.score == null ? '—' : fmt(s.score));
       if (s.score != null) v.appendChild(el('small', null, '分（' + s.label + '）'));
       t.appendChild(v);
-      t.appendChild(el('div', { 'class': 'd' }, s.rank != null ? '第 ' + s.rank + ' 名／' + s.n + ' 人・' + s.tier + (s.diff != null ? '・' + sg(s.diff) + ' 分' : '') : '缺考過多，未列入排名'));
+      t.appendChild(el('div', { 'class': 'd' }, s.rank != null ? 'PR ' + prOf(s.rank, s.n) + '・第 ' + s.rank + ' 名／' + s.n + ' 人' + (s.diff != null ? '・' + sg(s.diff) + ' 分' : '') : '缺考過多，未列入排名'));
       var why = el('div', { 'class': 'why' });
       var row = function (label, list, cls) {
         var r = el('div', { 'class': 'whyRow' });
@@ -418,7 +450,8 @@
       if (s.tj) {
         var tr = el('div', { 'class': 'whyRow' });
         tr.appendChild(el('b', null, '近期'));
-        tr.appendChild(el('span', { 'class': trCls(s.tj) + ' whyTxt' }, s.tj.label + '（最近 ' + s.tj.recentN + ' 次相對班平均 ' + sg(s.tj.delta) + ' 分）'));
+        tr.appendChild(el('span', { 'class': trCls(s.tj) + ' whyTxt', title: '各項目只跟自己比；數字＝該項目最近幾次相對班平均的差距，減去之前幾次' },
+          s.tj.label + '：' + s.tj.detail + '（各項平均 ' + sg(s.tj.delta) + ' 分）'));
         why.appendChild(tr);
       }
       if (s.long) {
@@ -482,12 +515,12 @@
       var lg = s.long;
       card.appendChild(el('div', { 'class': 'h3' }, '長期趨勢（和前兩次定期考查比）'));
       var lw = el('div', { 'class': 'tbl-wrap' }), lt = el('table', { 'class': 'stats' }), lh = el('tr');
-      ['階段', '定期考查總成績', '班平均', '與班平均差', '名次'].forEach(function (h, j) { lh.appendChild(el('th', { 'class': j === 0 ? 'l' : '' }, h)); });
+      ['階段', '定期考查總成績', '班平均', '與班平均差', 'PR（名次）'].forEach(function (h, j) { lh.appendChild(el('th', { 'class': j === 0 ? 'l' : '' }, h)); });
       var lhead = el('thead'); lhead.appendChild(lh); lt.appendChild(lhead);
       var lb = el('tbody');
       lg.rows.forEach(function (x, k) {
         var tr = el('tr', { 'class': k === lg.rows.length - 1 ? 'pick' : '' });
-        [x.label.replace('＊', '') + (k === lg.rows.length - 1 ? '（現在）' : ''), fmt(x.v) + (x.partial ? '＊' : ''), fmt(x.mean), sg(x.diff) + ' 分', x.rank + ' / ' + x.n + ' 人'].forEach(function (v, j) {
+        [x.label.replace('＊', '') + (k === lg.rows.length - 1 ? '（現在）' : ''), fmt(x.v) + (x.partial ? '＊' : ''), fmt(x.mean), sg(x.diff) + ' 分', 'PR ' + prOf(x.rank, x.n) + '（' + x.rank + ' / ' + x.n + '）'].forEach(function (v, j) {
           var td = el('td', { 'class': j === 0 ? 'l' : '' }, v);
           if (j === 3) td.className = AX.cls(x.diff);
           tr.appendChild(td);
@@ -553,15 +586,16 @@
     if (score != null && score < c.passPct) { a.push((c.tr ? '學期成績' : '累計平均') + ' ' + fmt(score) + ' 分，低於及格線（' + c.passPct + '）'); flags++; }
     if (rank != null && n >= 4) {
       var lv = levelOf(rank, n);
-      var t = (stable ? '表現穩定，落在' : '整體落在') + '全班' + lv + '（第 ' + rank + ' 名／' + n + ' 人）';
+      var t = (stable ? '表現穩定，落在' : '整體落在') + '全班' + lv + '（PR ' + prOf(rank, n) + '，第 ' + rank + ' 名／' + n + ' 人）';
       if (Math.abs(dm) >= 0.05) t += '，' + (dm > 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(dm)) + ' 分';
       if (lv === '後段') { t += '，建議多關心'; flags++; }
       a.push(t);
     } else if (rank != null) a.push('第 ' + rank + ' 名／' + n + ' 人');
     else if (!c.series.length) a.push('這個範圍內還沒有測驗成績');
     if (c.tj) {
-      if (c.tj.label === '退步') { a.push('近期退步（最近 ' + c.tj.recentN + ' 次相對班平均少了 ' + fmt(-c.tj.delta) + ' 分）'); flags++; }
-      else if (c.tj.label === '進步') a.push('近期進步中（最近 ' + c.tj.recentN + ' 次相對班平均多了 ' + fmt(c.tj.delta) + ' 分）');
+      if (c.tj.label === '退步') { a.push('近期退步（各項目平均相對班平均少了 ' + fmt(-c.tj.delta) + ' 分：' + c.tj.detail + '）'); flags++; }
+      else if (c.tj.label === '進步') a.push('近期進步中（各項目平均相對班平均多了 ' + fmt(c.tj.delta) + ' 分：' + c.tj.detail + '）');
+      else if (c.tj.note) a.push('近期整體持平，但' + c.tj.note + '（' + c.tj.detail + '）');
     }
     if (c.weak.length === 1) {
       var w = c.weak[0];

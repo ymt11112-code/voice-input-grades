@@ -369,3 +369,8 @@ button.fx:hover { background: #fff; }
 table.stats tbody tr.pick td { background: var(--aqua-soft); }
 #detail { margin-top: 4px; scroll-margin-top: 12px; }
 .whyTxt { flex: 1 1 11em; min-width: 0; }
+
+/* 數字怎麼算 */
+details.howto { margin: 10px 0 4px; font-size: 13.5px; color: var(--muted, #6b6560); }
+details.howto summary { cursor: pointer; font-weight: 600; }
+details.howto ul { margin: 6px 0 0; padding-left: 1.2em; line-height: 1.7; }
