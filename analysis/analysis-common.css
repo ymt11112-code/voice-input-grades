@@ -333,3 +333,38 @@ table.stats tbody tr.expand td { white-space: normal; text-align: left; backgrou
   .chart svg { max-width: 100%; }
   #main > * { animation: none !important; }
 }
+
+/* ---------- 個人概況主頁：整體狀況、色塊、各科概況 ---------- */
+.concl .overall { margin: 0; }
+.subLines { list-style: none; margin: 8px 0 0; padding: 0; }
+.subLines li { display: flex; gap: 12px; padding: 6px 0; border-top: 2px dotted rgba(62, 58, 57, .25); font-size: 15px; line-height: 1.65; }
+.subLines .sn { flex: none; min-width: 4.6em; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 4px; }
+.subLines li.warn .sn { color: var(--bad); }
+.tiles.metric { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.mrows { list-style: none; margin: 8px 0 0; padding: 0; }
+.mrows li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 4px; border-top: 2px dotted rgba(62, 58, 57, .22); font-size: 13.5px; cursor: pointer; border-radius: 6px; }
+.mrows li:hover { background: rgba(255, 252, 246, .65); }
+.mrows .nm { flex: none; }
+.mrows .vl { text-align: right; }
+.secTitle { margin: 4px 2px 10px; font-size: 18px; font-weight: 400; }
+.secTitle small { color: var(--muted); font-size: 13px; margin-left: 8px; }
+.subTiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.subTiles .tile:nth-child(4n+1) { background: var(--coral-soft); }
+.subTiles .tile:nth-child(4n+2) { background: var(--yellow-soft); }
+.subTiles .tile:nth-child(4n+3) { background: var(--aqua-soft); }
+.subTiles .tile:nth-child(4n+4) { background: var(--green-soft); }
+.subTile { cursor: pointer; border: 3px solid transparent; transition: transform .15s cubic-bezier(.3, 1.6, .5, 1), border-color .15s; }
+.subTile:hover { transform: translateY(-2px); }
+.subTile.on { border-color: var(--ink); }
+.subTile .k { display: flex; align-items: center; gap: 4px; font-size: 15px; color: var(--ink); }
+.subTile .go { margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.subTile .why { margin-top: 8px; }
+.whyRow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 5px 0; font-size: 13px; }
+.whyRow > b { font-weight: 400; color: var(--ink-2); flex: none; min-width: 2.6em; }
+button.fx { padding: 1px 10px; font-size: 13px; background: rgba(255, 252, 246, .9); text-align: left; }
+button.fx.good { color: var(--good); border-color: var(--good); }
+button.fx.bad { color: var(--bad); border-color: var(--bad); }
+button.fx:hover { background: #fff; }
+.closeBtn { float: right; margin-top: 2px; }
+table.stats tbody tr.pick td { background: var(--aqua-soft); }
+#detail { margin-top: 4px; scroll-margin-top: 12px; }

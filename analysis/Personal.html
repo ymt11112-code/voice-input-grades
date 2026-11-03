@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261112">
+  <link rel="stylesheet" href="analysis-common.css?v=20261113">
 </head>
 <body>
 <div class="app">
@@ -30,7 +30,6 @@
 
   <div id="content" class="content">
     <div class="bar">
-      <span class="grp"><span class="lbl">科目</span><span id="subjectBtns" class="grp"></span></span>
       <span class="grp">
         <span class="lbl">學生</span>
         <button id="prevBtn" title="上一位">◀</button>
@@ -38,109 +37,88 @@
         <button id="nextBtn" title="下一位">▶</button>
       </span>
       <span class="grp"><span class="lbl">學期</span><span id="termBtns" class="grp"></span></span>
-      <span class="grp" id="catWrap"><span class="lbl">測驗類別</span><span id="catBtns" class="grp"></span></span>
     </div>
     <div id="main"></div>
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261112"></script>
-<script src="analysis-demo.js?v=20261112"></script>
-<script src="analysis-art.js?v=20261112"></script>
-<script src="analysis-common.js?v=20261112"></script>
+<script src="analysis-stats.js?v=20261113"></script>
+<script src="analysis-demo.js?v=20261113"></script>
+<script src="analysis-art.js?v=20261113"></script>
+<script src="analysis-common.js?v=20261113"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
-  var st = { raw: null, model: null, subject: null, key: null, term: null, cats: null };
+  var st = { raw: null, model: null, key: null, term: null, subject: null, sums: [], lazy: [], cur: null };
+  var TYPE_LABEL = { quiz: '測驗', midterm: '段考', final: '段考', other: '課堂', homework: '作業' };
 
   AX.shell();
-  AX.onResize(function () { if (st.model) renderMain(); });
+  AX.onResize(function () {
+    st.lazy.forEach(function (d) { if (d.open && d._built) rebuild(d); });
+  });
 
   AX.load().then(function (r) {
     st.raw = r.raw; st.model = r.model;
-    var q = AX.qs(), names = st.model.subjects.map(function (s) { return s.name; });
-    st.subject = names.indexOf(q.subject) > -1 ? q.subject : names[0];
-    if (!st.subject) { AX.$('main').appendChild(el('div', { 'class': 'card empty' }, '試算表還沒有任何科目，請先到「登記分數」面板建立。')); return; }
-    var s = sm();
-    st.key = q.key && s.index[q.key] !== undefined ? q.key : (s.keys[0] || null);
-    if (q.term !== undefined && (q.term === ALL || s.terms.indexOf(q.term) > -1)) st.term = q.term;
-    else st.term = S.defaultTerm(st.model, s);
+    var q = AX.qs(), M = st.model;
+    if (!M.subjects.length || !M.roster.length) { AX.$('main').appendChild(el('div', { 'class': 'card empty' }, '試算表還沒有任何科目或學生，請先到「登記分數」面板建立。')); return; }
+    st.key = M.roster.some(function (x) { return x.key === q.key; }) ? q.key : M.roster[0].key;
+    st.term = (q.term !== undefined && (q.term === ALL || M.terms.indexOf(q.term) > -1)) ? q.term : S.defaultTerm(M, null);
+    st.subject = M.subjects.some(function (x) { return x.name === q.subject; }) ? q.subject : null;
     renderBar(); renderMain();
   }).catch(AX.showError);
 
-  function sm() { return S.subjectOf(st.model, st.subject); }
-  function scope() {
-    var s = sm();
-    if (st.term === ALL) return { A: s.all, T: null, isAll: true };
-    var bt = s.byTerm[st.term];
-    return bt ? { A: bt.A, T: bt.T, isAll: false } : null;
-  }
-
   // ---------- 列 ----------
   function renderBar() {
-    var s = sm();
-    AX.btnGroup(AX.$('subjectBtns'), st.model.subjects.map(function (x) { return { label: x.name, value: x.name }; }), st.subject, function (v) {
-      st.subject = v; var n = sm();
-      if (n.index[st.key] === undefined) st.key = n.keys[0] || null;
-      if (st.term !== ALL && n.terms.indexOf(st.term) === -1) st.term = S.defaultTerm(st.model, n);
-      st.cats = null; renderBar(); renderMain();
-    });
-    var sel = AX.$('stuSel'); AX.clear(sel);
-    s.data.students.forEach(function (stu, i) {
-      var o = el('option', { value: s.keys[i] }, AX.seatLabel(stu));
-      if (s.keys[i] === st.key) o.selected = true;
+    var M = st.model, sel = AX.$('stuSel'); AX.clear(sel);
+    M.roster.forEach(function (r) {
+      var o = el('option', { value: r.key }, AX.seatLabel(r));
+      if (r.key === st.key) o.selected = true;
       sel.appendChild(o);
     });
     sel.onchange = function () { st.key = sel.value; renderMain(); };
     AX.$('prevBtn').onclick = function () { step(-1); };
     AX.$('nextBtn').onclick = function () { step(1); };
-    var items = s.terms.map(function (t) { return { label: S.termLabel(t), value: t }; });
-    if (s.terms.length > 1) items.push({ label: '全部學期', value: ALL });
-    AX.btnGroup(AX.$('termBtns'), items, st.term, function (v) { st.term = v; st.cats = null; renderBar(); renderMain(); });
-    renderCatBtns();
+    var items = M.terms.map(function (t) { return { label: S.termLabel(t), value: t }; });
+    if (M.terms.length > 1) items.push({ label: '全部學期', value: ALL });
+    AX.btnGroup(AX.$('termBtns'), items, st.term, function (v) { st.term = v; renderBar(); renderMain(); });
   }
   function step(d) {
-    var s = sm(), n = s.keys.length; if (!n) return;
-    st.key = s.keys[(s.keys.indexOf(st.key) + d + n) % n];
+    var ks = st.model.roster.map(function (r) { return r.key; }), n = ks.length; if (!n) return;
+    st.key = ks[(ks.indexOf(st.key) + d + n) % n];
     AX.$('stuSel').value = st.key;
     renderMain();
   }
-  function renderCatBtns() {
-    var sc = scope(), box = AX.$('catBtns'); AX.clear(box);
-    var cats = [];
-    if (sc) sc.A.quiz.forEach(function (q) { if (cats.indexOf(q.category) === -1) cats.push(q.category); });
-    AX.$('catWrap').hidden = cats.length < 2;
-    if (st.cats) st.cats = st.cats.filter(function (c) { return cats.indexOf(c) > -1; });
-    if (st.cats && !st.cats.length) st.cats = null;
-    [{ label: '全部', value: ALL }].concat(cats.map(function (c) { return { label: c || '（未分類）', value: c }; })).forEach(function (it) {
-      var on = it.value === ALL ? !st.cats : (st.cats && st.cats.indexOf(it.value) > -1);
-      var b = el('button', { 'class': on ? 'on' : '' }, it.label);
-      b.onclick = function () {
-        if (it.value === ALL) st.cats = null;
-        else { var cur = st.cats ? st.cats.slice() : [], i = cur.indexOf(it.value); if (i > -1) cur.splice(i, 1); else cur.push(it.value); st.cats = cur.length ? cur : null; }
-        renderCatBtns(); renderMain();
-      };
-      box.appendChild(b);
-    });
-  }
 
-  // ---------- 主畫面 ----------
-  // 個人頁只回答一件事：這個孩子現在狀況好不好？哪裡需要幫忙？
-  // 由上往下：結論 → 重點數字（最多 4 張）→ 證據（與班平均差距圖）→ 明細（預設摺疊）
+  // ---------- 小工具 ----------
   function fold(title, small, open) {
     var d = el('details', { 'class': 'fold' }); if (open) d.setAttribute('open', '');
     var sm = el('summary', null, title); if (small) sm.appendChild(el('small', null, small));
     d.appendChild(sm); return d;
   }
-  function hwList(sc) {
-    var s = sm(), list = [];
-    if (sc.isAll) s.terms.forEach(function (t) { s.byTerm[t].A.homework.forEach(function (h) { list.push({ h: h, term: t }); }); });
+  // 摺疊區：第一次打開才畫（圖表要量寬度，關著的時候量不到）；視窗大小改變時，已打開的會重畫
+  function lazyFold(host, title, small, build) {
+    var d = fold(title, small, false);
+    d._build = build; d._built = false;
+    d.addEventListener('toggle', function () { if (d.open && !d._built) { d._built = true; build(d); } });
+    st.lazy.push(d); host.appendChild(d); return d;
+  }
+  function rebuild(d) {
+    Array.prototype.slice.call(d.children).forEach(function (k) { if (k.tagName !== 'SUMMARY') d.removeChild(k); });
+    d._build(d);
+  }
+  function levelOf(rank, n) {
+    var p = rank / n;
+    return p <= 0.25 ? '前段' : (p <= 0.5 ? '中前段' : (p <= 0.75 ? '中後段' : '後段'));
+  }
+  function hwList(sub, sc) {
+    var list = [];
+    if (sc.isAll) sub.terms.forEach(function (t) { sub.byTerm[t].A.homework.forEach(function (h) { list.push({ h: h, term: t }); }); });
     else sc.A.homework.forEach(function (h) { list.push({ h: h, term: null }); });
     return list;
   }
-  function hwMissing(sc, i) {
+  function hwMissing(sub, sc, i) {
     var parts = [], total = 0;
-    hwList(sc).forEach(function (x) {
+    hwList(sub, sc).forEach(function (x) {
       var m = x.h.missing[i]; total += m;
       if (m > 0) parts.push((x.term ? S.termLabel(x.term) : '') + (x.h.category || '作業') + ' ' + m + ' 次');
     });
@@ -153,71 +131,347 @@
     return series.filter(function (x) { return x.diff <= mu - 10; });
   }
 
-  function renderMain() {
-    var main = AX.$('main'); AX.clear(main);
-    var s = sm(), sc = scope(), A = sc && sc.A;
-    var N = s.data.students.length;
-    if (!N || st.key == null) { main.appendChild(el('div', { 'class': 'card empty' }, '這個科目還沒有學生名單。')); return; }
-    var i = s.index[st.key], stu = s.data.students[i];
-    try { history.replaceState(null, '', AX.pageUrl('Personal.html', { subject: st.subject, key: st.key, term: st.term })); } catch (e) { /* 本機檔案可能不允許，忽略 */ }
-    if (!sc) { main.appendChild(el('div', { 'class': 'card empty' }, '這個科目在所選學期還沒有登記任何成績。')); return; }
-
-    var qs = A.quiz.filter(function (q) { return !st.cats || st.cats.indexOf(q.category) > -1; });
-    var series = S.studentSeries(A, i, st.cats);
-    var agg = S.studentAgg(A, st.cats), me = agg.rows[i];
-    var tr = !sc.isAll ? S.termRow(s, st.term, i) : null;
-    if (!qs.length && !A.homework.length) { main.appendChild(el('div', { 'class': 'card empty' }, '這個學期還沒有登記任何成績。')); return; }
+  // ---------- 資料整理：每一科算出「成績、名次、趨勢、各項目表現、亮點與拖累」 ----------
+  function summarize(sub) {
+    var i = sub.index[st.key]; if (i === undefined) return null;
+    var isAll = st.term === ALL, sc;
+    if (isAll) sc = { A: sub.all, T: null, isAll: true };
+    else { var bt = sub.byTerm[st.term]; if (!bt) return null; sc = { A: bt.A, T: bt.T, isAll: false }; }
+    var A = sc.A;
+    if (!A.quiz.length && !A.homework.length) return null;
+    var series = S.studentSeries(A, i, null);
+    var tr = !isAll ? S.termRow(sub, st.term, i) : null;
+    var agg = S.studentAgg(A, null), me = agg.rows[i];
+    var tj = S.trendJudge(series);
     var prevRow = null;
-    if (tr) { var ti = s.terms.indexOf(st.term); prevRow = ti > 0 ? S.termRow(s, s.terms[ti - 1], i) : null; }
-    var hw = hwMissing(sc, i), weak = weakOf(series), tj = S.trendJudge(series);
-    var absent = qs.filter(function (q) { return q.scores[i] == null; });
-
-    var head = AX.card(AX.seatLabel(stu) + '・' + st.subject + '・' + (sc.isAll ? '全部學期' : S.termLabel(st.term)),
-      '共 ' + qs.length + ' 次測驗，實際參加 ' + series.length + ' 次' + (absent.length ? '（缺考：' + absent.map(function (q) { return q.name; }).join('、') + '）' : '') + '。排名只與全班（' + N + ' 人）比較。');
-    head.style.marginBottom = '12px';
-    main.appendChild(head);
-
-    // ---- 1. 結論
-    var cc = conclusion({ tr: tr, me: me, agg: agg, series: series, tj: tj, weak: weak, hw: hw, absent: absent, prevRow: prevRow, passPct: A.passPct });
-    var box = el('div', { 'class': 'concl' + (cc.flags ? ' warn' : '') });
-    box.appendChild(el('span', { 'class': 'tag' }, cc.flags ? '需要留意' : '整體狀況'));
-    box.appendChild(document.createTextNode(cc.text));
-    main.appendChild(box);
-
-    // ---- 2. 重點數字（3～4 張）：成績（含與班平均差距）、名次、近期趨勢、作業缺交
-    var tiles = el('div', { 'class': 'tiles' });
-    if (tr) {
-      tiles.appendChild(AX.tile('學期成績', fmt(tr.score), '分', '全班平均 ' + fmt(tr.classMean) + '（' + sg(tr.diff) + '）' + (prevRow ? '・較上學期相對班平均 ' + sg(tr.diff - prevRow.diff) : '') + (tr.partial ? '・缺部分成分' : ''), AX.cls(tr.diff)));
-      tiles.appendChild(AX.tile('學期名次', String(tr.rank), '/ ' + tr.n + ' 人', '前 ' + S.topPercent(tr.rank, tr.n) + '%・' + tr.tier));
-    } else if (qs.length) {
-      tiles.appendChild(AX.tile('累計平均得分', me.avg == null ? '—' : fmt(me.avg), me.avg == null ? '' : '分',
-        me.avg == null ? '尚無成績' : '全班平均 ' + fmt(agg.stats.mean) + '（' + sg(me.avg - agg.stats.mean) + '）', me.avg == null ? '' : AX.cls(me.avg - agg.stats.mean)));
-      tiles.appendChild(me.eligible ? AX.tile('累計名次', String(me.rank), '/ ' + agg.eligibleN + ' 人', '前 ' + S.topPercent(me.rank, agg.eligibleN) + '%・' + S.tierName(agg.tiers, me.avg))
-        : AX.tile('累計名次', '—', '', '缺考過多，不列入排名'));
-    }
-    tiles.appendChild(tj ? AX.tile('近期趨勢', tj.label, '', '最近 ' + tj.recentN + ' 次相對班平均 ' + sg(tj.delta) + ' 分', tj.label === '進步' ? 'up' : (tj.label === '退步' ? 'down' : 'flat'))
-      : AX.tile('近期趨勢', '資料不足', '', '至少需要 2 次測驗'));
-    if (hwList(sc).length) tiles.appendChild(AX.tile('作業缺交', String(hw.total), '次', hw.total ? hw.parts.join('、') : '全部都有繳交', hw.total ? 'down' : 'up'));
-    main.appendChild(tiles);
-
-    // ---- 3. 證據：與班平均的差距
-    if (qs.length) renderGap(main, qs, series, i, sc, weak);
-    renderTerms(main, s, i);
-    // ---- 4. 明細（預設摺疊）
-    if (qs.length) renderTable(main, qs, i, sc.isAll);
-    if (qs.length) renderPosition(main, agg, i, sc);
-    renderHomework(main, sc, i, stu, hw);
+    if (tr) { var ti = sub.terms.indexOf(st.term); prevRow = ti > 0 ? S.termRow(sub, sub.terms[ti - 1], i) : null; }
+    var s = {
+      sub: sub, name: sub.name, i: i, sc: sc, A: A, N: sub.data.students.length, series: series, tr: tr, agg: agg, me: me, tj: tj,
+      prevRow: prevRow, passPct: A.passPct, weak: weakOf(series), hw: hwMissing(sub, sc, i),
+      absent: A.quiz.filter(function (q) { return q.scores[i] == null; })
+    };
+    if (tr) { s.score = tr.score; s.diff = tr.diff; s.rank = tr.rank; s.n = tr.n; s.tier = tr.tier; s.label = '學期成績'; s.partial = tr.partial; }
+    else if (me.eligible) { s.score = me.avg; s.diff = me.avg - agg.stats.mean; s.rank = me.rank; s.n = agg.eligibleN; s.tier = S.tierName(agg.tiers, me.avg); s.label = '累計平均'; }
+    else { s.score = me.avg; s.diff = null; s.rank = null; s.n = agg.eligibleN; s.tier = ''; s.label = '累計平均'; }
+    s.cats = categoryRows(s);
+    var f = factors(s.cats);
+    s.good = f.good; s.bad = f.bad;
+    judge(s);
+    return s;
   }
 
-  // 一句結論：位置、近期走向、最需要補強的地方、缺交
+  // 各項目（聽考、國習、期中考…）：只和「同一個項目」比，不同項目不互比
+  function categoryRows(s) {
+    var A = s.A, i = s.i, rows = [], order = [], by = {};
+    A.quiz.forEach(function (q) {
+      var c = q.category || '';
+      if (!by[c]) { by[c] = { all: [], taken: [] }; order.push(c); }
+      by[c].all.push(q);
+    });
+    s.series.forEach(function (x) { by[x.q.category || ''].taken.push(x); });
+    order.forEach(function (c) {
+      var g = by[c], kind = g.all[0].kind, tk = g.taken;
+      var worst = tk.length ? tk.slice().sort(function (a, b) { return a.diff - b.diff; })[0] : null;
+      var mine = tk.length ? S.mean(tk.map(function (x) { return x.pct; })) : null;
+      var cls = tk.length ? S.mean(tk.map(function (x) { return x.classMean; })) : null;
+      rows.push({
+        type: 'quiz', kind: kind, name: c || '（未分類）', n: tk.length, total: g.all.length, mine: mine, cls: cls,
+        diff: mine == null ? null : mine - cls, trend: S.trendJudge(tk), worst: worst,
+        absent: g.all.filter(function (q) { return q.scores[i] == null; })
+      });
+    });
+    A.homework.forEach(function (h) {
+      var my = [], cl = [], dfs = [];
+      h.items.forEach(function (it, j) {
+        var col = h.cols[j], mx = it.max > 0 ? it.max : null;
+        var val = function (v) { v = v == null ? 0 : v; return mx ? v / mx * 100 : v; };
+        var m = val(col[i]), c = S.mean(col.map(val));
+        my.push(m); cl.push(c); dfs.push({ diff: m - c });
+      });
+      var missNames = h.items.filter(function (it, j) { return h.cols[j][i] == null; }).map(function (it) { return it.name; });
+      rows.push({
+        type: 'hw', kind: 'homework', name: h.category || '作業', n: h.nItems, total: h.nItems, mine: S.mean(my), cls: S.mean(cl),
+        diff: S.mean(my) - S.mean(cl), trend: S.trendJudge(dfs), missing: missNames.length, missNames: missNames, absent: []
+      });
+    });
+    return rows;
+  }
+
+  // 亮點（拉高成績的項目）與拖累（拉低成績的原因）：差距在 ±3 分以上，或同項目近期明顯進退步，或缺交、缺考
+  function factors(rows) {
+    var good = [], bad = [];
+    rows.forEach(function (r) {
+      var key = r.name;
+      if (r.mine == null) { bad.push({ key: key, w: -50, text: r.name + '全部缺考' }); return; }
+      var isBad = false;
+      if (r.diff <= -3) {
+        isBad = true;
+        var ex = [];
+        if (r.type === 'hw' && r.missing) ex.push('缺交 ' + r.missing + ' 次');
+        if (r.type === 'quiz' && r.n >= 2 && r.worst && r.worst.diff <= -8) ex.push('「' + r.worst.q.name + '」低於班平均 ' + fmt(-r.worst.diff) + ' 分');
+        if (r.type === 'quiz' && r.absent.length) ex.push('缺考 ' + r.absent.length + ' 次');
+        bad.push({ key: key, w: r.diff, text: r.name + ' ' + sg(r.diff) + (ex.length ? '（' + ex.join('；') + '）' : '') });
+      } else if (r.diff >= 3) {
+        good.push({ key: key, w: r.diff, text: r.name + ' ' + sg(r.diff) });
+      } else if (r.trend && r.trend.label === '退步') {
+        isBad = true; bad.push({ key: key, w: -2, text: r.name + ' 近期退步（' + sg(r.trend.delta) + '）' });
+      } else if (r.trend && r.trend.label === '進步') {
+        good.push({ key: key, w: 2, text: r.name + ' 近期進步（' + sg(r.trend.delta) + '）' });
+      }
+      if (!isBad) {
+        if (r.type === 'hw' && r.missing) bad.push({ key: key, w: -r.missing, text: r.name + ' 缺交 ' + r.missing + ' 次' });
+        else if (r.type === 'quiz' && r.absent.length) bad.push({ key: key, w: -r.absent.length, text: r.name + ' 缺考 ' + r.absent.length + ' 次' });
+        else if (r.type === 'quiz' && r.n >= 3 && r.worst && r.worst.diff <= -12) bad.push({ key: key, w: r.worst.diff / 3, text: '「' + r.worst.q.name + '」明顯偏低（低於班平均 ' + fmt(-r.worst.diff) + ' 分）' });
+      }
+    });
+    good.sort(function (a, b) { return b.w - a.w; });
+    bad.sort(function (a, b) { return a.w - b.w; });
+    return { good: good, bad: bad };
+  }
+
+  function judge(s) {
+    var f = [];
+    if (s.score != null && s.score < s.passPct) f.push('低於及格線');
+    if (s.rank != null && s.n >= 4 && s.rank / s.n > 0.75) f.push('全班後段');
+    if (s.tj && s.tj.label === '退步') f.push('近期退步');
+    if (s.hw.total) f.push('作業缺交');
+    if (s.absent.length) f.push('缺考');
+    if (s.bad.some(function (x) { return x.w <= -5; })) f.push('有項目明顯落後');
+    s.flags = f;
+  }
+
+  // 一科一行的總結
+  function shortLine(s) {
+    var t;
+    if (s.rank != null) {
+      t = '第 ' + s.rank + ' 名／' + s.n + ' 人（' + levelOf(s.rank, s.n) + '）';
+      if (s.diff != null && Math.abs(s.diff) >= 0.05) t += '，' + (s.diff > 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(s.diff)) + ' 分';
+    } else t = s.score != null ? '缺考過多，未列入排名' : '尚無成績';
+    if (s.tj && s.tj.label !== '持平') t += '，近期' + s.tj.label;
+    if (s.good.length) t += '；亮點：' + s.good.slice(0, 2).map(function (x) { return x.text; }).join('、');
+    if (s.bad.length) t += '；拖累：' + s.bad.slice(0, 2).map(function (x) { return x.text; }).join('、');
+    else if (!s.good.length) t += '；各項目與班上差不多';
+    return t;
+  }
+
+  // 整體狀況：綜合各科
+  function overallText(sums) {
+    var withRank = sums.filter(function (s) { return s.rank != null && s.n >= 4; }), a = [];
+    if (withRank.length) {
+      var avgP = S.mean(withRank.map(function (s) { return s.rank / s.n; }));
+      var lv = avgP <= 0.25 ? '前段' : (avgP <= 0.5 ? '中前段' : (avgP <= 0.75 ? '中後段' : '後段'));
+      a.push(sums.length + ' 科整體落在全班' + lv + '（各科平均約前 ' + Math.max(1, Math.round(avgP * 100)) + '%）');
+      var best = withRank.filter(function (s) { return s.rank / s.n <= 0.25; }).map(function (s) { return s.name; });
+      if (best.length && best.length < withRank.length) a.push('表現最好：' + best.join('、'));
+    } else a.push('這個範圍的成績還不夠判斷整體位置');
+    var ups = sums.filter(function (s) { return s.tj && s.tj.label === '進步'; }).map(function (s) { return s.name; });
+    var downs = sums.filter(function (s) { return s.tj && s.tj.label === '退步'; }).map(function (s) { return s.name; });
+    if (ups.length) a.push('近期進步：' + ups.join('、'));
+    if (downs.length) a.push('近期退步：' + downs.join('、'));
+    var warn = sums.filter(function (s) { return s.flags.length; });
+    if (warn.length) a.push('需要留意：' + warn.map(function (s) { return s.name + '（' + s.flags.slice(0, 2).join('、') + '）'; }).join('、'));
+    else a.push('目前沒有需要特別處理的地方');
+    return { text: a.join('；') + '。', flagged: warn.length };
+  }
+
+  // ---------- 主畫面 ----------
+  function metricTile(title, big, unit, rows) {
+    var t = AX.tile(title, big, unit, '', '');
+    var ul = el('ul', { 'class': 'mrows' });
+    rows.forEach(function (r) {
+      var li = el('li', { title: '點一下，下方打開' + r.name + '的詳細說明' });
+      li.appendChild(el('span', { 'class': 'nm' }, r.name));
+      li.appendChild(el('span', { 'class': 'vl ' + (r.cls || '') }, r.text));
+      li.onclick = function () { openDetail(r.name); };
+      ul.appendChild(li);
+    });
+    t.appendChild(ul);
+    return t;
+  }
+  function trCls(tj) { return tj ? (tj.label === '進步' ? 'up' : (tj.label === '退步' ? 'down' : 'flat')) : ''; }
+
+  function renderMain() {
+    var main = AX.$('main'); AX.clear(main); st.lazy = [];
+    var M = st.model, r0 = null;
+    M.roster.forEach(function (r) { if (r.key === st.key) r0 = r; });
+    st.sums = M.subjects.map(summarize).filter(function (x) { return x; });
+    try { history.replaceState(null, '', AX.pageUrl('Personal.html', { subject: st.subject, key: st.key, term: st.term })); } catch (e) { /* 本機檔案可能不允許，忽略 */ }
+    if (!st.sums.length) { main.appendChild(el('div', { 'class': 'card empty' }, '這位學生在所選學期還沒有登記任何成績。')); return; }
+    if (st.subject && !st.sums.some(function (s) { return s.name === st.subject; })) st.subject = null;
+    var sums = st.sums, isAll = st.term === ALL;
+
+    // 1. 整體狀況（一科一行）
+    var ov = overallText(sums);
+    var box = el('div', { 'class': 'concl' + (ov.flagged ? ' warn' : '') });
+    box.appendChild(el('span', { 'class': 'tag' }, (r0 ? AX.seatLabel(r0) : '') + '・' + (isAll ? '全部學期' : S.termLabel(st.term)) + '　' + (ov.flagged ? '整體狀況（有需要留意的地方）' : '整體狀況')));
+    box.appendChild(el('p', { 'class': 'overall' }, ov.text));
+    var ul = el('ul', { 'class': 'subLines' });
+    sums.forEach(function (s) {
+      var li = el('li', { 'class': s.flags.length ? 'warn' : '' });
+      var sn = el('span', { 'class': 'sn', title: '點一下，下方打開' + s.name + '的詳細說明' });
+      if (window.AXArt) sn.appendChild(AXArt.subject(s.name, 18));
+      sn.appendChild(document.createTextNode(s.name));
+      sn.onclick = function () { openDetail(s.name); };
+      li.appendChild(sn);
+      li.appendChild(el('span', null, shortLine(s)));
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    main.appendChild(box);
+
+    // 2. 色塊：成績、名次、近期趨勢（各科各一行）
+    var tiles = el('div', { 'class': 'tiles metric' });
+    var scored = sums.filter(function (s) { return s.score != null; });
+    tiles.appendChild(metricTile(isAll ? '累計平均得分' : '學期成績', scored.length ? fmt(S.mean(scored.map(function (s) { return s.score; }))) : '—', scored.length ? '分（各科平均）' : '',
+      sums.map(function (s) {
+        return { name: s.name, text: s.score == null ? '—' : fmt(s.score) + (s.diff == null ? '' : '（' + sg(s.diff) + '）'), cls: s.diff == null ? '' : AX.cls(s.diff) };
+      })));
+    var ranked = sums.filter(function (s) { return s.rank != null; });
+    tiles.appendChild(metricTile('名次', ranked.length ? '前 ' + Math.round(S.mean(ranked.map(function (s) { return S.topPercent(s.rank, s.n); }))) + '%' : '—', ranked.length ? '各科平均位置' : '',
+      sums.map(function (s) { return { name: s.name, text: s.rank == null ? '不列入排名' : s.rank + ' / ' + s.n + ' 人・' + s.tier }; })));
+    var ups = sums.filter(function (s) { return s.tj && s.tj.label === '進步'; }).length;
+    var downs = sums.filter(function (s) { return s.tj && s.tj.label === '退步'; }).length;
+    tiles.appendChild(metricTile('近期趨勢', downs ? (ups ? '有進有退' : '有退步') : (ups ? '進步中' : '大致持平'), '',
+      sums.map(function (s) { return { name: s.name, text: s.tj ? s.tj.label + '（' + sg(s.tj.delta) + '）' : '資料不足', cls: trCls(s.tj) }; })));
+    main.appendChild(tiles);
+
+    // 3. 各科概況：亮點與拖累，點下去打開下方卡片
+    var tt = el('h2', { 'class': 'secTitle' }, '各科概況');
+    tt.appendChild(el('small', null, '點任何一科，或點「亮點」「拖累」的項目，下方會打開該項目的詳細說明'));
+    main.appendChild(tt);
+    var grid = el('div', { 'class': 'subTiles' });
+    sums.forEach(function (s) {
+      var t = el('div', { 'class': 'tile subTile' + (s.name === st.subject ? ' on' : ''), 'data-subject': s.name });
+      var k = el('div', { 'class': 'k' });
+      if (window.AXArt) k.appendChild(AXArt.subject(s.name, 20));
+      k.appendChild(document.createTextNode(' ' + s.name));
+      k.appendChild(el('span', { 'class': 'go' }, '看詳細 ›'));
+      t.appendChild(k);
+      var v = el('div', { 'class': 'v' }, s.score == null ? '—' : fmt(s.score));
+      if (s.score != null) v.appendChild(el('small', null, '分（' + s.label + '）'));
+      t.appendChild(v);
+      t.appendChild(el('div', { 'class': 'd' }, s.rank != null ? '第 ' + s.rank + ' 名／' + s.n + ' 人・' + s.tier + (s.diff != null ? '・' + sg(s.diff) + ' 分' : '') : '缺考過多，未列入排名'));
+      var why = el('div', { 'class': 'why' });
+      var row = function (label, list, cls) {
+        var r = el('div', { 'class': 'whyRow' });
+        r.appendChild(el('b', null, label));
+        list.slice(0, 3).forEach(function (x) {
+          var b = el('button', { 'class': 'chip fx ' + cls, title: '點一下，下方打開「' + x.key + '」的說明' }, x.text);
+          b.onclick = function (e) { e.stopPropagation(); openDetail(s.name, x.key); };
+          r.appendChild(b);
+        });
+        if (list.length > 3) r.appendChild(el('span', { 'class': 'muted' }, '…還有 ' + (list.length - 3) + ' 項'));
+        why.appendChild(r);
+      };
+      if (s.good.length) row('亮點', s.good, 'good');
+      if (s.bad.length) row('拖累', s.bad, 'bad');
+      if (!s.good.length && !s.bad.length) why.appendChild(el('div', { 'class': 'whyRow muted' }, '各項目與班上差不多，沒有特別突出或落後的項目'));
+      if (s.tj) {
+        var tr = el('div', { 'class': 'whyRow' });
+        tr.appendChild(el('b', null, '近期'));
+        tr.appendChild(el('span', { 'class': trCls(s.tj) }, s.tj.label + '（最近 ' + s.tj.recentN + ' 次相對班平均 ' + sg(s.tj.delta) + ' 分）'));
+        why.appendChild(tr);
+      }
+      t.appendChild(why);
+      t.onclick = function () { openDetail(s.name); };
+      grid.appendChild(t);
+    });
+    main.appendChild(grid);
+
+    // 4. 詳細（點選之後才打開）
+    var host = el('div', { id: 'detail' });
+    host.hidden = true;
+    main.appendChild(host);
+    if (st.subject) renderDetail();
+  }
+
+  function markTiles() {
+    document.querySelectorAll('.subTile').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-subject') === st.subject); });
+  }
+  function openDetail(name, focus) {
+    var host = AX.$('detail');
+    if (st.subject === name && !focus && !host.hidden) { closeDetail(); return; }
+    st.subject = name;
+    markTiles(); renderDetail(focus);
+    try { history.replaceState(null, '', AX.pageUrl('Personal.html', { subject: st.subject, key: st.key, term: st.term })); } catch (e) { /* 忽略 */ }
+    var target = focus ? host.querySelector('tr.pick') : null, go = target || host;
+    if (go.scrollIntoView) go.scrollIntoView({ behavior: 'smooth', block: target ? 'center' : 'start' });
+  }
+  function closeDetail() {
+    st.subject = null; markTiles();
+    var host = AX.$('detail'); AX.clear(host); host.hidden = true; st.lazy = [];
+    try { history.replaceState(null, '', AX.pageUrl('Personal.html', { key: st.key, term: st.term })); } catch (e) { /* 忽略 */ }
+  }
+
+  // ---------- 詳細卡片 ----------
+  function renderDetail(focus) {
+    var host = AX.$('detail'); AX.clear(host); st.lazy = [];
+    var s = null; st.sums.forEach(function (x) { if (x.name === st.subject) s = x; });
+    if (!s) { host.hidden = true; return; }
+    host.hidden = false;
+    var stu = s.sub.data.students[s.i], isAll = s.sc.isAll;
+
+    var card = AX.card(s.name + '・' + (isAll ? '全部學期' : S.termLabel(st.term)) + '　詳細說明',
+      AX.seatLabel(stu) + '。排名只與全班（' + s.N + ' 人）比較。' + (s.partial ? '學期成績缺少部分成分（例如缺考或期末還沒考），已依其餘成分重新分配比例。' : ''));
+    var close = el('button', { 'class': 'noprint closeBtn' }, '✕ 收合'); close.onclick = closeDetail;
+    card.insertBefore(close, card.firstChild);
+
+    var cc = conclusion({ tr: s.tr, me: s.me, agg: s.agg, series: s.series, tj: s.tj, weak: s.weak, hw: s.hw, absent: s.absent, prevRow: s.prevRow, passPct: s.passPct });
+    var cb = el('div', { 'class': 'concl' + (cc.flags ? ' warn' : '') });
+    cb.appendChild(el('span', { 'class': 'tag' }, cc.flags ? '需要留意' : '整體狀況'));
+    cb.appendChild(document.createTextNode(cc.text));
+    card.appendChild(cb);
+
+    // 各項目表現：只和同一個項目比
+    card.appendChild(el('div', { 'class': 'h3' }, '各項目表現'));
+    card.appendChild(el('p', { 'class': 'sub' }, '只和「同一個項目」比：聽考跟聽考比、國習跟國習比，不會拿不同項目互相比較。「進退步」＝同項目最近幾次相對班平均的差距，減去之前幾次的差距（差 5 分以上才算進步或退步）。得分已換算成百分制。'));
+    var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
+    ['項目', '類型', '次數', '我的平均', '班平均', '與班平均差', '進退步（同項目比較）', '備註'].forEach(function (h, j) { hr.appendChild(el('th', { 'class': (j === 1 || j === 7) ? 'l' : '' }, h)); });
+    thead.appendChild(hr); tb.appendChild(thead);
+    var body = el('tbody');
+    s.cats.forEach(function (r) {
+      var tr = el('tr', { 'data-cat': r.name });
+      var cls = [];
+      if (r.diff == null || r.diff <= -3 || r.missing || (r.absent && r.absent.length)) cls.push('warnRow');
+      if (focus && focus === r.name) cls.push('pick');
+      tr.className = cls.join(' ');
+      var notes = [];
+      if (r.type === 'hw' && r.missing) notes.push('缺交：' + r.missNames.join('、'));
+      if (r.type === 'quiz' && r.absent.length) notes.push('缺考：' + r.absent.map(function (q) { return q.name; }).join('、'));
+      if (r.type === 'quiz' && r.n >= 2 && r.worst && r.worst.diff <= -8) notes.push('最低：「' + r.worst.q.name + '」（' + sg(r.worst.diff) + '）');
+      var trend = r.trend ? r.trend.label + '　' + sg(r.trend.delta) + ' 分' : '—';
+      var cells = [r.name, TYPE_LABEL[r.kind] || '測驗', r.type === 'hw' ? r.n + ' 項' : r.n + ' / ' + r.total + ' 次',
+        r.mine == null ? '缺考' : fmt(r.mine), r.cls == null ? '—' : fmt(r.cls), r.diff == null ? '—' : sg(r.diff) + ' 分', trend, notes.join('；') || '—'];
+      cells.forEach(function (v, j) {
+        var td = el('td', { 'class': (j === 1 || j === 7) ? 'l' : '' }, v);
+        if (j === 5 && r.diff != null) td.className = AX.cls(r.diff);
+        if (j === 6 && r.trend) td.className = trCls(r.trend);
+        if (j === 6 && !r.trend) td.title = '這個項目只有 1 次（或沒有成績），無法比較進退步';
+        if (j === 7) td.style.whiteSpace = 'normal';
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    tb.appendChild(body); wrap.appendChild(tb); card.appendChild(wrap);
+    host.appendChild(card);
+
+    // 更細的資料：預設摺疊
+    if (s.series.length) lazyFold(host, '每次測驗與班平均的差距（折線圖）', s.series.length + ' 次', function (d) { gapChart(d, s); });
+    if (termRowsOf(s).length >= 2) lazyFold(host, '各學期成績變化', '', function (d) { termsTable(d, s); });
+    if (s.series.length) lazyFold(host, '我在全班的位置（分布圖）', s.sc.T ? '學期成績分布' : '累計平均得分分布', function (d) { positionChart(d, s); });
+    if (s.series.length) detailTable(host, s);
+    homeworkFold(host, s);
+  }
+
+  // 一句結論：位置、近期走向、最需要補強的地方、缺交（單科詳細用）
   function conclusion(c) {
-    var a = [], flags = 0, rank = null, n = null, score = null, dm = null, i;
+    var a = [], flags = 0, rank = null, n = null, score = null, dm = null;
     if (c.tr) { rank = c.tr.rank; n = c.tr.n; score = c.tr.score; dm = c.tr.diff; }
     else if (c.me.eligible) { rank = c.me.rank; n = c.agg.eligibleN; score = c.me.avg; dm = c.me.avg - c.agg.stats.mean; }
     var stable = c.series.length >= 3 && S.sd(c.series.map(function (x) { return x.diff; })) < 6 && !c.weak.length && (!c.tj || c.tj.label === '持平');
     if (score != null && score < c.passPct) { a.push((c.tr ? '學期成績' : '累計平均') + ' ' + fmt(score) + ' 分，低於及格線（' + c.passPct + '）'); flags++; }
     if (rank != null && n >= 4) {
-      var p = rank / n, lv = p <= 0.25 ? '前段' : (p <= 0.5 ? '中前段' : (p <= 0.75 ? '中後段' : '後段'));
+      var lv = levelOf(rank, n);
       var t = (stable ? '表現穩定，落在' : '整體落在') + '全班' + lv + '（第 ' + rank + ' 名／' + n + ' 人）';
       if (Math.abs(dm) >= 0.05) t += '，' + (dm > 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(dm)) + ' 分';
       if (lv === '後段') { t += '，建議多關心'; flags++; }
@@ -245,14 +499,15 @@
     return { text: a.join('；') + '。' + (c.series.length > 0 && c.series.length < 4 ? '（測驗次數還少，僅供參考）' : ''), flags: flags };
   }
 
-  // ---------- 與班平均的差距（取代原本的「得分與班級平均」「名次變化」兩張圖） ----------
-  function renderGap(main, qs, series, i, sc, weak) {
-    var c = AX.card('每次測驗與班平均的差距', '0 線＝當次班平均，點在 0 線上方就是贏過班平均；用差距比較，不受考卷難易影響。名次、得分放在滑過時的提示裡。缺考的測驗線會中斷。' + (weak.length ? '紅點＝明顯低於自己水準的測驗。' : ''));
-    var b1 = el('div'); c.appendChild(b1); main.appendChild(c);
+  // ---------- 摺疊區內容 ----------
+  function gapChart(d, s) {
+    var qs = s.A.quiz, i = s.i, sc = s.sc, weak = s.weak;
+    d.appendChild(el('p', { 'class': 'sub' }, '0 線＝當次班平均，點在 0 線上方就是贏過班平均；用差距比較，不受考卷難易影響。名次、得分放在滑過時的提示裡。缺考的測驗線會中斷。' + (weak.length ? '紅點＝明顯低於自己水準的測驗。' : '')));
+    var b1 = el('div'); d.appendChild(b1);
     var vals = qs.map(function (q) { return q.pcts[i] == null ? null : q.pcts[i] - q.pctStats.mean; });
     var mx = Math.max.apply(null, [5].concat(vals.filter(function (v) { return v != null; }).map(Math.abs)));
-    var step = mx <= 10 ? 5 : (mx <= 30 ? 10 : 20), m = Math.ceil(mx / step) * step, ticks = [], t, groups = null;
-    for (t = -m; t <= m; t += step) ticks.push(t);
+    var step2 = mx <= 10 ? 5 : (mx <= 30 ? 10 : 20), m = Math.ceil(mx / step2) * step2, ticks = [], t, groups = null;
+    for (t = -m; t <= m; t += step2) ticks.push(t);
     if (sc.isAll) {
       groups = [];
       qs.forEach(function (q, k) { var g = groups[groups.length - 1]; if (g && g.term === q.term) g.to = k; else groups.push({ term: q.term, label: S.termLabel(q.term), from: k, to: k }); });
@@ -276,30 +531,28 @@
     });
   }
 
-  // 全班位置分布圖：預設摺疊，打開才畫
-  function renderPosition(main, agg, i, sc) {
-    var A = sc.A, d = fold('我在全班的位置（分布圖）', sc.T ? '學期成績分布' : '累計平均得分分布', false), drawn = false;
-    d.addEventListener('toggle', function () {
-      if (!d.open || drawn) return; drawn = true;
-      var b = el('div'); d.appendChild(b);
-      var vals = sc.T ? sc.T.scores : agg.rows.map(function (rw) { return rw.eligible ? rw.avg : null; });
-      AX.barChart(b, {
-        bins: AX.pctBins(A.students, vals, vals[i] != null ? i : null), color: 'var(--cls)', hiColor: 'var(--me)', name: '全班', hiName: '本人所在組距',
-        markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: sc.T ? '學期成績' : '累計平均得分', height: 230, ariaLabel: '全班成績分布，標示本人位置'
-      });
+  function positionChart(d, s) {
+    var A = s.A, sc = s.sc, i = s.i, agg = s.agg;
+    var b = el('div'); d.appendChild(b);
+    var vals = sc.T ? sc.T.scores : agg.rows.map(function (rw) { return rw.eligible ? rw.avg : null; });
+    AX.barChart(b, {
+      bins: AX.pctBins(A.students, vals, vals[i] != null ? i : null), color: 'var(--cls)', hiColor: 'var(--me)', name: '全班', hiName: '本人所在組距',
+      markBefore: A.passPct / 10, markLabel: '及格 ' + A.passPct, xTitle: sc.T ? '學期成績' : '累計平均得分', height: 230, ariaLabel: '全班成績分布，標示本人位置'
     });
-    main.appendChild(d);
   }
 
-  // ---------- 各學期成績變化（只有一個學期時不顯示） ----------
-  function renderTerms(main, s, i) {
+  function termRowsOf(s) {
     var rows = [];
-    s.terms.forEach(function (t) { var r = S.termRow(s, t, i); if (r) rows.push(r); });
-    if (rows.length < 2) return;
-    var c = AX.card('各學期成績變化', '「相對班平均」＝本人減全班平均，數字越大代表在班上越突出；跨學期要看進退步，看這一欄最準。');
+    s.sub.terms.forEach(function (t) { var r = S.termRow(s.sub, t, s.i); if (r) rows.push(r); });
+    return rows;
+  }
+
+  function termsTable(c, s) {
+    var rows = termRowsOf(s), sub = s.sub;
+    c.appendChild(el('p', { 'class': 'sub' }, '「相對班平均」＝本人減全班平均，數字越大代表在班上越突出；跨學期要看進退步，看這一欄最準。'));
     var box = el('div'); c.appendChild(box);
     var mine = rows.map(function (r) { return r.score; }), means = rows.map(function (r) { return r.classMean; });
-    var lo = rows.map(function (r) { return s.byTerm[r.term].T.tiers.back; }), hi = rows.map(function (r) { return s.byTerm[r.term].T.tiers.front; });
+    var lo = rows.map(function (r) { return sub.byTerm[r.term].T.tiers.back; }), hi = rows.map(function (r) { return sub.byTerm[r.term].T.tiers.front; });
     var rg = AX.niceRange(mine.concat(means, lo, hi));
     AX.lineChart(box, {
       labels: rows.map(function (r) { return S.termLabel(r.term); }), yMin: rg.lo, yMax: rg.hi, ticks: rg.ticks, height: 210,
@@ -330,11 +583,11 @@
     });
     tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap);
     if (rows.some(function (r) { return r.partial; })) c.appendChild(el('p', { 'class': 'muted small' }, '* 該學期缺少部分成分（例如缺考，或第二次定期考查還沒考完），學期成績已依其餘成分重新分配比例。'));
-    main.appendChild(c);
   }
 
-  // ---------- 明細表（預設摺疊；只標色異常列：低於班平均，或名次比前次退步 3 名以上） ----------
-  function renderTable(main, qs, i, isAll) {
+  // 逐次明細（預設摺疊；要看每一次的分數才需要打開）
+  function detailTable(host, s) {
+    var qs = s.A.quiz, i = s.i, isAll = s.sc.isAll;
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' });
     var heads = ['項目'].concat(isAll ? ['學期'] : []).concat(['類別', '得分', '班平均', '與班平均差', '名次', '所在位置', '較前次']);
     var thead = el('thead'), hr = el('tr');
@@ -359,7 +612,6 @@
         if (j === diffAt) { td.textContent = sg(diff) + ' 分'; td.className = AX.cls(diff); }
         if (j === prevAt) {
           if (prev) {
-            // 兩次滿分相同就直接比得分；滿分不同才換算成百分制比較
             var dp = prev.max === q.max ? sc - prev.score : q.pcts[i] - prev.pct, dr = prev.rank - q.ranks[i];
             td.appendChild(el('span', { 'class': AX.cls(dp) }, sg(dp) + ' 分'));
             td.appendChild(document.createTextNode('・'));
@@ -372,15 +624,15 @@
       prev = { score: sc, max: q.max, pct: q.pcts[i], rank: q.ranks[i] };
     });
     tb.appendChild(body); wrap.appendChild(tb);
-    var d = fold('每次測驗明細', qs.length + ' 次' + (warnN ? '，其中 ' + warnN + ' 次標色（需留意）' : '，沒有需要留意的'), false);
-    d.appendChild(el('p', { 'class': 'sub' }, '淡紅色的列＝低於班平均、缺考，或名次比前次退步 3 名以上。「較前次」是和上一次有參加的測驗相比。'));
-    d.appendChild(wrap); main.appendChild(d);
+    var d = fold('逐次測驗明細', qs.length + ' 次' + (warnN ? '，其中 ' + warnN + ' 次標色（需留意）' : '，沒有需要留意的'), false);
+    d.appendChild(el('p', { 'class': 'sub' }, '淡紅色的列＝低於班平均、缺考，或名次比前次退步 3 名以上。「較前次」是和上一次有參加的測驗相比（不分項目）。要比同項目的進退步，請看上面的「各項目表現」。'));
+    d.appendChild(wrap); host.appendChild(d);
   }
 
-  // ---------- 作業（各學期各一段；預設摺疊，有缺交時展開） ----------
-  // 不比「總和」（會受項目數與缺交影響），改比得分率；沒填滿分時比每項平均
-  function renderHomework(main, sc, i, stu, hw) {
-    var N = sm().data.students.length, list = hwList(sc);
+  // 作業（各學期各一段；預設摺疊，有缺交時展開）
+  function homeworkFold(host, s) {
+    var sc = s.sc, i = s.i, N = s.N, stu = s.sub.data.students[i], hw = s.hw;
+    var list = hwList(s.sub, sc);
     if (!list.length) return;
     var d = fold('作業繳交情況', hw.total ? '缺交 ' + hw.total + ' 次' : '全部都有繳交', hw.total > 0);
     list.forEach(function (x) {
@@ -396,7 +648,7 @@
       ul.appendChild(el('li', null, miss.length ? '缺交 ' + miss.length + ' / ' + h.nItems + ' 項：' + miss.join('、') + '。' : '全部 ' + h.nItems + ' 項都有繳交。'));
       d.appendChild(ul);
     });
-    main.appendChild(d);
+    host.appendChild(d);
   }
 })();
 </script>
