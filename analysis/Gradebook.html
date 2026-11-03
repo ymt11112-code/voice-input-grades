@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261118">
+  <link rel="stylesheet" href="analysis-common.css?v=20261119">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -144,6 +144,15 @@
       <button class="primary" id="printBtn">🖨️ 列印 / 存成 PDF</button>
       <button id="reloadBtn" title="在試算表修改成績後，按這裡重新讀取">🔄 重新讀取試算表</button>
     </div>
+    <div class="bar noprint" id="attBar" style="display:none">
+      <span class="grp"><span class="lbl">🙂 態度分數一鍵設定（目前的學期、階段）</span>
+        <input type="number" id="attBulkVal" min="0" max="100" step="any" style="width:70px"><span class="lbl">分</span>
+        <select id="attScope"><option value="one">只設這個科目</option><option value="all">全部科目（不含別位老師的科目）</option></select>
+        <button class="primary" id="attFillAll" title="全班都改成這個分數，已經輸入的也會被蓋過">全班設為這個分數</button>
+        <button id="attFillBlank" title="只幫還沒輸入態度的同學填上這個分數，已經輸入的不動">只補還沒輸入的</button>
+        <button id="attClear" title="清除態度分數，回到「還沒輸入先當作 X 分」">清除</button>
+      </span>
+    </div>
     <details class="card gbCfg rowPick noprint" id="rowBox" style="display:none">
       <summary><b>🧾 簡表要印哪些列</b></summary>
       <div id="rowBody"></div>
@@ -157,10 +166,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261118"></script>
-<script src="analysis-demo.js?v=20261118"></script>
-<script src="analysis-art.js?v=20261118"></script>
-<script src="analysis-common.js?v=20261118"></script>
+<script src="analysis-stats.js?v=20261119"></script>
+<script src="analysis-demo.js?v=20261119"></script>
+<script src="analysis-art.js?v=20261119"></script>
+<script src="analysis-common.js?v=20261119"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -248,6 +257,7 @@
     if (!st.subject) { main.appendChild(el('div', { 'class': 'empty' }, '還沒有任何科目')); return; }
     var G = st.G = gbFor(st.stage);
     renderConfig();
+    AX.$('attBar').style.display = st.view === 'detail' && !S.isExternalSubject(dataOf(st.subject)) ? '' : 'none';
     setPageOrient(st.view === 'brief' ? 'portrait' : 'landscape');
     renderRowPicker(G);
     if (G.empty || !G.students.length) {
@@ -399,6 +409,54 @@
       .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
   }
   function setSaved(msg) { AX.toast(msg); }
+
+  // ---- 態度分數一鍵設定：全班（或全部科目）一次填同一個分數 ----
+  // mode：'all'＝全班蓋過、'blank'＝只補還沒輸入的、'clear'＝清除
+  function bulkAttitude(mode) {
+    var scope = AX.$('attScope').value, term = st.term, stage = st.stage;
+    var raw = AX.$('attBulkVal').value, val = raw === '' ? NaN : Number(raw);
+    if (mode !== 'clear' && (!isFinite(val) || val < 0 || val > 100)) { AX.toast('請先在欄位輸入 0～100 的分數', true); AX.$('attBulkVal').focus(); return; }
+    var subjects = scope === 'all' ? st.raw.subjects.map(function (d) { return d.subject; }) : [st.subject];
+    subjects = subjects.filter(function (s) { var d = dataOf(s); return d && d.students.length && !S.isExternalSubject(d) && termsOf(d).indexOf(term) > -1; });
+    if (!subjects.length) { AX.toast('沒有可以設定的科目', true); return; }
+    var plan = [], overwrite = 0, total = 0;
+    subjects.forEach(function (s) {
+      var cur = attOf(s, stage), entries = [];
+      dataOf(s).students.forEach(function (stu, i) {
+        var has = cur[i] != null;
+        if (mode === 'blank' && has) return;
+        if (mode === 'clear' && !has) return;
+        if (mode === 'all' && has && Number(cur[i]) !== val) overwrite++;
+        entries.push({ name: stu.name, score: mode === 'clear' ? '' : val });
+      });
+      if (entries.length) { plan.push({ subject: s, entries: entries }); total += entries.length; }
+    });
+    if (!plan.length) { AX.toast(mode === 'blank' ? '大家都已經輸入過態度了，沒有需要補的' : '沒有需要更動的資料'); return; }
+    var where = scope === 'all' ? '「' + subjects.join('、') + '」' : '「' + st.subject + '」', when = fullTerm(term) + STAGE_NAME[stage];
+    var msg = mode === 'clear' ? '要清除' + where + when + '的態度分數嗎？（共 ' + total + ' 筆，清除後會回到「還沒輸入先當作 ' + st.blank + ' 分」）'
+      : '要把' + where + when + '的態度分數' + (mode === 'blank' ? '（只補還沒輸入的 ' + total + ' 位）' : '全部設為 ' + val + ' 分（共 ' + total + ' 位' + (overwrite ? '，其中 ' + overwrite + ' 位原本輸入的分數會被蓋過' : '') + '）') + (mode === 'blank' ? '設為 ' + val + ' 分' : '') + '嗎？';
+    if (!confirm(msg)) return;
+    // 先改畫面上的資料（立刻重算），再背景存進試算表
+    plan.forEach(function (p) {
+      var names = {};
+      p.entries.forEach(function (e) { names[normName(e.name)] = e.score; });
+      st.raw.attitude = (st.raw.attitude || []).filter(function (a) { return !(a.subject === p.subject && a.term === term && Number(a.p) === stage && names.hasOwnProperty(a.name)); });
+      Object.keys(names).forEach(function (n) { if (names[n] !== '') st.raw.attitude.push({ subject: p.subject, term: term, p: stage, name: n, score: names[n] }); });
+    });
+    render();
+    AX.toast('儲存中…');
+    var chain = attChain;
+    plan.forEach(function (p) {
+      for (var k = 0; k < p.entries.length; k += 150) {
+        (function (chunk) { chain = chain.then(function () { return AX.call('setAttitude', p.subject, term, stage, chunk); }); })(p.entries.slice(k, k + 150));
+      }
+    });
+    attChain = chain.then(function () { AX.toast('已儲存（' + total + ' 筆）'); }, function (e) { AX.showError(e); });
+  }
+  AX.$('attFillAll').onclick = function () { bulkAttitude('all'); };
+  AX.$('attFillBlank').onclick = function () { bulkAttitude('blank'); };
+  AX.$('attClear').onclick = function () { bulkAttitude('clear'); };
+  AX.$('attBulkVal').value = st.blank;
 
   // ---- 簡表（學生橫列，方便列印；A4 直式，一張放兩個表格） ------------------------------
   // all＝true：列出全部可選的列（給「要印哪些列」勾選用）；否則只留下有勾的列
