@@ -162,6 +162,9 @@
       var ttl = document.querySelector('.top .title');
       if (ttl) { ttl.textContent = ''; ttl.appendChild(AXArt.icon('bars', 32)); ttl.appendChild(document.createTextNode('成績分析')); }
     }
+    // 回到「登記成績」主頁面（同一個網站上的 source.html，連線設定與分析頁共用，不用重新輸入）
+    var nav = document.querySelector('.pages');
+    if (nav && !DEMO) { var back = el('a', { href: '../source.html', title: '回到登記成績主頁面' }, '✏️ 登記成績'); nav.insertBefore(back, nav.firstChild); }
     if (DEMO) {
       document.querySelectorAll('.pages a').forEach(function (a) { a.href += '?demo=1'; });
       app.insertBefore(el('div', { 'class': 'note noprint' }, '目前顯示的是系統產生的示範資料，不是真實成績。'), $('content'));
