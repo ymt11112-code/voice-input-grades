@@ -59,7 +59,7 @@
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
-  var st = { raw: null, model: null, subject: null, term: null, cats: null, pick: -1, sort: 'seat', attAll: {}, period: 0 };
+  var st = { raw: null, model: null, subject: null, term: null, cats: null, pick: -1, sort: 'seat', attAll: {}, period: 0, open: {} };
 
   AX.shell();
   AX.onResize(function () { if (st.model) renderMain(); });
@@ -271,9 +271,26 @@
     if (!subs.length) { main.appendChild(el('div', { 'class': 'card empty' }, '所選學期還沒有登記任何成績。')); return; }
     var p = curPeriod();
     renderAllTiles(main, term, subs, p);
-    renderPeriodOverview(main, term, subs, p);
-    renderWatchAll(main, term, subs);
-    renderSubjectEntry(main, term, subs);
+    // 色塊以下的內容預設收合，點標題才打開（打開或收合的狀態會記住，重新整理畫面不會又縮回去）
+    foldWrap(main, 'period', '定期考查總覽：' + S.termLabel(term) + ' ' + PERIOD_NAME[p], function (b) { renderPeriodOverview(b, term, subs, p); });
+    foldWrap(main, 'watch', '需關注名單', function (b) { return renderWatchAll(b, term, subs); });
+    foldWrap(main, 'entry', '各科詳細概況', function (b) { renderSubjectEntry(b, term, subs); });
+  }
+  function foldWrap(main, key, title, build) {
+    var d = el('details', { 'class': 'fold' });
+    if (st.open[key]) d.setAttribute('open', '');
+    var sum = el('summary', null, title);
+    d.appendChild(sum);
+    var body = el('div');
+    var small = build(body);
+    if (small) sum.appendChild(el('small', null, small));
+    // 裡面的卡片拿掉自己的外框與標題（標題已經在摺疊列上）
+    var card = body.querySelector('.card');
+    if (card) { card.style.cssText = 'border:none;box-shadow:none;padding:0;margin:0;background:none'; var h = card.querySelector('h2'); if (h) h.style.display = 'none'; }
+    var sec = body.querySelector('.secTitle'); if (sec) sec.style.display = 'none';
+    d.appendChild(body);
+    d.addEventListener('toggle', function () { st.open[key] = d.open; });
+    main.appendChild(d);
   }
 
   // ---------- 全部科目的需關注名單 ----------
@@ -360,6 +377,7 @@
     ft.appendChild(document.createTextNode('」頁。'));
     c.appendChild(ft);
     main.appendChild(c);
+    return '表現明顯異常 ' + weird.length + ' 人・缺交或缺考 ' + miss.length + ' 人';
   }
 
   // ---------- 全部科目的色塊（一科一行，點一行改看該科） ----------
