@@ -59,7 +59,7 @@
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
-  var st = { raw: null, model: null, subject: null, term: null, cats: null, pick: -1, sort: 'seat', attAll: {}, period: 0, open: {} };
+  var st = { raw: null, model: null, subject: null, term: null, cats: null, pick: -1, sort: 'seat', attAll: {}, period: 0, open: { period: true } };
 
   AX.shell();
   AX.onResize(function () { if (st.model) renderMain(); });
@@ -384,23 +384,6 @@
   function renderAllTiles(main, term, subs, p) {
     var pn = PERIOD_NAME[p], tiles = el('div', { 'class': 'tiles metric' });
     function bigOf(vals) { return vals.length ? fmt(S.mean(vals)) : '—'; }
-    // 1 學期成績平均
-    var r1 = [], v1 = [];
-    subs.forEach(function (sm) {
-      var bt = sm.byTerm[term], T = bt.T; if (!T.stats.n) return;
-      var below = T.scores.filter(function (v) { return v != null && v < bt.A.passPct; }).length;
-      r1.push({ subject: sm.name, name: sm.name, text: fmt(T.stats.mean) + (below ? '・不及格 ' + below + ' 人' : '') }); v1.push(T.stats.mean);
-    });
-    // 另一次定期考查還沒考完時，學期成績目前只算已完成的那一次，數字會和那次定期考查一樣
-    var same = subs.some(function (sm) { var T = sm.byTerm[term].T; return T.stats.n && !(T.periods[0].complete && T.periods[1].complete); });
-    if (r1.length) tiles.appendChild(metricTile('學期成績平均', bigOf(v1), '分（各科平均）', r1, same ? '有科目只有一次定期考查考完，學期成績暫時只算那一次（平時成績＋段考）；另一次考完後才會合併' : ''));
-    // 2 所選的段考（期中考或期末考）本身的平均
-    var r2 = [], v2 = [];
-    subs.forEach(function (sm) {
-      var pr = sm.byTerm[term].T.periods[p - 1], ex = S.nonNull(pr.exam); if (!pr.examUsed || !ex.length) return;
-      r2.push({ subject: sm.name, name: sm.name, text: fmt(S.mean(ex)) }); v2.push(S.mean(ex));
-    });
-    if (r2.length) tiles.appendChild(metricTile(pn + '平均', bigOf(v2), '分（各科平均）', r2));
     // 3 作業平均（國語筆記＝總分，其餘＝每項平均）
     var r3 = [], v3 = [], hasTot = false;
     subs.forEach(function (sm) {
@@ -426,7 +409,7 @@
       var last = qz[qz.length - 1], prev = qz.length > 1 ? qz[qz.length - 2] : null, dl = prev ? last.pctStats.mean - prev.pctStats.mean : null;
       r5.push({ subject: sm.name, name: sm.name, text: last.name + ' ' + fmt(last.pctStats.mean) + (dl == null ? '' : '（' + sg(dl) + '）'), cls: dl == null ? '' : AX.cls(dl) }); v5.push(last.pctStats.mean);
     });
-    if (r5.length) tiles.appendChild(metricTile('最近一次考試班平均', bigOf(v5), '分', r5, '括號是和前一次的差'));
+    if (r5.length) tiles.insertBefore(metricTile('最近一次考試班平均', bigOf(v5), '分', r5, '括號是和前一次的差'), tiles.firstChild);
     main.appendChild(tiles);
   }
 
