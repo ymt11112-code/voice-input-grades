@@ -278,29 +278,23 @@
   // 1) 表現明顯異常：相對「自己平常的水準」大幅下滑（突然落差、連續退步、學期退步、單科明顯偏弱），就算不是最後幾名也會列出
   // 2) 低於及格線或後標（任何一科）　3) 有缺交或缺考
   function renderWatchAll(main, term, subs) {
-    var m = st.model, th = AX.getAlertTh(), pass = m.passPct;
+    var m = st.model, th = AX.getAlertTh();
     var WEIRD = { '突然落差': 1, '連續退步': 1, '學期退步': 1, '單科偏弱': 1 };
-    var weird = [], low = [], miss = [];
+    var weird = [], miss = [];
     m.roster.forEach(function (r) {
       var al = S.alertsFor(m, r.key, th, term).filter(function (a) { return WEIRD[a.type]; });
       if (al.length) weird.push({ r: r, list: al, high: al.filter(function (a) { return a.level === 'high'; }).length });
-      var lows = [], ms = [];
+      var ms = [];
       subs.forEach(function (sm) {
         var i = sm.index[r.key]; if (i === undefined) return;
-        var bt = sm.byTerm[term], T = bt.T, v = T.stats.n ? T.scores[i] : null;
-        if (v != null) {
-          if (v < pass) lows.push({ subject: sm.name, v: v, fail: true });
-          else if (T.tiers && v < T.tiers.back) lows.push({ subject: sm.name, v: v, fail: false });
-        }
+        var bt = sm.byTerm[term];
         var hm = 0; bt.A.homework.forEach(function (h) { hm += h.missing[i]; });
         var ab = bt.A.quiz.filter(function (q) { return q.scores[i] == null; }).length;
         if (hm || ab) ms.push({ subject: sm.name, hm: hm, ab: ab });
       });
-      if (lows.length) low.push({ r: r, list: lows, fails: lows.filter(function (x) { return x.fail; }).length, min: Math.min.apply(null, lows.map(function (x) { return x.v; })) });
       if (ms.length) miss.push({ r: r, list: ms, total: ms.reduce(function (n, x) { return n + x.hm + x.ab; }, 0) });
     });
     weird.sort(function (a, b) { return (b.high - a.high) || (b.list.length - a.list.length); });
-    low.sort(function (a, b) { return (b.fails - a.fails) || (b.list.length - a.list.length) || (a.min - b.min); });
     miss.sort(function (a, b) { return b.total - a.total; });
 
     var c = AX.card('需關注名單', '一次檢查全部科目（' + subs.map(function (x) { return x.name; }).join('、') + '）。「表現明顯異常」不看名次，看的是比他自己平常的水準低很多的同學，所以就算不是最後幾名也會列出。點名字看個人概況。');
@@ -337,32 +331,29 @@
       }
     }
 
-    // 2)、3) 低於及格或後標、有缺交
-    var grid = el('div', { 'class': 'attGrid' }); grid.style.marginTop = '16px';
-    [
-      { key: 'low', title: '低於及格或後標（任一科）', rows: low, empty: '沒有人低於及格線或後標',
-        line: function (x) { return { label: AX.seatLabel(x.r), href: stuUrl(x.r, term, x.list[0].subject), rank: null, value: x.list.map(function (y) { return y.subject + ' ' + fmt(y.v) + ' 分' + (y.fail ? '（不及格）' : '（低於後標）'); }).join('、') }; } },
-      { key: 'miss', title: '有缺交或缺考', rows: miss, empty: '全班都沒有缺交',
-        line: function (x) { return { label: AX.seatLabel(x.r), href: stuUrl(x.r, term, x.list[0].subject), rank: null, value: x.list.map(function (y) { return y.subject + ' ' + [y.hm ? '作業缺 ' + y.hm + ' 次' : '', y.ab ? '缺考 ' + y.ab + ' 次' : ''].filter(Boolean).join('・'); }).join('、') }; } }
-    ].forEach(function (col) {
-      var box = el('div'), h = el('div', { 'class': 'h3' }, col.title + '　');
-      h.appendChild(el('b', null, col.rows.length + ' 人'));
-      box.appendChild(h);
-      if (!col.rows.length) box.appendChild(el('div', { 'class': 'muted small' }, col.empty));
-      else {
-        var all = !!st.attAll[col.key], shown = all ? col.rows : col.rows.slice(0, 6);
-        box.appendChild(AX.studentList(shown.map(col.line)));
-        if (col.rows.length > 6) {
-          var b = el('button', { 'class': 'secondary noprint' }, all ? '收合' : '顯示全部 ' + col.rows.length + ' 人');
-          b.style.marginTop = '8px';
-          b.onclick = function () { st.attAll[col.key] = !all; renderMain(); };
-          box.appendChild(b);
-        }
+    // 有缺交或缺考：縮成一小排（座號姓名＋哪一科），不佔版面
+    var h2 = el('div', { 'class': 'h3' }, '有缺交或缺考　'); h2.style.marginTop = '16px';
+    h2.appendChild(el('b', null, miss.length + ' 人'));
+    c.appendChild(h2);
+    if (!miss.length) c.appendChild(el('div', { 'class': 'muted small' }, '全班都沒有缺交'));
+    else {
+      var allM = !!st.attAll.miss, mbox = el('div', { 'class': 'chips' });
+      (allM ? miss : miss.slice(0, 12)).forEach(function (x) {
+        var chip = el('span', { 'class': 'chip', title: x.list.map(function (y) { return y.subject + ' ' + [y.hm ? '作業缺 ' + y.hm + ' 次' : '', y.ab ? '缺考 ' + y.ab + ' 次' : ''].filter(Boolean).join('・'); }).join('、') });
+        chip.appendChild(el('a', { 'class': 'link', href: stuUrl(x.r, term, x.list[0].subject) }, AX.seatLabel(x.r)));
+        chip.appendChild(el('b', null, ' ' + x.list.map(function (y) { return y.subject.slice(0, 2) + (y.hm ? '缺' + y.hm : '') + (y.ab ? '考' + y.ab : ''); }).join(' ')));
+        mbox.appendChild(chip);
+      });
+      c.appendChild(mbox);
+      c.appendChild(el('div', { 'class': 'muted small', style: 'margin-top:6px' }, '「缺」＝作業缺交次數、「考」＝缺考次數；滑鼠移上去看完整說明。'));
+      if (miss.length > 12) {
+        var bm = el('button', { 'class': 'secondary noprint' }, allM ? '收合' : '顯示全部 ' + miss.length + ' 人');
+        bm.style.marginTop = '6px';
+        bm.onclick = function () { st.attAll.miss = !allM; renderMain(); };
+        c.appendChild(bm);
       }
-      grid.appendChild(box);
-    });
-    c.appendChild(grid);
-    var ft = el('p', { 'class': 'muted small', style: 'margin:10px 0 0' }, '及格線 ' + pass + '；後標＝全班由高到低排，位於後 25% 的那個分數（各科自己算）。更細的警示條件與門檻在「');
+    }
+    var ft = el('p', { 'class': 'muted small', style: 'margin:10px 0 0' }, '更細的警示條件與門檻在「');
     ft.appendChild(el('a', { 'class': 'link', href: AX.pageUrl('Attention.html', {}) }, '關注名單'));
     ft.appendChild(document.createTextNode('」頁。'));
     c.appendChild(ft);
