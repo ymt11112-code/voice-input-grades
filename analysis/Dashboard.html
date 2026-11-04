@@ -268,9 +268,9 @@
     var term = allTerm(), subs = subsOf(term);
     if (!subs.length) { main.appendChild(el('div', { 'class': 'card empty' }, '所選學期還沒有登記任何成績。')); return; }
     var p = curPeriod();
-    renderWatchAll(main, term, subs);
     renderAllTiles(main, term, subs, p);
     renderPeriodOverview(main, term, subs, p);
+    renderWatchAll(main, term, subs);
     renderSubjectEntry(main, term, subs);
   }
 
