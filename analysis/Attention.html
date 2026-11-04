@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261125">
+  <link rel="stylesheet" href="analysis-common.css?v=20261126">
 </head>
 <body>
 <div class="app">
@@ -42,10 +42,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261125"></script>
-<script src="analysis-demo.js?v=20261125"></script>
-<script src="analysis-art.js?v=20261125"></script>
-<script src="analysis-common.js?v=20261125"></script>
+<script src="analysis-stats.js?v=20261126"></script>
+<script src="analysis-demo.js?v=20261126"></script>
+<script src="analysis-art.js?v=20261126"></script>
+<script src="analysis-common.js?v=20261126"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, LATEST = '^', ALLS = '*';
@@ -122,7 +122,7 @@
       return;
     }
 
-    var card = AX.card('關注名單', '依嚴重程度排序。「警示」＝較嚴重（例如大幅落差、低於及格線 10 分以上、缺交過半）；「注意」＝建議留意。門檻可以在設定中調整。');
+    var card = AX.card('關注名單', '依嚴重程度排序。「警示」＝較嚴重（例如大幅落差、低於及格線 10 分以上、缺交過半）；「注意」＝建議留意。門檻可以在設定中調整。分數都是實際得分；PR 值＝在班上的位置，PR 80 表示贏過班上約 80% 的同學，數字愈大愈前面。');
     rows.forEach(function (x) {
       var box = el('div', { 'class': 'lvbar ' + (x.high ? 'high' : 'mid') });
       box.style.marginBottom = '12px';

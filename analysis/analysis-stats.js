@@ -430,6 +430,22 @@
   // ============================================================
   var DEFAULT_ALERT = { drop: 12, decline: 10, termDrop: 8, miss: 3 };
 
+  // 關注名單文字用：這次考試的完整說明，例如「月考（115上 期中）」
+  function examLabel(q) {
+    var per = q.period === 1 ? '期中' : (q.period === 2 ? '期末' : '');
+    var tm = q.term ? q.term + (per ? ' ' + per : '') : per;
+    return '「' + q.name + '」' + (tm ? '（' + tm + '）' : '');
+  }
+  // 這位學生在這次考試實際的分數，例如「49 / 100 分」（滿分 100 就只寫「49 分」）
+  function scoreText(q, idx) {
+    var v = q.scores[idx];
+    return fmt(v) + (q.max !== 100 ? ' / ' + q.max : '') + ' 分';
+  }
+  // 班平均（換成實際分數，不是百分比）
+  function meanText(q) { return fmt(q.pctStats.mean * q.max / 100) + ' 分'; }
+  // PR 值：班上有多少百分比的同學成績比他低（約略），以名次換算，1～99
+  function prOfRank(rank, n) { return n > 0 && rank ? Math.max(1, Math.min(99, Math.round((n - rank + 0.5) / n * 100))) : null; }
+
   // 回傳這位學生的警示清單（依嚴重度排序）。level：'high'（警示）／'mid'（注意）
   // asOf：以哪個學期為「現在」（null＝各科自己最後有資料的學期）
   function alertsFor(model, key, th, asOf) {
@@ -457,7 +473,7 @@
         var base = mean(prev.map(function (x) { return x.diff; })), delta = last.diff - base;
         if (isRecent(last.q) && delta <= -th.drop) {
           out.push({ subject: name, type: '突然落差', level: delta <= -th.drop * 1.5 ? 'high' : 'mid', term: cur,
-            text: name + '「' + last.q.name + '」得分率 ' + fmt(last.pct) + '%（' + (last.diff >= 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(last.diff)) + ' 點），比他先前相對班平均的水準掉了 ' + fmt(-delta) + ' 點',
+            text: name + examLabel(last.q) + '考 ' + scoreText(last.q, idx) + '（班平均 ' + meanText(last.q) + '），' + (last.diff >= 0 ? '高於' : '低於') + '班平均 ' + fmt(Math.abs(last.diff)) + ' 分；比他前幾次考試相對全班的表現低了約 ' + fmt(-delta) + ' 分',
             soft: name + '最近一次考試比平常的表現低了一些，值得關心是否遇到困難。' });
         }
       }
@@ -466,14 +482,14 @@
         var a = ds[ds.length - 3], b = ds[ds.length - 2], c = ds[ds.length - 1];
         if (isRecent(c.q) && a.diff - b.diff >= 3 && b.diff - c.diff >= 3 && a.diff - c.diff >= th.decline) {
           out.push({ subject: name, type: '連續退步', level: 'mid', term: cur,
-            text: name + '連續 3 次考試相對班平均明顯逐次下滑（' + signed(a.diff) + '→' + signed(b.diff) + '→' + signed(c.diff) + ' 點）',
+            text: name + '連續 3 次考試相對班平均明顯逐次下滑：' + [a, b, c].map(function (x) { return x.q.name + ' ' + scoreText(x.q, idx) + '（班平均 ' + meanText(x.q) + '）'; }).join(' → '),
             soft: name + '最近幾次考試的表現有逐漸下滑的趨勢。' });
         }
       }
 
       var tr = termRow(sm, cur, idx), T = sm.byTerm[cur].T, A = sm.byTerm[cur].A;
       if (tr) {
-        zs.push({ subject: name, z: tr.z });
+        zs.push({ subject: name, z: tr.z, score: tr.score, mean: tr.classMean, pr: prOfRank(tr.rank, tr.n), rank: tr.rank, n: tr.n });
         // 3 學期成績低於及格線
         if (tr.score < pass) {
           out.push({ subject: name, type: '未達及格', level: tr.score < pass - 10 ? 'high' : 'mid', term: cur,
@@ -495,11 +511,11 @@
           var chg = tr.diff - ptr.diff;
           if (longDecline && chg > -th.termDrop) {
             out.push({ subject: name, type: '學期退步', level: 'mid', term: cur,
-              text: name + ' 連續三個學期相對班平均逐期下滑（' + h3.map(function (r2) { return r2.term + ' ' + signed(r2.diff); }).join(' → ') + ' 點）',
+              text: name + ' 連續三個學期相對班平均逐期下滑：' + h3.map(function (r2) { return r2.term + ' 學期成績 ' + fmt(r2.score) + ' 分（班平均 ' + fmt(r2.classMean) + '）'; }).join(' → '),
               soft: name + '連續幾個學期的整體表現都慢慢下降，建議一起討論調整學習方式。' });
           } else if (chg <= -th.termDrop) {
             out.push({ subject: name, type: '學期退步', level: chg <= -15 ? 'high' : 'mid', term: cur,
-              text: name + ' 與 ' + pt + ' 相比，相對班平均的差距由 ' + signed(ptr.diff) + ' 變成 ' + signed(tr.diff) + ' 點（退步 ' + fmt(-chg) + ' 點）',
+              text: name + ' 學期成績：' + pt + ' ' + fmt(ptr.score) + ' 分（班平均 ' + fmt(ptr.classMean) + '）→ ' + cur + ' ' + fmt(tr.score) + ' 分（班平均 ' + fmt(tr.classMean) + '），相對班平均的差距退步了 ' + fmt(-chg) + ' 分',
               soft: name + '和上一學期相比，整體表現有下降，值得一起了解原因。' });
           }
         }
@@ -528,7 +544,7 @@
       var w = zs[0], others = mean(zs.slice(1).map(function (x) { return x.z; }));
       if (w.z <= -1 && others - w.z >= 1.2) {
         out.push({ subject: w.subject, type: '單科偏弱', level: 'mid', term: asOf,
-          text: w.subject + '明顯弱於其他科目（相對班級 z=' + fmt(w.z, 2) + '，其他科平均 z=' + fmt(others, 2) + '）',
+          text: w.subject + '明顯弱於其他科目：學期成績 ' + fmt(w.score) + ' 分（班平均 ' + fmt(w.mean) + '），全班第 ' + w.rank + ' 名／' + w.n + ' 人，PR ' + w.pr + '；其他科平均 PR ' + fmt(mean(zs.slice(1).filter(function (x) { return x.pr != null; }).map(function (x) { return x.pr; }))) + '（PR 愈高，在班上愈前面）',
           soft: w.subject + '相對其他科目比較吃力，可以多給一些支持。' });
       }
     }
