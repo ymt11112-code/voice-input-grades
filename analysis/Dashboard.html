@@ -8,7 +8,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261126">
+  <link rel="stylesheet" href="analysis-common.css?v=20261127">
+  <style>
+    .wrow { display: grid; grid-template-columns: 9em 1fr; gap: 4px 12px; padding: 9px 0; border-bottom: 2px dotted var(--line); align-items: baseline; }
+    .wrow:last-of-type { border-bottom: none; }
+    .wrow .who { font-size: 15px; }
+    .wrow .ls > div { font-size: 14px; padding: 2px 0; line-height: 1.5; }
+    .wrow .ls .sj { font-weight: 700; margin-right: 6px; }
+    .wrow .ls .ty { color: var(--muted); font-size: 12.5px; margin-right: 8px; }
+    .wrow .ls .hi { color: var(--high); }
+    @media (max-width: 640px) { .wrow { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
 <div class="app">
@@ -42,10 +52,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261126"></script>
-<script src="analysis-demo.js?v=20261126"></script>
-<script src="analysis-art.js?v=20261126"></script>
-<script src="analysis-common.js?v=20261126"></script>
+<script src="analysis-stats.js?v=20261127"></script>
+<script src="analysis-demo.js?v=20261127"></script>
+<script src="analysis-art.js?v=20261127"></script>
+<script src="analysis-common.js?v=20261127"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, sg = S.signed, ALL = '*';
@@ -302,24 +312,24 @@
     if (!weird.length) c.appendChild(el('div', { 'class': 'muted small' }, '目前沒有人出現明顯的突然落差或連續退步'));
     else {
       var allW = !!st.attAll.weird;
+      var wl = el('div');
       (allW ? weird : weird.slice(0, 5)).forEach(function (x) {
-        var box = el('div', { 'class': 'lvbar ' + (x.high ? 'high' : 'mid') });
-        box.style.marginBottom = '10px';
-        var head = el('div'); head.style.cssText = 'display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:2px 0 2px';
-        head.appendChild(el('a', { 'class': 'link', href: stuUrl(x.r, term, x.list[0].subject) }, AX.seatLabel(x.r)));
-        var subjects = []; x.list.forEach(function (a) { if (subjects.indexOf(a.subject) === -1) subjects.push(a.subject); });
-        head.appendChild(el('span', { 'class': 'muted small' }, subjects.join('、')));
-        box.appendChild(head);
+        var row = el('div', { 'class': 'wrow' });
+        var who = el('div', { 'class': 'who' });
+        who.appendChild(el('a', { 'class': 'link', href: stuUrl(x.r, term, x.list[0].subject) }, AX.seatLabel(x.r)));
+        row.appendChild(who);
+        var ls = el('div', { 'class': 'ls' });
         x.list.forEach(function (a) {
-          var it = el('div', { 'class': 'alertItem' });
-          it.appendChild(el('span', { 'class': 'badge ' + a.level }, a.level === 'high' ? '❗ 警示' : '⚠ 注意'));
-          var tx = el('div', { 'class': 'tx' }, a.text);
-          tx.appendChild(el('small', null, a.type));
-          it.appendChild(tx);
-          box.appendChild(it);
+          var d = el('div'), hi = a.level === 'high';
+          d.appendChild(el('span', { 'class': 'sj' + (hi ? ' hi' : '') }, (hi ? '❗' : '') + a.subject));
+          d.appendChild(el('span', { 'class': 'ty' }, a.type));
+          d.appendChild(document.createTextNode(a.short || a.text));
+          ls.appendChild(d);
         });
-        c.appendChild(box);
+        row.appendChild(ls);
+        wl.appendChild(row);
       });
+      c.appendChild(wl);
       if (weird.length > 5) {
         var bw = el('button', { 'class': 'secondary noprint' }, allW ? '收合' : '顯示全部 ' + weird.length + ' 人');
         bw.onclick = function () { st.attAll.weird = !allW; renderMain(); };
@@ -370,14 +380,19 @@
       var below = T.scores.filter(function (v) { return v != null && v < bt.A.passPct; }).length;
       r1.push({ subject: sm.name, name: sm.name, text: fmt(T.stats.mean) + (below ? '・不及格 ' + below + ' 人' : '') }); v1.push(T.stats.mean);
     });
-    if (r1.length) tiles.appendChild(metricTile('學期成績平均', bigOf(v1), '分（各科平均）', r1));
+    // 另一次定期考查還沒考完時，學期成績目前只算已完成的那一次，數字會和那次定期考查一樣
+    var same = subs.every(function (sm) {
+      var T = sm.byTerm[term].T, pr = T.periods[p - 1]; if (!T.stats.n) return true;
+      return T.scores.every(function (v, i) { var w2 = pr.total[i]; return (v == null && w2 == null) || (v != null && w2 != null && Math.abs(v - w2) < 1e-9); });
+    });
+    if (r1.length) tiles.appendChild(metricTile('學期成績平均', bigOf(v1), '分（各科平均）', r1, same ? '目前只有' + pn + '考完，學期成績暫時就等於' + pn + '定期考查成績（平時成績＋' + pn + '）；另一次考完後會合併計算' : ''));
     // 2 所選的定期考查（期中考或期末考）平均
     var r2 = [], v2 = [];
     subs.forEach(function (sm) {
       var pr = sm.byTerm[term].T.periods[p - 1], tot = S.nonNull(pr.total); if (!pr.used || !tot.length) return;
       r2.push({ subject: sm.name, name: sm.name, text: fmt(S.mean(tot)) + (pr.complete ? '' : '＊') }); v2.push(S.mean(tot));
     });
-    if (r2.length) tiles.appendChild(metricTile(pn + '定期考查平均', bigOf(v2), '分（各科平均）', r2, r2.some(function (r) { return r.text.slice(-1) === '＊'; }) ? '＊＝段考還沒有成績，只含已登記的平時成績' : ''));
+    if (r2.length && !same) tiles.appendChild(metricTile(pn + '定期考查平均', bigOf(v2), '分（各科平均）', r2, r2.some(function (r) { return r.text.slice(-1) === '＊'; }) ? '＊＝段考還沒有成績，只含已登記的平時成績' : ''));
     // 3 作業平均（國語筆記＝總分，其餘＝每項平均）
     var r3 = [], v3 = [], hasTot = false;
     subs.forEach(function (sm) {
