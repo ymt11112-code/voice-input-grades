@@ -1108,7 +1108,8 @@
     return items.length > 0 && items.every(function (it) { return EXT_ITEMS.indexOf(String(it.name == null ? '' : it.name).trim()) > -1; });
   }
 
-  function gradebook(d, term, stage, kinds, weights, cfg, dec, att, blank) {
+  // miss：依學生順序的「缺訂（缺交訂正）次數」陣列（null＝這個科目不用缺訂，例如別位老師的科目）；每缺一次從平時成績扣 missPen 分（預設 4），最低扣到 0 分
+  function gradebook(d, term, stage, kinds, weights, cfg, dec, att, blank, miss, missPen) {
     // 還沒輸入的態度、還沒有成績的段考，先當作這個分數（預設 70；成績總表頁的「還沒輸入時先當作」可以改）
     var BLANK = blank !== undefined && blank !== null && blank !== '' && isFinite(Number(blank)) && Number(blank) >= 0 && Number(blank) <= 100 ? Number(blank) : BLANK_DEFAULT;
     kinds = kinds || {}; cfg = cfg || {};
@@ -1213,6 +1214,9 @@
     groups.forEach(function (g) { g.used = usedGroups.indexOf(g) > -1; g.share = g.used ? g.weight / groupTotal * 100 : 0; });
 
     var daily = each(function (i) { return W.daily > 0 ? gbRound(wavg(usedGroups.map(function (g) { return [g.weight, g.avg[i]]; })).v, 1) : null; });
+    var missOn = !!miss, PEN = missPen != null && missPen !== '' && isFinite(Number(missPen)) && Number(missPen) >= 0 ? Number(missPen) : 4;
+    var missN = each(function (i) { var m = missOn ? Number(miss[i]) : 0; return m > 0 ? Math.floor(m) : 0; });
+    if (missOn) daily = daily.map(function (v, i) { return v == null || !missN[i] ? v : gbRound(Math.max(0, v - PEN * missN[i]), 1); });
     var gradedExam = examItems.filter(function (x) { return x.graded; });
     var exam = each(function (i) {
       var ps = [];
@@ -1236,7 +1240,7 @@
       dailyShare: dailyOn && bothTotal > 0 ? W.daily / bothTotal * 100 : 0, examShare: examOn && bothTotal > 0 ? W.exam / bothTotal * 100 : 0,
       final: final, ranks: final.map(function (v) { return v == null ? null : compRank(vals, v); }),
       ranked: vals.length, mean: vals.length ? gbRound(mean(vals), dec) : null, dec: dec,
-      attInput: attOn, empty: !groups.length && !examItems.length
+      attInput: attOn, miss: missOn ? missN : null, missPen: PEN, empty: !groups.length && !examItems.length
     };
   }
 

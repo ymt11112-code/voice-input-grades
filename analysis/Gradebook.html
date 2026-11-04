@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261123">
+  <link rel="stylesheet" href="analysis-common.css?v=20261124">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -50,6 +50,11 @@
     .gbCfg .scaleCell input[type=number] { width: 64px; }
     .gbCfg .scaleCell .tiny { font-size: 12.5px; padding: 3px 10px; }
     table.gb input.attIn:focus { outline: 2px solid var(--ink); border-style: solid; }
+    table.gb td.mis { background: #FDEDED; padding: 2px 3px; }
+    table.gb td.mis.hit { background: #F8C9C4; }
+    table.gb input.missIn { width: 44px; text-align: center; font: inherit; border: 1.5px dashed #C97A72; border-radius: 8px; padding: 2px 3px; background: #fff; }
+    table.gb input.missIn:focus { outline: 2px solid var(--ink); border-style: solid; }
+    table.gb td.mis.hit input.missIn { font-weight: 700; color: #B3261E; }
     .over { outline: 2px solid #E59A00; outline-offset: -2px; }
     table.gb td.bad, table.brief td.bad { background: #7B1E1E !important; color: #fff !important; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     table.gb td.bad .attSc { color: #fff; }
@@ -103,8 +108,9 @@
       table.brief td.foot span { margin-right: 14px; }
       .gbCfg, .legend { display: none !important; }
       table.gb td.sus { box-shadow: none; background: #fff; font-weight: inherit; }
-      table.gb input.attIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
-      table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      table.gb input.attIn, table.gb input.missIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
+      table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button, table.gb input.missIn::-webkit-inner-spin-button, table.gb input.missIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      table.gb td.mis { background: #fff; }
       .gbWrap { overflow: visible; max-height: none; border: 1.5px solid #222; border-radius: 0; }
       table.gb { font-size: 10.5px; width: 100%; }
       .gbWrap.sparse table.gb { font-size: 13.5px; }
@@ -147,6 +153,7 @@
       <span class="grp"><span class="lbl">未達</span><input type="number" id="optLow" min="0" max="100" style="width:64px"><span class="lbl">分標紅色</span></span>
       <span class="grp"><span class="lbl">平均取小數</span><select id="optDec"><option value="2">2 位</option><option value="1">1 位</option></select></span>
       <span class="grp"><span class="lbl">還沒輸入時暫定</span><input type="number" id="optBlank" min="0" max="100" style="width:64px"><span class="lbl">分</span></span>
+      <span class="grp" id="missGrp"><span class="lbl">缺訂每次扣</span><input type="number" id="optMissPen" min="0" max="100" step="any" style="width:64px"><span class="lbl">分</span></span>
       <span class="grp" id="perPageGrp"><span class="lbl">簡表每排</span><input type="number" id="optPerPage" min="4" max="20" style="width:64px"><span class="lbl">人</span></span>
       <span class="spacer"></span>
       <button id="xlsBtn" title="每個科目一個工作表，一次下載全部">⬇️ 下載 Excel（全部科目）</button>
@@ -175,10 +182,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261123"></script>
-<script src="analysis-demo.js?v=20261123"></script>
-<script src="analysis-art.js?v=20261123"></script>
-<script src="analysis-common.js?v=20261123"></script>
+<script src="analysis-stats.js?v=20261124"></script>
+<script src="analysis-demo.js?v=20261124"></script>
+<script src="analysis-art.js?v=20261124"></script>
+<script src="analysis-common.js?v=20261124"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -188,6 +195,7 @@
   var st = {
     raw: null, subject: saved.subject || null, term: null, stage: null,
     blank: saved.blank >= 0 && saved.blank <= 100 && saved.blank !== null ? Number(saved.blank) : S.BLANK_DEFAULT,
+    missPen: saved.missPen !== undefined && saved.missPen !== null && saved.missPen >= 0 && saved.missPen <= 100 ? Number(saved.missPen) : 4,
     dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : 'detail', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
     rowOpt: saved.rowOpt && typeof saved.rowOpt === 'object' ? saved.rowOpt : {}   // 簡表要印哪些列：{科目: {列的代號: true/false}}
   };
@@ -195,7 +203,7 @@
   var STAGE_NAME = { 1: '期中考', 2: '期末考' };
 
   AX.shell();
-  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, rowOpt: st.rowOpt })); }
+  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, missPen: st.missPen, rowOpt: st.rowOpt })); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n1(v) { return v == null ? '' : (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
   function nd(v, dec) {
@@ -232,7 +240,17 @@
     (st.raw.attitude || []).forEach(function (a) { if (a.subject === subject && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
     return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? map[k] : null; });
   }
-  function gbOf(subject, stage) { return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, S.isExternalSubject(dataOf(subject)) ? null : attOf(subject, stage), st.blank); }
+  // 缺訂（缺交訂正）次數：借用「態度成績_系統」工作表存，科目欄寫成「缺訂｜科目」，所以不用更新 Apps Script。沒登記＝0
+  var MISS_KEY = '缺訂｜';
+  function missOf(subject, stage) {
+    var map = {}, key = MISS_KEY + subject;
+    (st.raw.attitude || []).forEach(function (a) { if (a.subject === key && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
+    return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? Number(map[k]) : 0; });
+  }
+  function gbOf(subject, stage) {
+    var ext = S.isExternalSubject(dataOf(subject));
+    return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, ext ? null : attOf(subject, stage), st.blank, ext ? null : missOf(subject, stage), st.missPen);
+  }
   function gbFor(stage) { return gbOf(st.subject, stage); }
   function hasGraded(G) {
     return G.examGraded || G.groups.some(function (g) { return g.cats.some(function (c) { return c.items.some(function (x) { return x.graded; }); }); });
@@ -258,6 +276,7 @@
     AX.btnGroup(AX.$('stageBtns'), [{ label: '期中考', value: 1 }, { label: '期末考', value: 2 }], st.stage, function (v) { st.stage = Number(v); buildPickers(); render(); });
     AX.btnGroup(AX.$('viewBtns'), [{ label: '詳表', value: 'detail' }, { label: '簡表（列印）', value: 'brief' }], st.view, function (v) { st.view = v; remember(); buildPickers(); render(); });
     AX.$('perPageGrp').style.display = st.view === 'brief' ? '' : 'none';
+    AX.$('missGrp').style.display = S.isExternalSubject(dataOf(st.subject)) ? 'none' : '';
   }
 
   function render() {
@@ -319,7 +338,8 @@
 
   function tailColumns(G) {
     var tail = [];
-    tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: true });
+    if (G.miss) tail.push({ head: '缺訂<span class="pct">每次−' + nd(G.missPen, 1) + '</span>', cls: 'mis', values: G.miss, missIn: true, first: true });
+    tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: !G.miss });
     if (G.examListed) tail.push({ head: STAGE_NAME[st.stage] + '<span class="pct">' + pct(G.examShare) + (G.examDefault ? '・未輸入暫' + G.blank : '') + '</span>', cls: 'dly', values: G.exam, pctVal: true, susKind: G.examDefault ? null : 'exam', susName: STAGE_NAME[st.stage] });
     tail.push({ head: '平均', cls: 'fin', values: G.final, pctVal: true, d2: true });
     return tail;
@@ -351,6 +371,11 @@
         var v = c.values[i], cls = [];
         if (c.cls) cls.push(c.cls);
         if (c.first) cls.push('b-l');
+        if (c.missIn) {
+          if (v > 0) cls.push('hit');
+          h += '<td class="' + cls.join(' ') + '"><input type="number" class="missIn" min="0" max="100" step="1" data-i="' + i + '" value="' + (v || 0) + '" title="缺交訂正的次數（預設 0），每次從平時成績扣 ' + nd(G.missPen, 1) + ' 分；輸入後按 Enter 或 Tab 就會存到試算表"></td>';
+          return;
+        }
         var pctOfItem = c.kind === 'item' && v != null ? (c.scaled ? null : v / c.item.max * 100) : v;
         if (isLow(pctOfItem)) cls.push('low');
         var title = '';
@@ -377,6 +402,7 @@
     h += '</tbody><tfoot><tr><td class="seat"></td><td class="name">平均</td>';
     all.forEach(function (c) {
       var vals = S.nonNull(c.values), cls = c.first ? ' class="b-l"' : '';
+      if (c.missIn) { var tm = S.sum(vals); h += '<td' + cls + ' title="全班缺訂合計">' + (tm > 0 ? '共' + tm : '') + '</td>'; return; }
       h += '<td' + cls + '>' + (vals.length ? (c.d2 ? n2(S.mean(vals)) : n1(S.mean(vals))) : '') + '</td>';
     });
     h += '<td></td></tr></tfoot></table>';
@@ -397,12 +423,13 @@
     built.tops.forEach(function (t) { if (t.single) solos[si++].innerHTML = cols[p].head; p += t.n; });
     card.appendChild(wrap);
     var over = wrap.querySelectorAll('.over').length;
-    card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」直接在表上輸入（Enter 到下一位）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
+    card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」、粉紅色格子的「缺訂」直接在表上輸入（Enter 到下一位）；缺訂每缺交訂正一次，從平時成績扣 ' + nd(G.missPen, 1) + ' 分（沒有缺訂就維持 0）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
       (shareNote(G) ? ' ' + shareNote(G) : '') +
       (wrap.querySelectorAll('td.bad').length ? ' ⚠️ 有 ' + wrap.querySelectorAll('td.bad').length + ' 格超過滿分或超過 100 分（深紅色底），請檢查原始分數有沒有打錯。' : '')));
     if (susList.length) card.appendChild(susBox(susList, wrap));
     main.appendChild(card);
     wireAttitudeInputs(wrap, G);
+    wireMissInputs(wrap, G);
   }
 
   // ---- 態度輸入：離開欄位或按 Enter 就存；存完重算整張表，游標留在原本的位置 ----
@@ -438,6 +465,37 @@
       .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
   }
   function setSaved(msg) { AX.toast(msg); }
+
+  // ---- 缺訂次數輸入：跟態度一樣，改完就存；0 或空白＝沒有缺訂 ----
+  function wireMissInputs(wrap, G) {
+    var inputs = wrap.querySelectorAll('input.missIn');
+    if (!inputs.length) return;
+    Array.prototype.forEach.call(inputs, function (inp, k) {
+      inp.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var nxt = inputs[e.shiftKey ? k - 1 : k + 1];
+        if (nxt) { nxt.focus(); nxt.select(); } else inp.blur();
+      });
+      inp.addEventListener('focus', function () { inp.select(); });
+      inp.addEventListener('change', function () { saveMiss(G, Number(inp.dataset.i), inp.value, inp); });
+    });
+  }
+  function saveMiss(G, i, text, inp) {
+    var stu = G.students[i], subject = st.subject, term = st.term, stage = st.stage, key = MISS_KEY + subject;
+    var v = String(text).trim() === '' ? 0 : Number(text);
+    if (!isFinite(v) || v < 0 || v > 100 || Math.floor(v) !== v) { AX.toast('缺訂次數要是 0～100 的整數', true); inp.value = G.miss[i] || 0; return; }
+    var nm = normName(stu.name);
+    st.raw.attitude = (st.raw.attitude || []).filter(function (a) { return !(a.subject === key && a.term === term && Number(a.p) === stage && a.name === nm); });
+    if (v > 0) st.raw.attitude.push({ subject: key, term: term, p: stage, name: nm, score: v });
+    setTimeout(function () {
+      var ae = document.activeElement, keep = ae && ae.classList && ae.classList.contains('missIn') ? ae.dataset.i : null;
+      render();
+      if (keep != null) { var again = document.querySelector('input.missIn[data-i="' + keep + '"]'); if (again) { again.focus(); again.select(); } }
+    }, 0);
+    attChain = attChain.then(function () { return AX.call('setAttitude', key, term, stage, [{ name: stu.name, score: v > 0 ? v : '' }]); })
+      .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
+  }
 
   // 可疑分數清單：點一列，上面的表格會捲到那一格並閃一下
   function susBox(list, wrap) {
@@ -550,6 +608,7 @@
     });
     var fin = [{ key: 'daily', label: '平時成績（' + pct(G.dailyShare) + '）', tip: '由 ' + G.groups.filter(function (g) { return g.used; }).map(function (g) { return { other: '態度', homework: '平時作業', quiz: '平時測驗' }[g.kind] + ' ' + pct(g.share); }).join('、') + ' 合成', values: G.daily, cls: 'sum', on: on('daily', true) }];
     if (G.examListed) fin.push({ key: 'exam', label: STAGE_NAME[st.stage] + '（' + pct(G.examShare) + '）', tip: G.examDefault ? '還沒有成績，全班先當 ' + G.blank + ' 分' : '包含：' + G.examItems.filter(function (x) { return x.graded; }).map(function (x) { return x.name; }).join('、'), values: G.exam, cls: 'sum', on: on('exam', true) });
+    if (G.miss) fin.splice(1, 0, { key: 'miss', label: '缺訂次數（每次−' + nd(G.missPen, 1) + '）', pick: '缺訂次數', tip: '缺交訂正的次數，已從平時成績扣分', values: G.miss.map(function (v) { return v > 0 ? v : null; }), plain: true, on: on('miss', G.miss.some(function (v) { return v > 0; })) });
     fin.push({ key: 'final', label: '平均', values: G.final, d2: true, cls: 'avg', on: on('final', true) });
     fin.push({ key: 'rank', label: '排名', values: G.ranks, rank: true, cls: 'rank', on: on('rank', true) });
     rows.push({ side: (st.stage === 2 ? '期末' : '期中') + '總成績', rows: fin });
@@ -635,8 +694,8 @@
           idx.forEach(function (i) {
             var v = r.values[i];
             var text = r.rank ? (v == null ? '' : v) : (r.d2 ? n2(v) : (v == null ? '' : (Math.round(v * 10) / 10).toString()));
-            var isBad = !r.rank && v != null && v > 100.0001;
-            h += '<td' + (isBad ? ' class="bad" title="超過 100 分，請檢查原始分數有沒有打錯"' : (!r.rank && isLow(v) ? ' class="low"' : '')) + '>' + text + '</td>';
+            var isBad = !r.rank && !r.plain && v != null && v > 100.0001;
+            h += '<td' + (isBad ? ' class="bad" title="超過 100 分，請檢查原始分數有沒有打錯"' : (!r.rank && !r.plain && isLow(v) ? ' class="low"' : '')) + '>' + text + '</td>';
           });
           h += blankCells('td', blanks) + '</tr>';
         });
@@ -783,6 +842,8 @@
 
   // ---- 工具列 --------------------------------------------------
   AX.$('optLow').value = st.low;
+  AX.$('optMissPen').value = st.missPen;
+  AX.$('optMissPen').onchange = function () { var v = Number(this.value); if (this.value !== '' && v >= 0 && v <= 100) { st.missPen = v; remember(); render(); } else this.value = st.missPen; };
   AX.$('optBlank').value = st.blank;
   AX.$('optBlank').onchange = function () { var v = Number(this.value); if (this.value !== '' && v >= 0 && v <= 100) { st.blank = v; remember(); render(); } else this.value = st.blank; };
   AX.$('optPerPage').value = st.perPage;
