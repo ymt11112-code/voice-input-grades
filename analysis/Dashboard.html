@@ -176,18 +176,18 @@
     var tiles = el('div', { 'class': 'tiles' });
     if (T && T.stats.n) {
       var below = T.scores.filter(function (v) { return v != null && v < A.passPct; }).length;
-      tiles.appendChild(AX.tile('學期成績平均', fmt(T.stats.mean), '分', '中位數 ' + fmt(T.stats.median) + '・不及格 ' + below + ' 人'));
+      tiles.appendChild(tileNL('學期成績平均', fmt(T.stats.mean), '分', '中位數 ' + fmt(T.stats.median) + '・\n不及格 ' + below + ' 人'));
     }
     if (qs.length) {
       var last = qs[qs.length - 1], prev = qs.length > 1 ? qs[qs.length - 2] : null;
-      var dl = prev ? last.pctStats.mean - prev.pctStats.mean : null;
-      tiles.appendChild(AX.tile('最近一次：' + last.name, fmt(last.pctStats.mean), '% 得分率',
-        dl == null ? '平均 ' + fmt(last.stats.mean) + ' 分' : '較前次 ' + sg(dl) + ' 個百分點', dl == null ? '' : AX.cls(dl)));
+      var dl = prev ? (last.pctStats.mean - prev.pctStats.mean) * last.max / 100 : null;   // 換成這次考試的分數單位
+      tiles.appendChild(AX.tile('最近一次：' + last.name, fmt(last.stats.mean), last.max !== 100 ? '/ ' + fmt(last.max) + ' 分' : '分',
+        dl == null ? '全班平均' : '較前次 ' + sg(dl) + ' 分', dl == null ? '' : AX.cls(dl)));
       if (!T) tiles.appendChild(AX.tile('累計平均得分率', fmt(agg.stats.mean), '%', '中位數 ' + fmt(agg.stats.median) + '%・' + qs.length + ' 次測驗'));
     }
     // 各類測驗平均（例如國語的聽考、國卷）：每個類別各一塊，期中考、期末考另外看
     quizCatStats(A).forEach(function (g) {
-      tiles.appendChild(AX.tile((g.cat || '（未分類）') + '測驗平均', fmt(g.mean), '分', g.n + ' 次・最近一次 ' + g.last.name + '：' + fmt(g.last.pctStats.mean) + '（換算 100 分）'));
+      tiles.appendChild(tileNL((g.cat || '（未分類）') + '測驗平均', fmt(g.mean), '分', g.n + ' 次・\n最近一次 ' + g.last.name + '：' + fmt(g.last.pctStats.mean)));
     });
     // 作業：除了國語的筆記看總分，其餘都看平均（每一項換算成 100 分的平均，項目數不同也能比）
     A.homework.forEach(function (h) { tiles.appendChild(hwTile(st.subject, h)); });
@@ -207,6 +207,8 @@
   // 全部科目總覽（預設畫面）：需關注名單、色塊、定期考查總覽；各科詳細概況按需要才打開
   // ============================================================
   var PERIOD_NAME = { 1: '期中考', 2: '期末考' };
+  // 色塊說明可以用 \n 換行
+  function tileNL() { var t = AX.tile.apply(null, arguments), d = t.querySelector('.d'); if (d) d.style.whiteSpace = 'pre-line'; return t; }
   function allTerm() { return st.term && st.term !== ALL && st.model.terms.indexOf(st.term) > -1 ? st.term : S.defaultTerm(st.model, null); }
   function subsOf(term) { return st.model.subjects.filter(function (x) { return x.byTerm[term]; }); }
   // 現在看期中考還是期末考：使用者沒指定時，取「最近一次已經考完」的定期考查，都還沒考完就取有資料的那一次
@@ -233,10 +235,10 @@
     return { total: false, v: avg, text: fmt(avg) + ' 分' + miss };
   }
   function hwTile(subject, h) {
-    var nm = h.category || '作業', d = '全數繳交 ' + h.fullCount + ' 人・有缺交 ' + h.missingStudents + ' 人';
+    var nm = h.category || '作業', d = h.nItems + ' 次・缺交 ' + h.missingStudents + ' 人';
     if (isTotalHw(subject, h)) return AX.tile(nm + '總分平均', fmt(h.stats.mean), h.totalMax ? '/ ' + fmt(h.totalMax) : '分', d);
     var avg = h.pcts ? S.mean(h.pcts) : h.stats.mean / Math.max(1, h.nItems);
-    return AX.tile(nm + '平均', fmt(avg), '分', '每項平均' + (h.pcts ? '（換算 100 分）' : '') + '・' + d);
+    return AX.tile(nm + '平均', fmt(avg), '分', d);
   }
   // 各類測驗的平均（聽考、國卷、測驗…）：期中考、期末考不在這裡，另外在「定期考查」看
   function quizCatStats(A) {
@@ -372,18 +374,15 @@
       r1.push({ subject: sm.name, name: sm.name, text: fmt(T.stats.mean) + (below ? '・不及格 ' + below + ' 人' : '') }); v1.push(T.stats.mean);
     });
     // 另一次定期考查還沒考完時，學期成績目前只算已完成的那一次，數字會和那次定期考查一樣
-    var same = subs.every(function (sm) {
-      var T = sm.byTerm[term].T, pr = T.periods[p - 1]; if (!T.stats.n) return true;
-      return T.scores.every(function (v, i) { var w2 = pr.total[i]; return (v == null && w2 == null) || (v != null && w2 != null && Math.abs(v - w2) < 1e-9); });
-    });
-    if (r1.length) tiles.appendChild(metricTile('學期成績平均', bigOf(v1), '分（各科平均）', r1, same ? '目前只有' + pn + '考完，學期成績暫時就等於' + pn + '定期考查成績（平時成績＋' + pn + '）；另一次考完後會合併計算' : ''));
-    // 2 所選的定期考查（期中考或期末考）平均
+    var same = subs.some(function (sm) { var T = sm.byTerm[term].T; return T.stats.n && !(T.periods[0].complete && T.periods[1].complete); });
+    if (r1.length) tiles.appendChild(metricTile('學期成績平均', bigOf(v1), '分（各科平均）', r1, same ? '有科目只有一次定期考查考完，學期成績暫時只算那一次（平時成績＋段考）；另一次考完後才會合併' : ''));
+    // 2 所選的段考（期中考或期末考）本身的平均
     var r2 = [], v2 = [];
     subs.forEach(function (sm) {
-      var pr = sm.byTerm[term].T.periods[p - 1], tot = S.nonNull(pr.total); if (!pr.used || !tot.length) return;
-      r2.push({ subject: sm.name, name: sm.name, text: fmt(S.mean(tot)) + (pr.complete ? '' : '＊') }); v2.push(S.mean(tot));
+      var pr = sm.byTerm[term].T.periods[p - 1], ex = S.nonNull(pr.exam); if (!pr.examUsed || !ex.length) return;
+      r2.push({ subject: sm.name, name: sm.name, text: fmt(S.mean(ex)) }); v2.push(S.mean(ex));
     });
-    if (r2.length && !same) tiles.appendChild(metricTile(pn + '定期考查平均', bigOf(v2), '分（各科平均）', r2, r2.some(function (r) { return r.text.slice(-1) === '＊'; }) ? '＊＝段考還沒有成績，只含已登記的平時成績' : ''));
+    if (r2.length) tiles.appendChild(metricTile(pn + '平均', bigOf(v2), '分（各科平均）', r2));
     // 3 作業平均（國語筆記＝總分，其餘＝每項平均）
     var r3 = [], v3 = [], hasTot = false;
     subs.forEach(function (sm) {
@@ -393,7 +392,7 @@
         if (hs.total) hasTot = true; else v3.push(hs.v);
       });
     });
-    if (r3.length) tiles.appendChild(metricTile('作業平均', bigOf(v3), v3.length ? '分（每項平均）' : '', r3, hasTot ? '國語「筆記」是總分，其餘是每一項的平均（換算 100 分）' : '每一項的平均（換算 100 分）'));
+    if (r3.length) tiles.appendChild(metricTile('作業平均', bigOf(v3), v3.length ? '分（每項平均）' : '', r3, hasTot ? '國語「筆記」是總分，其餘是每一項的平均' : '每一項的平均'));
     // 4 各類測驗平均（國語：聽考、國卷…）
     var r4 = [], v4 = [];
     subs.forEach(function (sm) {
@@ -401,7 +400,7 @@
         r4.push({ subject: sm.name, name: sm.name + '・' + (g.cat || '（未分類）'), text: fmt(g.mean) + ' 分・' + g.n + ' 次' }); v4.push(g.mean);
       });
     });
-    if (r4.length) tiles.appendChild(metricTile('各類測驗平均', bigOf(v4), '分（換算 100 分）', r4, '期中考、期末考看下方的定期考查總覽'));
+    if (r4.length) tiles.appendChild(metricTile('各類測驗平均', bigOf(v4), '分', r4, '期中考、期末考看下方的定期考查總覽'));
     // 5 最近一次考試
     var r5 = [], v5 = [];
     subs.forEach(function (sm) {
@@ -409,58 +408,59 @@
       var last = qz[qz.length - 1], prev = qz.length > 1 ? qz[qz.length - 2] : null, dl = prev ? last.pctStats.mean - prev.pctStats.mean : null;
       r5.push({ subject: sm.name, name: sm.name, text: last.name + ' ' + fmt(last.pctStats.mean) + (dl == null ? '' : '（' + sg(dl) + '）'), cls: dl == null ? '' : AX.cls(dl) }); v5.push(last.pctStats.mean);
     });
-    if (r5.length) tiles.appendChild(metricTile('最近一次考試班平均', bigOf(v5), '分（換算 100 分）', r5, '括號是和前一次的差'));
+    if (r5.length) tiles.appendChild(metricTile('最近一次考試班平均', bigOf(v5), '分', r5, '括號是和前一次的差'));
     main.appendChild(tiles);
   }
 
   // ---------- 定期考查總覽（期中考或期末考，各科並排） ----------
   function renderPeriodOverview(main, term, subs, p) {
-    var pn = PERIOD_NAME[p], pass = st.model.passPct;
-    var c = AX.card('定期考查總覽：' + S.termLabel(term) + ' ' + pn, '這裡的分數都是「定期考查成績」（平時成績＋' + pn + '，比例見「分析設定」）。組距＝落在該分數段的人數，「不及格」＝60 分以下。上方「定期考查」可切換期中考／期末考；點科目名稱看該科詳細概況。');
-    var heads = ['科目', '定期考查平均', '中位數', '最高', '最低', '100分', '90幾', '80幾', '70幾', '60幾', '不及格', '及格率'];
+    var pn = PERIOD_NAME[p];
+    var c = AX.card('定期考查總覽：' + S.termLabel(term) + ' ' + pn, '這裡列的是' + pn + '（段考）本身的分數，不含平時成績。組距＝落在該分數段的人數。上方「定期考查」可切換期中考／期末考；點科目名稱看該科詳細概況。');
+    var heads = ['科目', pn + '平均', '中位數', '最高', '最低', '100', '90–99', '80–89', '70–79', '60–69', '0–59'];
     if (p === 2) heads.push('較期中');
-    heads.push('分數最低的 3 位');
+    heads.push('最低的 3 位');
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
     heads.forEach(function (h, k) { hr.appendChild(el('th', { 'class': k === 0 || k === heads.length - 1 ? 'l' : '' }, h)); });
     thead.appendChild(hr); tb.appendChild(thead);
-    var body = el('tbody'), partial = false, any = false;
+    var body = el('tbody'), any = false;
     subs.forEach(function (sm) {
       var T = sm.byTerm[term].T, pr = T.periods[p - 1], tr = el('tr'), nameTd = el('td', { 'class': 'l' });
-      var a = el('a', { 'class': 'link', href: '#', title: '看' + sm.name + '的詳細概況' }, sm.name + (pr.used && !pr.complete ? '＊' : ''));
+      var a = el('a', { 'class': 'link', href: '#', title: '看' + sm.name + '的詳細概況' }, sm.name);
       a.onclick = function (e) { e.preventDefault(); openSubject(sm.name); };
       nameTd.appendChild(a); tr.appendChild(nameTd);
-      var tot = S.nonNull(pr.total);
-      if (!pr.used || !tot.length) {
-        var nd = el('td', { colspan: String(heads.length - 1), 'class': 'l' }, '還沒有' + pn + '的資料'); nd.style.color = 'var(--muted)';
+      var ex = S.nonNull(pr.exam);
+      if (!pr.examUsed || !ex.length) {
+        var nd = el('td', { colspan: String(heads.length - 1), 'class': 'l' }, '還沒有' + pn + '的成績'); nd.style.color = 'var(--muted)';
         tr.appendChild(nd); body.appendChild(tr); return;
       }
-      any = true; if (!pr.complete) partial = true;
-      var d = S.describe(tot), b = S.scoreBands(tot), fails = b.fail;
-      var cells = [fmt(d.mean), fmt(d.median), fmt(d.max), fmt(d.min), String(b.b100), String(b.b90), String(b.b80), String(b.b70), String(b.b60), String(b.fail), fmt(tot.filter(function (v) { return v >= pass; }).length / tot.length * 100, 0) + '%'];
+      any = true;
+      var d = S.describe(ex), b = S.scoreBands(ex);
+      var cells = [fmt(d.mean), fmt(d.median), fmt(d.max), fmt(d.min), String(b.b100), String(b.b90), String(b.b80), String(b.b70), String(b.b60), String(b.fail)];
+      var chg = null;
       if (p === 2) {
-        var p1 = T.periods[0], t1 = S.nonNull(p1.total);
-        cells.push(p1.used && t1.length ? sg(d.mean - S.mean(t1)) : '—');
+        var e1 = S.nonNull(T.periods[0].exam);
+        if (T.periods[0].examUsed && e1.length) chg = d.mean - S.mean(e1);
+        cells.push(chg == null ? '—' : sg(chg));
       }
       cells.forEach(function (v, j) {
         var td = el('td', null, v);
-        if (j === 9 && fails > 0) td.className = 'down';
-        if (p === 2 && j === cells.length - 1 && v !== '—') td.className = AX.cls(d.mean - S.mean(S.nonNull(T.periods[0].total)));
+        if (j === 9 && b.fail > 0) td.className = 'down';
+        if (p === 2 && j === cells.length - 1 && chg != null) td.className = AX.cls(chg);
         tr.appendChild(td);
       });
-      var order = []; pr.total.forEach(function (v, i) { if (v != null) order.push(i); });
-      order.sort(function (x, y) { return pr.total[x] - pr.total[y]; });
+      var order = []; pr.exam.forEach(function (v, i) { if (v != null) order.push(i); });
+      order.sort(function (x, y) { return pr.exam[x] - pr.exam[y]; });
       var lowTd = el('td', { 'class': 'l' });
       order.slice(0, 3).forEach(function (i, k) {
         if (k) lowTd.appendChild(document.createTextNode('、'));
-        lowTd.appendChild(el('a', { 'class': 'link', href: AX.pageUrl('Personal.html', { subject: sm.name, key: sm.keys[i], term: term }), title: '看個人概況' }, AX.seatLabel(sm.data.students[i])));
-        lowTd.appendChild(document.createTextNode(' ' + fmt(pr.total[i])));
+        var nm = String(sm.data.students[i].name || '');
+        lowTd.appendChild(el('a', { 'class': 'link', href: AX.pageUrl('Personal.html', { subject: sm.name, key: sm.keys[i], term: term }), title: AX.seatLabel(sm.data.students[i]) + '：看個人概況' }, nm.slice(-2) + '（' + fmt(pr.exam[i]) + '）'));
       });
       tr.appendChild(lowTd);
       body.appendChild(tr);
     });
     tb.appendChild(body); wrap.appendChild(tb); c.appendChild(wrap);
-    if (partial) c.appendChild(el('p', { 'class': 'muted small', style: 'margin:8px 0 0' }, '＊＝' + pn + '還沒有成績，目前只含已登記的平時成績，等' + pn + '登記後才是完整的定期考查成績。'));
-    if (!any) c.appendChild(el('div', { 'class': 'empty' }, '所選學期還沒有任何科目有' + pn + '的資料'));
+    if (!any) c.appendChild(el('div', { 'class': 'empty' }, '所選學期還沒有任何科目有' + pn + '的成績'));
     main.appendChild(c);
   }
 
