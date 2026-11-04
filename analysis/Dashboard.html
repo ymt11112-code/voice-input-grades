@@ -416,8 +416,8 @@
   // ---------- 定期考查總覽（期中考或期末考，各科並排） ----------
   function renderPeriodOverview(main, term, subs, p) {
     var pn = PERIOD_NAME[p], pass = st.model.passPct;
-    var c = AX.card('定期考查總覽：' + S.termLabel(term) + ' ' + pn, '定期考查成績＝平時成績＋' + pn + '（比例見「分析設定」）。上方「定期考查」可切換期中考／期末考；點科目名稱看該科詳細概況。');
-    var heads = ['科目', '定期考查平均', '平時成績平均', pn + '平均', '中位數', '最高', '最低', '頂標', '後標', '不及格', '及格率'];
+    var c = AX.card('定期考查總覽：' + S.termLabel(term) + ' ' + pn, '這裡的分數都是「定期考查成績」（平時成績＋' + pn + '，比例見「分析設定」）。組距＝落在該分數段的人數，「不及格」＝60 分以下。上方「定期考查」可切換期中考／期末考；點科目名稱看該科詳細概況。');
+    var heads = ['科目', '定期考查平均', '中位數', '最高', '最低', '100分', '90幾', '80幾', '70幾', '60幾', '不及格', '及格率'];
     if (p === 2) heads.push('較期中');
     heads.push('分數最低的 3 位');
     var wrap = el('div', { 'class': 'tbl-wrap' }), tb = el('table', { 'class': 'stats' }), thead = el('thead'), hr = el('tr');
@@ -435,16 +435,15 @@
         tr.appendChild(nd); body.appendChild(tr); return;
       }
       any = true; if (!pr.complete) partial = true;
-      var d = S.describe(tot), t = S.tiers(tot), dl = S.nonNull(pr.daily), ex = S.nonNull(pr.exam);
-      var fails = tot.filter(function (v) { return v < pass; }).length;
-      var cells = [fmt(d.mean), dl.length ? fmt(S.mean(dl)) : '—', pr.examUsed && ex.length ? fmt(S.mean(ex)) : '—', fmt(d.median), fmt(d.max), fmt(d.min), fmt(t.top), fmt(t.back), String(fails), fmt(tot.filter(function (v) { return v >= pass; }).length / tot.length * 100, 0) + '%'];
+      var d = S.describe(tot), b = S.scoreBands(tot), fails = b.fail;
+      var cells = [fmt(d.mean), fmt(d.median), fmt(d.max), fmt(d.min), String(b.b100), String(b.b90), String(b.b80), String(b.b70), String(b.b60), String(b.fail), fmt(tot.filter(function (v) { return v >= pass; }).length / tot.length * 100, 0) + '%'];
       if (p === 2) {
         var p1 = T.periods[0], t1 = S.nonNull(p1.total);
         cells.push(p1.used && t1.length ? sg(d.mean - S.mean(t1)) : '—');
       }
       cells.forEach(function (v, j) {
         var td = el('td', null, v);
-        if (j === 8 && fails > 0) td.className = 'down';
+        if (j === 9 && fails > 0) td.className = 'down';
         if (p === 2 && j === cells.length - 1 && v !== '—') td.className = AX.cls(d.mean - S.mean(S.nonNull(T.periods[0].total)));
         tr.appendChild(td);
       });
