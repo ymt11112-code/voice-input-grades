@@ -223,6 +223,16 @@
     #itemList table.itemTable th.cTerm { width: 92px; }
     #itemList table.itemTable th.cCat { width: 112px; }
     @media (max-width: 900px) { #panel-setup > .card, #panel-setup > .upgradeBanner { width: 100%; } }
+    /* 項目清單依期中／期末分開：左右並列或上下排列，每一期都可以折起來 */
+    .itemPeriods { display: grid; gap: 12px; align-items: start; margin-top: 8px; }
+    .itemPeriods.side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    details.periodBox { border: 2px dashed #CDBFA6; border-radius: 22px; padding: 6px 10px 10px; min-width: 0; }
+    details.periodBox > summary { cursor: pointer; font-weight: 700; padding: 4px 2px; list-style-position: inside; }
+    details.periodBox[open] > summary { margin-bottom: 4px; }
+    details.periodBox > summary .muted { font-weight: 400; margin-left: 6px; }
+    #itemList table.itemTable.compact th:nth-child(3), #itemList table.itemTable.compact td:nth-child(3),
+    #itemList table.itemTable.compact th:nth-child(6), #itemList table.itemTable.compact td:nth-child(6) { display: none; }
+    @media (max-width: 900px) { .itemPeriods.side { grid-template-columns: 1fr; } }
     table.itemTable { width: 100%; border-collapse: collapse; margin-top: 6px; }
     table.itemTable th, table.itemTable td { border: 1px solid var(--line); padding: 4px 6px; font-size: 13px; text-align: left; background: #fff; }
     table.itemTable th { background: var(--mint-bg); }
@@ -545,8 +555,18 @@
           <div class="row"><button class="secondary" onclick="onAutoSplitCategories()">依名稱拆分類別</button></div>
         </details>
 
+        <details class="subpanel foldBox">
+          <summary>📋 一鍵把期中的項目複製成期末（編號自動接續）　<span class="muted">期中登記完、要建期末項目時用</span></summary>
+          <p class="muted">把「目前科目、目前檢視學期」裡階段是「期中」的平時項目，複製成階段是「期末」的新項目，編號自動接續：國習L1～L6 → 國習L7～L12、數課U1～U5 → 數課U6～U10、社習U1～U2 → 社習U3～U4、社作1-1 → 社作3-1。期中考本身不會複製（期末考請自己新增）。已經有的同名項目會略過，所以按兩次也不會重複；沒有編號的名稱會加上「（期末）」，之後可以再改名。按下去會先列出要新增什麼，確認才會動。</p>
+          <div class="fieldRow">
+            <label class="fld" style="flex:0 1 130px">編號往後加<input type="number" id="finalShift" min="1" placeholder="自動"></label>
+            <button onclick="onCopyToFinal()">複製到期末</button>
+          </div>
+          <p class="muted">「編號往後加」留空＝自動（每一組各自接在最大編號後面）；各類別期中的數量不一樣、想統一時才填，例如國語填 6。</p>
+        </details>
+
         <h3>目前科目的項目清單</h3>
-        <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、難度、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、類別、難度，或一次刪除。</p>
+        <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、難度、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、類別、難度，或一次刪除。清單依「期中／期末」分開顯示，期中登記完了可以按標題折起來，或改成左右並列。</p>
         <div class="row">
           <select id="sortMode">
             <option value="">整理排序…</option>
@@ -1260,7 +1280,7 @@ function enqueueOp_(fn) {
 
 // 做完順便帶回該科目最新資料的動作（對應 Code.gs 的 BUNDLE_FNS_）
 var BUNDLE_FNS_ = {
-  addItem: 1, addItemSeries: 1, deleteItem: 1, deleteItems: 1, moveItem: 1, updateItems: 1, reorderItems: 1,
+  addItem: 1, addItemSeries: 1, addItemsBatch: 1, deleteItem: 1, deleteItems: 1, moveItem: 1, updateItems: 1, reorderItems: 1,
   addStudent: 1, addStudentsBulk: 1, copyStudentsFrom: 1, deleteStudent: 1
 };
 // 會讓欄位或列號位移的動作：做完之前，清單暫時不能點，避免用舊的位置操作到別的項目
@@ -2780,25 +2800,140 @@ function renderItemList() {
     renderBulkBar_();
     return;
   }
+  // 依「期中／期末」分成兩組（期中考算期中、期末考算期末，平時項目看「階段」）
+  var groups = [{ p: 1, label: '期中', items: [] }, { p: 2, label: '期末', items: [] }];
+  visible.forEach(function (it) { groups[it.period === 2 ? 1 : 0].items.push(it); });
+  var used = groups.filter(function (g) { return g.items.length; });
+  var both = used.length === 2;
+  var side = both && itemLayout_ === 'side';
+  if (both) {
+    var bar = document.createElement('div');
+    bar.className = 'layoutBar';
+    bar.innerHTML = '<span class="muted">期中／期末：</span>';
+    [['side', '左右並列'], ['stack', '上下排列']].forEach(function (x) {
+      var b = document.createElement('button');
+      b.className = 'secondary' + (itemLayout_ === x[0] ? ' on' : '');
+      b.textContent = x[1];
+      b.onclick = function () { itemLayout_ = x[0]; lsSet_('ITEM_LAYOUT', x[0]); renderItemList(); };
+      bar.appendChild(b);
+    });
+    box.appendChild(bar);
+  }
+  var grid = document.createElement('div');
+  grid.className = 'itemPeriods' + (side ? ' side' : '');
+  used.forEach(function (g) { grid.appendChild(periodBox_(g, visible, side && !!state.viewTerm)); });
+  box.appendChild(grid);
+  renderBulkBar_();
+}
+
+// 一個「期中」或「期末」的區塊：可以折起來；compact＝左右並列時收掉學期、難度兩欄，讓出空間
+function periodBox_(g, visible, compact) {
+  var det = document.createElement('details');
+  det.className = 'periodBox';
+  det.open = itemFold_[g.p] !== false;
+  var sum = document.createElement('summary');
+  sum.innerHTML = g.label + '（' + g.items.length + ' 項）';
+  det.appendChild(sum);
+  det.addEventListener('toggle', function () { itemFold_[g.p] = det.open; });
+
   var wrap = document.createElement('div');
   wrap.className = 'tblWrap';
   var tb = document.createElement('table');
-  tb.className = 'itemTable';
-  tb.innerHTML = '<thead><tr><th class="narrow"></th><th class="narrow"><input type="checkbox" id="itemSelAll" title="全選／取消全選"></th>' +
+  tb.className = 'itemTable' + (compact ? ' compact' : '');
+  tb.innerHTML = '<thead><tr><th class="narrow"></th><th class="narrow"><input type="checkbox" class="grpSelAll" title="全選／取消全選這一期"></th>' +
     '<th class="cTerm">學期</th><th class="cCat">類別</th><th>項目名稱</th><th style="width:74px">難度</th><th style="width:110px">階段</th><th style="width:84px">滿分</th><th class="narrow"></th></tr></thead>';
   var body = document.createElement('tbody');
-  visible.forEach(function (it) { body.appendChild(itemRow_(it)); });
+  g.items.forEach(function (it) { body.appendChild(itemRow_(it)); });
   tb.appendChild(body);
   wrap.appendChild(tb);
-  box.appendChild(wrap);
-  var all = document.getElementById('itemSelAll');
+  det.appendChild(wrap);
+  var all = tb.querySelector('.grpSelAll');
+  all.checked = g.items.length > 0 && g.items.every(function (it) { return itemSel_[it.col]; });
   all.onchange = function () {
-    visible.forEach(function (it) { if (all.checked) itemSel_[it.col] = true; else delete itemSel_[it.col]; });
+    g.items.forEach(function (it) { if (all.checked) itemSel_[it.col] = true; else delete itemSel_[it.col]; });
     body.querySelectorAll('.itemChk').forEach(function (c) { c.checked = all.checked; });
     renderBulkBar_();
   };
-  makeSortable_(body, 'tr', '.dragHandle', function (order) { commitOrder_(order.map(Number)); });
-  renderBulkBar_();
+  // 這一期內拖曳：只換這一期項目之間的順序，另一期的項目位置不動
+  makeSortable_(body, 'tr', '.dragHandle', function (order) {
+    var mine = {}, q = order.map(Number);
+    g.items.forEach(function (it) { mine[it.col] = true; });
+    commitOrder_(visible.map(function (it) { return mine[it.col] ? q.shift() : it.col; }));
+  });
+  return det;
+}
+
+var itemLayout_ = lsGet_('ITEM_LAYOUT') === 'stack' ? 'stack' : 'side';   // 期中、期末並列或上下排列
+var itemFold_ = { 1: true, 2: true };                                      // 每一期是否展開
+
+// ---- 一鍵把期中的項目複製成期末：編號自動接續（國習L1～L6 → L7～L12） ----
+// 名稱結尾的編號：「國習L3」→ 前綴「國習L」、編號 3；「社作1-2」→ 前綴「社作」、編號 1、小節 2（單元編號往後加）
+function parseItemNo_(name) {
+  var m = /^(.*?)(\d+)(?:-(\d+))?$/.exec(String(name).trim());
+  return m ? { prefix: m[1], n: Number(m[2]), sub: m[3] === undefined ? null : m[3] } : null;
+}
+
+function planFinalCopy_(manualShift) {
+  var term = state.viewTerm;
+  var src = state.items.filter(function (it) {
+    return it.term === term && it.kind !== 'midterm' && it.kind !== 'final' && it.kind !== 'skip' && it.period === 1;
+  });
+  var have = {};
+  state.items.forEach(function (it) { if (it.term === term) have[itemKey_(it)] = true; });
+  var maxN = {};
+  src.forEach(function (it) {
+    var p = parseItemNo_(it.name);
+    if (!p) return;
+    var k = (it.category || '') + '\u0001' + p.prefix;
+    if (!(maxN[k] >= p.n)) maxN[k] = p.n;
+  });
+  var plan = [], skipped = [];
+  src.forEach(function (it) {
+    var p = parseItemNo_(it.name), nn;
+    if (p) {
+      var shift = manualShift > 0 ? manualShift : maxN[(it.category || '') + '\u0001' + p.prefix];
+      nn = p.prefix + (p.n + shift) + (p.sub !== null ? '-' + p.sub : '');
+    } else nn = String(it.name) + '（期末）';
+    var cand = { term: term, category: it.category, name: nn };
+    if (have[itemKey_(cand)]) { skipped.push(nn); return; }
+    have[itemKey_(cand)] = true;
+    plan.push({ from: it, term: term, category: it.category, name: nn, max: it.max, difficulty: it.difficulty, period: 2 });
+  });
+  return { plan: plan, skipped: skipped, srcCount: src.length };
+}
+
+function onCopyToFinal() {
+  if (!state.subject) return toast('請先選擇科目', true);
+  if (!state.viewTerm) return toast('請先在上方「學期」選一個學期（不要選「全部學期」）', true);
+  var shiftRaw = document.getElementById('finalShift').value.trim();
+  var shift = shiftRaw === '' ? 0 : Math.floor(Number(shiftRaw));
+  if (shiftRaw !== '' && !(shift >= 1)) return toast('「編號往後加」請填 1 以上的整數，或留空', true);
+  var r = planFinalCopy_(shift);
+  if (!r.srcCount) return toast('這個學期沒有階段是「期中」的平時項目可以複製', true);
+  if (!r.plan.length) return toast('期末已經有這些項目了（共 ' + r.skipped.length + ' 個同名，略過）', true);
+  var byCat = {}, order = [];
+  r.plan.forEach(function (p) {
+    var c = p.category || '未分類';
+    if (!byCat[c]) { byCat[c] = []; order.push(c); }
+    byCat[c].push(p);
+  });
+  var lines = order.map(function (c) {
+    var l = byCat[c], a = l[0], z = l[l.length - 1];
+    return '「' + c + '」' + (l.length === 1 ? a.from.name + ' → ' + a.name : a.from.name + '～' + z.from.name + ' → ' + a.name + '～' + z.name + '（' + l.length + ' 項）');
+  });
+  var msg = '在「' + state.subject + '」' + state.viewTerm + ' 新增 ' + r.plan.length + ' 個期末項目：\n\n' + lines.join('\n') +
+    (r.skipped.length ? '\n\n已經有的 ' + r.skipped.length + ' 個同名項目會略過。' : '') + '\n\n要新增嗎？';
+  if (!confirm(msg)) return;
+  var subject = state.subject;
+  setSync_('☁️ 新增期末項目中…');
+  call('addItemsBatch', subject, r.plan.map(function (p) {
+    return { term: p.term, category: p.category, name: p.name, max: p.max, difficulty: p.difficulty, period: 2 };
+  })).then(function (items) {
+    state.items = items;
+    renderItemList();
+    setSync_('✅ 已新增', true);
+    toast('已新增 ' + r.plan.length + ' 個期末項目');
+  }).catch(function (e) { setSync_(''); showError(deployHint_(e)); });
 }
 
 // 勾選多個項目時，出現批次操作列：一次改學期、改類別，或一次刪除

@@ -174,6 +174,7 @@
       <summary><b>🧾 簡表要印哪些列</b></summary>
       <div id="rowBody"></div>
     </details>
+    <div id="saveWarn" class="noprint" style="display:none;margin:8px 0;padding:10px 14px;border:2px solid #C14733;border-radius:14px;background:#FCE4DE;line-height:1.7"></div>
     <div id="main"></div>
     <details class="card gbCfg noprint" id="cfgBox">
       <summary><b>⚙️ 計分設定（這個科目）</b></summary>
@@ -262,6 +263,7 @@
 
   function load() {
     AX.load().then(function (res) {
+      lastLoadAt = Date.now();
       st.raw = res.raw;
       buildPickers();
       render();
@@ -474,10 +476,53 @@
       render();
       if (keepI != null) { var again = document.querySelector('input.attIn[data-i="' + keepI + '"][data-k="' + keepK + '"]'); if (again) { again.focus(); again.select(); } }
     }, 0);
-    attChain = attChain.then(function () { return AX.call('setAttitude', subject, term, stage, [{ name: stu.name, score: v }]); })
-      .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
+    attPost(subject, term, stage, [{ name: stu.name, score: v }]);
   }
   function setSaved(msg) { AX.toast(msg); }
+
+  // ---- 存進試算表：全部態度、缺訂的寫入都走這裡，一筆一筆依序送 ----
+  // 沒存成功的會一直留著，並在表格上方顯示紅色提醒（不是幾秒就消失的小訊息）：畫面上看到的分數只在這台裝置，其他裝置會看到舊的，要按「重新儲存」或排除原因
+  var attPending = 0, attUnsaved = [];
+  function attPost(subject, term, stage, entries) {
+    var job = { subject: subject, term: term, stage: stage, entries: entries, failed: false, err: '' };
+    attPending++; attUnsaved.push(job);
+    attChain = attChain.then(function () { return AX.call('setAttitude', subject, term, stage, entries); }).then(function (list) {
+      attPending--; attUnsaved = attUnsaved.filter(function (j) { return j !== job; });
+      // 全部都存好了：用試算表實際的內容當作這台的資料（也順便看到別台輸入的）
+      if (Array.isArray(list) && !attPending && !attUnsaved.length) st.raw.attitude = list;
+      showSaveWarn();
+      setSaved('已儲存到試算表');
+    }, function (e) {
+      attPending--; job.failed = true; job.err = e && e.message ? e.message : String(e);
+      showSaveWarn();
+    });
+    return attChain;
+  }
+  function showSaveWarn() {
+    var box = AX.$('saveWarn'), bad = attUnsaved.filter(function (j) { return j.failed; });
+    if (!box) return;
+    AX.clear(box);
+    if (!bad.length) { box.style.display = 'none'; return; }
+    var n = 0; bad.forEach(function (j) { n += j.entries.length; });
+    box.style.display = '';
+    box.appendChild(el('b', null, '⚠️ 有 ' + n + ' 筆態度／缺訂分數沒有存進試算表。'));
+    box.appendChild(document.createTextNode(' 原因：' + bad[0].err + '。畫面上看到的分數目前只存在這台裝置，其他裝置會看到舊的（例如還是暫定的 ' + st.blank + ' 分）。排除原因後按「重新儲存」；如果是「後端還是舊版」，要把最新的 Code.gs 貼進 Apps Script，並到「部署 → 管理部署作業 → 編輯 → 新版本」重新部署。 '));
+    var b = el('button', { 'class': 'primary' }, '重新儲存');
+    b.onclick = function () {
+      var jobs = bad.slice();
+      attUnsaved = attUnsaved.filter(function (j) { return !j.failed; });
+      showSaveWarn();
+      jobs.forEach(function (j) { attPost(j.subject, j.term, j.stage, j.entries); });
+    };
+    box.appendChild(b);
+  }
+  // 離開頁面前還有沒存好的，提醒一下
+  window.addEventListener('beforeunload', function (e) { if (attUnsaved.length) { e.preventDefault(); e.returnValue = ''; } });
+  // 回到這個分頁時（例如在別台平板輸入過了），超過 1 分鐘沒更新就自動重新讀取試算表
+  var lastLoadAt = Date.now();
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && st.raw && Date.now() - lastLoadAt > 60000 && !attUnsaved.length && !attPending) load();
+  });
 
   // ---- 缺訂次數輸入：跟態度一樣，改完就存；0 或空白＝沒有缺訂 ----
   function wireMissInputs(wrap, G) {
@@ -506,8 +551,7 @@
       render();
       if (keep != null) { var again = document.querySelector('input.missIn[data-i="' + keep + '"]'); if (again) { again.focus(); again.select(); } }
     }, 0);
-    attChain = attChain.then(function () { return AX.call('setAttitude', key, term, stage, [{ name: stu.name, score: v > 0 ? v : '' }]); })
-      .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
+    attPost(key, term, stage, [{ name: stu.name, score: v > 0 ? v : '' }]);
   }
 
   // 可疑分數清單：點一列，上面的表格會捲到那一格並閃一下
@@ -573,13 +617,9 @@
     });
     render();
     AX.toast('儲存中…');
-    var chain = attChain;
     plan.forEach(function (p) {
-      for (var k = 0; k < p.entries.length; k += 150) {
-        (function (chunk) { chain = chain.then(function () { return AX.call('setAttitude', p.subject, term, stage, chunk); }); })(p.entries.slice(k, k + 150));
-      }
+      for (var k = 0; k < p.entries.length; k += 150) attPost(p.subject, term, stage, p.entries.slice(k, k + 150));
     });
-    attChain = chain.then(function () { AX.toast('已儲存（' + total + ' 筆）'); }, function (e) { AX.showError(e); });
   }
   AX.$('attFillAll').onclick = function () { bulkAttitude('all'); };
   AX.$('attFillBlank').onclick = function () { bulkAttitude('blank'); };
