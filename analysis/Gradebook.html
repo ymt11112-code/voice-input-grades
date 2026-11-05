@@ -198,14 +198,14 @@
     raw: null, subject: saved.subject || null, term: null, stage: null,
     blank: saved.blank >= 0 && saved.blank <= 100 && saved.blank !== null ? Number(saved.blank) : S.BLANK_DEFAULT,
     missPen: saved.missPen !== undefined && saved.missPen !== null && saved.missPen >= 0 && saved.missPen <= 100 ? Number(saved.missPen) : 4,
-    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : 'detail', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
+    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : (saved.view === 'total' ? 'total' : 'detail'), totalSubs: Array.isArray(saved.totalSubs) ? saved.totalSubs : null, low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
     rowOpt: saved.rowOpt && typeof saved.rowOpt === 'object' ? saved.rowOpt : {}   // 簡表要印哪些列：{科目: {列的代號: true/false}}
   };
   var KIND_OPTS = [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度（課堂表現）'], ['midterm', '期中考'], ['final', '期末考'], ['skip', '不列入']];
   var STAGE_NAME = { 1: '期中考', 2: '期末考' };
 
   AX.shell();
-  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, missPen: st.missPen, rowOpt: st.rowOpt })); }
+  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, totalSubs: st.totalSubs, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, missPen: st.missPen, rowOpt: st.rowOpt })); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n1(v) { return v == null ? '' : (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
   function nd(v, dec) {
@@ -280,9 +280,11 @@
     AX.btnGroup(AX.$('subjectBtns'), names.map(function (n) { return { label: n, value: n }; }), st.subject, function (v) { st.subject = v; remember(); buildPickers(); render(); });
     AX.btnGroup(AX.$('termBtns'), terms.map(function (t) { return { label: t, value: t }; }), st.term, function (v) { st.term = v; buildPickers(); render(); });
     AX.btnGroup(AX.$('stageBtns'), [{ label: '期中考', value: 1 }, { label: '期末考', value: 2 }], st.stage, function (v) { st.stage = Number(v); buildPickers(); render(); });
-    AX.btnGroup(AX.$('viewBtns'), [{ label: '詳表', value: 'detail' }, { label: '簡表（列印）', value: 'brief' }], st.view, function (v) { st.view = v; remember(); buildPickers(); render(); });
+    AX.btnGroup(AX.$('viewBtns'), [{ label: '詳表', value: 'detail' }, { label: '簡表（列印）', value: 'brief' }, { label: '總成績（國數社自）', value: 'total' }], st.view, function (v) { st.view = v; remember(); buildPickers(); render(); });
     AX.$('perPageGrp').style.display = st.view === 'brief' ? '' : 'none';
-    AX.$('missGrp').style.display = S.isExternalSubject(dataOf(st.subject)) ? 'none' : '';
+    AX.$('missGrp').style.display = st.view === 'total' || S.isExternalSubject(dataOf(st.subject)) ? 'none' : '';
+    AX.$('subjectBtns').parentNode.style.display = st.view === 'total' ? 'none' : '';
+    AX.$('cfgBox').style.display = st.view === 'total' ? 'none' : '';
   }
 
   function render() {
@@ -294,6 +296,7 @@
     AX.$('attBar').style.display = st.view === 'detail' && !S.isExternalSubject(dataOf(st.subject)) ? '' : 'none';
     setPageOrient(st.view === 'brief' ? 'portrait' : 'landscape');
     renderRowPicker(G);
+    if (st.view === 'total') { renderTotal(main); return; }
     if (G.empty || !G.students.length) {
       main.appendChild(el('div', { 'class': 'empty' }, G.students.length ? '這個階段還沒有登記項目' : '這個科目還沒有學生名單'));
       return;
@@ -440,6 +443,85 @@
     main.appendChild(card);
     wireAttitudeInputs(wrap, G);
     wireMissInputs(wrap, G);
+  }
+
+  // ---- 總成績（國數社自各科的期中／期末「平均」加總、排名）--------------------
+  var TOTAL_DEFAULT = ['國語', '數學', '社會', '自然'];
+  // 科目順序：國語、數學、社會、自然在前，其他科目接在後面
+  function totalOrder() {
+    var names = st.raw.subjects.map(function (d) { return d.subject; });
+    return TOTAL_DEFAULT.filter(function (n) { return names.indexOf(n) > -1; }).concat(names.filter(function (n) { return TOTAL_DEFAULT.indexOf(n) === -1; }));
+  }
+  function totalSubjects() {
+    var names = totalOrder();
+    if (st.totalSubs) { var l = names.filter(function (n) { return st.totalSubs.indexOf(n) > -1; }); if (l.length) return l; }
+    var def = names.filter(function (n) { return TOTAL_DEFAULT.indexOf(n) > -1; });
+    return def.length ? def : names.filter(function (n) { return !S.isExternalSubject(dataOf(n)); });
+  }
+  function renderTotal(main) {
+    setPageOrient('portrait');
+    var names = totalOrder(), subs = totalSubjects(), dec = st.dec;
+    var card = el('div');
+    card.appendChild(el('div', { 'class': 'gbTitle' }, fullTerm(st.term) + '　' + STAGE_NAME[st.stage] + '總成績'));
+    var pick = el('div', { 'class': 'bar noprint' });
+    pick.innerHTML = '<span class="grp"><span class="lbl">納入總成績的科目</span>' + names.map(function (n) {
+      return '<label style="margin-right:12px;cursor:pointer"><input type="checkbox" data-sub="' + esc(n) + '"' + (subs.indexOf(n) > -1 ? ' checked' : '') + '> ' + esc(n) + '</label>';
+    }).join('') + '</span>';
+    Array.prototype.forEach.call(pick.querySelectorAll('input[data-sub]'), function (cb) {
+      cb.onchange = function () {
+        var cur = totalSubjects().slice(), n = cb.getAttribute('data-sub'), at = cur.indexOf(n);
+        if (cb.checked && at === -1) cur.push(n); else if (!cb.checked && at > -1) cur.splice(at, 1);
+        if (!cur.length) { cb.checked = true; return AX.toast('至少要選一個科目', true); }
+        st.totalSubs = names.filter(function (x) { return cur.indexOf(x) > -1; });
+        remember(); render();
+      };
+    });
+    card.appendChild(pick);
+
+    var cols = subs.map(function (n) {
+      var G = gbOf(n, st.stage), ok = !G.empty && G.students.length > 0 && hasGraded(G), idx = {};
+      G.students.forEach(function (s, i) { idx[normName(s.name)] = i; });
+      return { name: n, G: G, ok: ok, idx: idx };
+    });
+    var base = null;
+    cols.forEach(function (c) { if (!base && c.G.students.length) base = c.G.students; });
+    if (!base) { main.appendChild(card); card.appendChild(el('div', { 'class': 'empty' }, '還沒有學生名單')); return; }
+    var used = cols.filter(function (c) { return c.ok; });
+    if (!used.length) { main.appendChild(card); card.appendChild(el('div', { 'class': 'empty' }, '這個學期、這個階段還沒有任何科目有成績')); return; }
+
+    var rows = base.map(function (s) {
+      var key = normName(s.name), vals = cols.map(function (c) { var i = c.idx[key]; return c.ok && i != null ? c.G.final[i] : null; });
+      var got = used.map(function (c) { var i = c.idx[key]; return i != null ? c.G.final[i] : null; });
+      var full = got.every(function (v) { return v != null; });
+      var total = full ? Math.round(got.reduce(function (a, b) { return a + b; }, 0) * 100) / 100 : null;
+      return { seat: s.seat, name: s.name, vals: vals, total: total, avg: total == null ? null : total / used.length, rank: null };
+    });
+    var pool = rows.filter(function (r) { return r.total != null; }).map(function (r) { return r.total; });
+    rows.forEach(function (r) { if (r.total != null) { var k = 1; pool.forEach(function (v) { if (v > r.total + 1e-9) k++; }); r.rank = k; } });
+
+    var h = '<table class="gb"><thead><tr><th class="seat">座號</th><th class="name">姓名</th>';
+    cols.forEach(function (c) { h += '<th class="b-l">' + esc(c.name) + (c.ok ? '' : '<span class="pct">尚無成績</span>') + '</th>'; });
+    h += '<th class="b-l">總成績<span class="pct">' + used.length + ' 科合計</span></th><th>平均</th><th>總名次</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      h += '<tr><td class="seat">' + esc(r.seat) + '</td><td class="name">' + esc(r.name) + '</td>';
+      r.vals.forEach(function (v, j) { h += '<td class="' + (j === 0 ? 'b-l' : '') + (v != null && isLow(v) ? ' low' : '') + '">' + (v == null ? '' : nd(v, dec)) + '</td>'; });
+      h += '<td class="fin b-l">' + (r.total == null ? '' : nd(r.total, 2)) + '</td><td class="dly">' + (r.avg == null ? '' : nd(r.avg, dec)) + '</td><td class="rnk">' + (r.rank == null ? '' : r.rank) + '</td></tr>';
+    });
+    h += '</tbody><tfoot><tr><td class="seat"></td><td class="name">平均</td>';
+    cols.forEach(function (c, j) { var vs = S.nonNull(rows.map(function (r) { return r.vals[j]; })); h += '<td>' + (vs.length ? nd(S.mean(vs), dec) : '') + '</td>'; });
+    var ts = S.nonNull(rows.map(function (r) { return r.total; })), as = S.nonNull(rows.map(function (r) { return r.avg; }));
+    h += '<td>' + (ts.length ? nd(S.mean(ts), 2) : '') + '</td><td>' + (as.length ? nd(S.mean(as), dec) : '') + '</td><td></td></tr></tfoot></table>';
+
+    var wrap = el('div', { 'class': 'gbWrap sparse', id: 'gbPrint' });
+    wrap.innerHTML = h;
+    wrap.style.setProperty('--padv', rows.length <= 24 ? '8px' : (rows.length <= 32 ? '5px' : '3px'));
+    card.appendChild(wrap);
+    var skipped = cols.filter(function (c) { return !c.ok; }).map(function (c) { return c.name; });
+    var missing = rows.filter(function (r) { return r.total == null; }).length;
+    card.appendChild(el('p', { 'class': 'legend' }, '各科分數＝該科「成績總表」最右邊的「平均」（已含平時成績與' + STAGE_NAME[st.stage] + '）；總成績＝' + used.map(function (c) { return c.name; }).join('＋') + '；平均＝總成績÷' + used.length + '；總名次依總成績由高到低，同分同名次。紅字＝未達 ' + st.low + ' 分。' +
+      (skipped.length ? ' ⚠️ ' + skipped.join('、') + ' 這個階段還沒有登記任何成績，先不計入總成績。' : '') +
+      (missing ? ' ⚠️ 有 ' + missing + ' 位同學某一科沒有成績（例如缺考），不列總成績與名次。' : '')));
+    main.appendChild(card);
   }
 
   // Tab 鍵改成往下：1 號輸完按 Tab 跳到 2 號（同一欄）；這一欄最後一位再按 Tab，才換到右邊那一欄的第 1 位（Shift＋Tab 反過來）
@@ -1019,7 +1101,7 @@
   var baseTitle = document.title;
   function setPrintTitle() {
     if (!st.subject || !st.term) return;
-    document.title = fullTerm(st.term) + '_' + st.subject + '_' + (st.stage === 2 ? '期末' : '期中') + '成績總表' + (st.view === 'brief' ? '（簡表）' : '');
+    document.title = st.view === 'total' ? fullTerm(st.term) + '_' + (st.stage === 2 ? '期末' : '期中') + '總成績' : fullTerm(st.term) + '_' + st.subject + '_' + (st.stage === 2 ? '期末' : '期中') + '成績總表' + (st.view === 'brief' ? '（簡表）' : '');
   }
   AX.$('printBtn').onclick = function () { setPrintTitle(); window.print(); };
 
