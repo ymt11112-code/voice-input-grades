@@ -423,6 +423,14 @@
           <div class="row">
             <span class="muted">從</span><select id="copyFromTerm"></select>
             <span class="muted">複製到</span><select id="copyToTerm"></select>
+            <input type="text" id="copyToNew" placeholder="或輸入新學期，例如 115下" style="width:170px" title="學期還不存在時直接輸入，會自動建立；有填就以這裡為準">
+          </div>
+          <div class="row">
+            <select id="copyStage">
+              <option value="1">只複製期中的項目（含期中考）</option>
+              <option value="all">全部（期中＋期末）</option>
+              <option value="2">只複製期末的項目（含期末考）</option>
+            </select>
             <select id="copyScope">
               <option value="all">全部科目</option>
               <option value="current">只有目前科目</option>
@@ -2888,6 +2896,18 @@ function planFinalCopy_(manualShift) {
     if (!(maxN[k] >= p.n)) maxN[k] = p.n;
   });
   var plan = [], skipped = [];
+  // 期中考（類別是期中考的項目，例如「月考」）→ 期末考：類別換成期末考的類別、名稱的「期中」換成「期末」
+  var finalCat = '', examPlan = [];
+  state.items.forEach(function (it) { if (!finalCat && it.kind === 'final' && it.category) finalCat = it.category; });
+  var exams = state.items.filter(function (it) { return it.term === term && it.kind === 'midterm'; });
+  exams.forEach(function (it) {
+    var cat = finalCat || (String(it.category || '').indexOf('期中') > -1 ? String(it.category).replace(/期中/g, '期末') : '期末考');
+    var nn = String(it.name).replace(/期中/g, '期末');
+    var cand = { term: term, category: cat, name: nn };
+    if (have[itemKey_(cand)]) { skipped.push(nn); return; }
+    have[itemKey_(cand)] = true;
+    examPlan.push({ from: it, term: term, category: cat, name: nn, max: it.max, difficulty: it.difficulty, period: 2, exam: true });
+  });
   src.forEach(function (it) {
     var p = parseItemNo_(it.name), nn;
     if (p) {
@@ -2899,7 +2919,8 @@ function planFinalCopy_(manualShift) {
     have[itemKey_(cand)] = true;
     plan.push({ from: it, term: term, category: it.category, name: nn, max: it.max, difficulty: it.difficulty, period: 2 });
   });
-  return { plan: plan, skipped: skipped, srcCount: src.length };
+  plan = plan.concat(examPlan);   // 期末考放在最後面
+  return { plan: plan, skipped: skipped, srcCount: src.length + exams.length };
 }
 
 function onCopyToFinal() {
@@ -3014,14 +3035,17 @@ function onSortItems() {
 // 新學期快速建立項目：複製、範本下載／載入
 // ============================================================
 function onCopyItems() {
-  var from = document.getElementById('copyFromTerm').value, to = document.getElementById('copyToTerm').value;
+  var from = document.getElementById('copyFromTerm').value, to = (document.getElementById('copyToNew').value || '').trim() || document.getElementById('copyToTerm').value;
   var scope = document.getElementById('copyScope').value;
+  var stage = document.getElementById('copyStage').value;   // '1' 只期中、'2' 只期末、'all' 全部
+  var stageName = stage === '1' ? '只有期中的項目（含期中考）' : (stage === '2' ? '只有期末的項目（含期末考）' : '期中和期末的全部項目');
   if (!from || !to) return toast('請選擇來源學期和目標學期', true);
   if (from === to) return toast('來源學期和目標學期不能相同', true);
   if (scope !== 'all' && !state.subject) return toast('請先選擇科目', true);
-  if (!confirm('把「' + from + '」的項目複製到「' + to + '」？\n範圍：' + (scope === 'all' ? '全部科目' : '目前科目「' + state.subject + '」') +
-    '\n只複製項目（類別、名稱、滿分、難度、階段），不含成績；目標學期已有同名項目會略過。')) return;
-  call('copyItemsToTerm', scope === 'all' ? [] : [state.subject], from, to).then(function (report) {
+  if (!confirm('把「' + from + '」的項目複製到「' + to + '」' + (state.terms.indexOf(to) === -1 ? '（這個學期還沒有，會自動建立）' : '') + '？\n範圍：' + (scope === 'all' ? '全部科目' : '目前科目「' + state.subject + '」') + '，' + stageName +
+    '\n只複製項目（類別、名稱、滿分、難度、階段），不含成績；目標學期已有同名項目會略過。名稱的編號不會改（新學期國語、數學通常從 L1、U1 重新開始）。')) return;
+  call('copyItemsToTerm', scope === 'all' ? [] : [state.subject], from, to, stage === 'all' ? '' : stage).then(function (report) {
+    document.getElementById('copyToNew').value = '';
     document.getElementById('copyResult').textContent = '完成：' + report.map(function (r) { return r.subject + (r.skipped ? '（' + r.skipped + '）' : ' +' + r.added); }).join('、') +
       '。要登記這個學期，請按學期清單的「設為目前學期」。';
     refreshAllData();
@@ -3571,7 +3595,7 @@ function loadStudentScoreTable() {
     tr.dataset.col = it.col;
     tr.dataset.name = it.name;
     tr.innerHTML = '<td class="seqNum" title="點一下：把下一筆語音指向這一項">-</td>' +
-      '<td><input type="checkbox" class="itemCheckbox" checked></td>' +
+      '<td><input type="checkbox" class="itemCheckbox" tabindex="-1" checked></td>' +   // tabindex=-1：Tab 鍵跳過勾選框，直接往下一項的成績欄
       '<td>' + escapeHtml(it.category || '') + '</td><td>' + escapeHtml(it.name) + '</td>' +
       '<td>' + (it.max || '') + '</td>' +
       '<td><input type="number" value="' + escapeHtml(score) + '"></td>';
@@ -3777,6 +3801,16 @@ function onClearStudentScores() {
   onSaveStudentScores(true);
   toast('已清空這位學生的成績');
 }
+
+// Enter 也跳到下一項的成績欄（Tab 本來就會往下，因為勾選框已設成跳過）
+document.getElementById('studentScoreTableBody').addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.target.type !== 'number') return;
+  var ins = Array.prototype.slice.call(document.querySelectorAll('#studentScoreTableBody input[type=number]'));
+  var nxt = ins[ins.indexOf(e.target) + 1];
+  if (!nxt) return;
+  e.preventDefault();
+  nxt.focus(); nxt.select();
+});
 
 // 手動修改分數欄位時自動儲存，不用再按按鈕
 document.getElementById('studentScoreTableBody').addEventListener('change', function (e) {
