@@ -203,7 +203,7 @@
     /* 項目清單：可直接編輯的表格、拖曳把手 */
     .tblWrap { overflow-x: auto; }
     /* 項目管理：新增區（單一新增、批次新增）並排，欄位上方有小標題 */
-    .addGrid { display: grid; grid-template-columns: 1fr 1.35fr; gap: 12px; align-items: start; }
+    .addGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
     .addGrid .addBox { margin-top: 0; }
     .addBox > b { display: block; margin-bottom: 2px; }
     .addBox > .muted { margin: 2px 0 8px; }
@@ -217,12 +217,12 @@
     details.foldBox > summary { cursor: pointer; font-weight: 700; list-style-position: inside; }
     details.foldBox[open] > summary { margin-bottom: 6px; }
     @media (max-width: 900px) { .addGrid { grid-template-columns: 1fr; } }
-    /* 項目清單：表格只佔 85% 寬，學期、類別欄收窄，把空間留給項目名稱 */
-    #itemList .tblWrap { width: 85%; }
+    /* 科目設定：每張卡片只佔 85% 寬並置中；項目清單的學期、類別欄收窄，把空間留給項目名稱 */
+    #panel-setup > .card, #panel-setup > .upgradeBanner { width: 85%; margin-left: auto; margin-right: auto; }
     #itemList table.itemTable select { min-width: 0; }
     #itemList table.itemTable th.cTerm { width: 92px; }
     #itemList table.itemTable th.cCat { width: 112px; }
-    @media (max-width: 900px) { #itemList .tblWrap { width: 100%; } }
+    @media (max-width: 900px) { #panel-setup > .card, #panel-setup > .upgradeBanner { width: 100%; } }
     table.itemTable { width: 100%; border-collapse: collapse; margin-top: 6px; }
     table.itemTable th, table.itemTable td { border: 1px solid var(--line); padding: 4px 6px; font-size: 13px; text-align: left; background: #fff; }
     table.itemTable th { background: var(--mint-bg); }
