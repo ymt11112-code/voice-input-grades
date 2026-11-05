@@ -479,7 +479,7 @@
       });
       if (o.ptLabel && n <= 24) s.values.forEach(function (v, i) {
         if (v == null) return;
-        var tx = o.ptLabel(i, v);
+        var tx = o.ptLabel(i, v, s);
         if (tx == null || tx === '') return;
         svg.appendChild(sv('text', { x: X(i), y: Y(v) + (v >= 0 ? -10 : 18), 'text-anchor': 'middle', 'class': 'ax-val', style: 'pointer-events:none' }, String(tx)));
       });

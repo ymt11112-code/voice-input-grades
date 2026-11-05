@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261129">
+  <link rel="stylesheet" href="analysis-common.css?v=20261130">
 </head>
 <body>
 <div class="app">
@@ -19,7 +19,6 @@
       <a href="Personal.html">個人概況</a>
       <a href="Gradebook.html">成績總表</a>
       <a href="Progress.html">成績歷程</a>
-      <a href="Report.html">家長報告</a>
       <a class="on" href="Attention.html">關注名單</a>
       <a href="Awards.html">獎狀名單</a>
       <a href="Missing.html">缺分紀錄</a>
@@ -42,10 +41,10 @@
   </div>
 </div>
 
-<script src="analysis-stats.js?v=20261129"></script>
-<script src="analysis-demo.js?v=20261129"></script>
-<script src="analysis-art.js?v=20261129"></script>
-<script src="analysis-common.js?v=20261129"></script>
+<script src="analysis-stats.js?v=20261130"></script>
+<script src="analysis-demo.js?v=20261130"></script>
+<script src="analysis-art.js?v=20261130"></script>
+<script src="analysis-common.js?v=20261130"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el, fmt = S.fmt, LATEST = '^', ALLS = '*';
@@ -131,7 +130,7 @@
       var subs = []; x.list.forEach(function (a) { if (subs.indexOf(a.subject) === -1) subs.push(a.subject); });
       head.appendChild(el('span', { 'class': 'muted small' }, subs.join('、')));
       head.appendChild(el('span', { 'class': 'spacer' }));
-      head.appendChild(el('a', { 'class': 'link small', href: AX.pageUrl('Report.html', { key: x.r.key, term: asOf }) }, '家長報告 ›'));
+      head.appendChild(el('a', { 'class': 'link small', href: AX.pageUrl('Personal.html', { view: 'report', key: x.r.key, term: asOf }) }, '家長報告 ›'));
       var firstSub = subs[0];
       head.appendChild(el('a', { 'class': 'link small', href: AX.pageUrl('Personal.html', { subject: firstSub, key: x.r.key, term: asOf }) }, '個人概況 ›'));
       box.appendChild(head);
