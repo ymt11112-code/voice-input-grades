@@ -198,14 +198,14 @@
     raw: null, subject: saved.subject || null, term: null, stage: null,
     blank: saved.blank >= 0 && saved.blank <= 100 && saved.blank !== null ? Number(saved.blank) : S.BLANK_DEFAULT,
     missPen: saved.missPen !== undefined && saved.missPen !== null && saved.missPen >= 0 && saved.missPen <= 100 ? Number(saved.missPen) : 4,
-    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : (saved.view === 'total' ? 'total' : 'detail'), totalSubs: Array.isArray(saved.totalSubs) ? saved.totalSubs : null, low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
+    dec: saved.dec === 1 ? 1 : 2, view: saved.view === 'brief' ? 'brief' : (saved.view === 'total' ? 'total' : 'detail'), totalSubs: Array.isArray(saved.totalSubs) ? saved.totalSubs : null, totalSort: saved.totalSort === 'rank' ? 'rank' : 'seat', low: saved.low > 0 ? saved.low : 80, perPage: saved.perPage >= 4 ? saved.perPage : 16, G: null,
     rowOpt: saved.rowOpt && typeof saved.rowOpt === 'object' ? saved.rowOpt : {}   // 簡表要印哪些列：{科目: {列的代號: true/false}}
   };
   var KIND_OPTS = [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度（課堂表現）'], ['midterm', '期中考'], ['final', '期末考'], ['skip', '不列入']];
   var STAGE_NAME = { 1: '期中考', 2: '期末考' };
 
   AX.shell();
-  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, totalSubs: st.totalSubs, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, missPen: st.missPen, rowOpt: st.rowOpt })); }
+  function remember() { AX.lsSet(STORE, JSON.stringify({ subject: st.subject, view: st.view, totalSubs: st.totalSubs, totalSort: st.totalSort, low: st.low, perPage: st.perPage, dec: st.dec, blank: st.blank, missPen: st.missPen, rowOpt: st.rowOpt })); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function n1(v) { return v == null ? '' : (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); }
   function nd(v, dec) {
@@ -476,6 +476,12 @@
         remember(); render();
       };
     });
+    var sortGrp = el('span', { 'class': 'grp' });
+    sortGrp.appendChild(el('span', { 'class': 'lbl' }, '排列順序'));
+    var sortBtns = el('span', { 'class': 'grp' });
+    sortGrp.appendChild(sortBtns);
+    pick.appendChild(sortGrp);
+    AX.btnGroup(sortBtns, [{ label: '依座號', value: 'seat' }, { label: '依排名', value: 'rank' }], st.totalSort, function (v) { st.totalSort = v; remember(); render(); });
     card.appendChild(pick);
 
     var cols = subs.map(function (n) {
@@ -498,13 +504,21 @@
     });
     var pool = rows.filter(function (r) { return r.total != null; }).map(function (r) { return r.total; });
     rows.forEach(function (r) { if (r.total != null) { var k = 1; pool.forEach(function (v) { if (v > r.total + 1e-9) k++; }); r.rank = k; } });
+    if (st.totalSort === 'rank') {
+      rows = rows.map(function (r, i) { r.o = i; return r; }).sort(function (a, b) {
+        if (a.rank == null && b.rank == null) return a.o - b.o;
+        if (a.rank == null) return 1;
+        if (b.rank == null) return -1;
+        return a.rank - b.rank || a.o - b.o;
+      });
+    }
 
     var h = '<table class="gb"><thead><tr><th class="seat">座號</th><th class="name">姓名</th>';
-    cols.forEach(function (c) { h += '<th class="b-l">' + esc(c.name) + (c.ok ? '' : '<span class="pct">尚無成績</span>') + '</th>'; });
+    cols.forEach(function (c) { h += '<th>' + esc(c.name) + (c.ok ? '' : '<span class="pct">尚無成績</span>') + '</th>'; });
     h += '<th class="b-l">總成績<span class="pct">' + used.length + ' 科合計</span></th><th>平均</th><th>總名次</th></tr></thead><tbody>';
     rows.forEach(function (r) {
       h += '<tr><td class="seat">' + esc(r.seat) + '</td><td class="name">' + esc(r.name) + '</td>';
-      r.vals.forEach(function (v, j) { h += '<td class="' + (j === 0 ? 'b-l' : '') + (v != null && isLow(v) ? ' low' : '') + '">' + (v == null ? '' : nd(v, dec)) + '</td>'; });
+      r.vals.forEach(function (v, j) { h += '<td' + (v != null && isLow(v) ? ' class="low"' : '') + '>' + (v == null ? '' : nd(v, dec)) + '</td>'; });
       h += '<td class="fin b-l">' + (r.total == null ? '' : nd(r.total, 2)) + '</td><td class="dly">' + (r.avg == null ? '' : nd(r.avg, dec)) + '</td><td class="rnk">' + (r.rank == null ? '' : r.rank) + '</td></tr>';
     });
     h += '</tbody><tfoot><tr><td class="seat"></td><td class="name">平均</td>';
