@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261128">
+  <link rel="stylesheet" href="analysis-common.css?v=20261129">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -184,10 +184,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261128"></script>
-<script src="analysis-demo.js?v=20261128"></script>
-<script src="analysis-art.js?v=20261128"></script>
-<script src="analysis-common.js?v=20261128"></script>
+<script src="analysis-stats.js?v=20261129"></script>
+<script src="analysis-demo.js?v=20261129"></script>
+<script src="analysis-art.js?v=20261129"></script>
+<script src="analysis-common.js?v=20261129"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -253,8 +253,8 @@
     return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? Number(map[k]) : 0; });
   }
   function gbOf(subject, stage) {
-    var ext = S.isExternalSubject(dataOf(subject));
-    return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, ext ? null : attOf(subject, stage, 'cls'), st.blank, ext ? null : missOf(subject, stage), st.missPen, ext ? null : attOf(subject, stage, 'hw'));
+    cfgOf(subject);   // 確保設定物件存在（計分設定頁會直接修改它）
+    return S.gradebookFor(st.raw, dataOf(subject), st.term, stage, { dec: st.dec, blank: st.blank, missPen: st.missPen });
   }
   function gbFor(stage) { return gbOf(st.subject, stage); }
   function hasGraded(G) {

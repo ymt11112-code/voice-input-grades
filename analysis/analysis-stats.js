@@ -252,7 +252,8 @@
     return { v: den > 0 ? num / den : null, miss: miss };
   }
 
-  function termSummary(A, weights) {
+  // override：選用的函式 function(periods)，可在算學期成績之前，把各階段的定期考查總成績（periods[i].total）換成別的來源（成績總表的算法）
+  function termSummary(A, weights, override) {
     var W = weights && weights.daily != null ? weights : DEFAULT_WEIGHTS;
     var n = A.students.length, i;
     function nulls() { var a = []; for (var j = 0; j < n; j++) a.push(null); return a; }
@@ -307,6 +308,7 @@
       };
     });
 
+    if (typeof override === 'function') override(periods);
     var inScore = periods.filter(function (pr) { return pr.complete && pr.share > 0; });
     var provisional = false;
     if (!inScore.length) { inScore = periods.filter(function (pr) { return pr.used && pr.share > 0; }); provisional = inScore.length > 0; }
@@ -344,7 +346,9 @@
   // raw = getAnalysisAll() 的結果。回傳：
   //   { terms:[出現過資料的學期，依時間順序], subjects:[{name, data, terms:[…], byTerm:{學期:{A,T}}, all:A, index:{key:idx}}], roster:[{key,name,seat}] }
   // 學生跨科比對用「姓名」（同一科內若有同名，才改用「姓名（座號）」區分）。
-  function buildModel(raw, passPct, weightsOverride) {
+  // gbOpts：{ dec, blank, missPen }（成績總表頁的設定）。有給時，各階段的定期考查總成績改用成績總表的算法（含態度、缺訂、類別進位），
+  // 讓獎狀名單、全班概況、家長報告的分數跟「成績總表」最右邊的「平均」一致；段考還沒有成績的階段維持原本的算法
+  function buildModel(raw, passPct, weightsOverride, gbOpts) {
     passPct = passPct == null ? DEFAULT_PASS : passPct;
     var weights = weightsOverride || raw.weights || DEFAULT_WEIGHTS;
     var kinds = raw.kinds || {};
@@ -368,7 +372,14 @@
       termsHere.forEach(function (t) {
         var A = analyze(d, kinds, passPct, { terms: [t] });
         if (!A.quiz.length && !A.homework.length) return;
-        byTerm[t] = { A: A, T: termSummary(A, weightsOverride || (raw.subjectWeights && raw.subjectWeights[d.subject]) || weights) };
+        byTerm[t] = { A: A, T: termSummary(A, weightsOverride || (raw.subjectWeights && raw.subjectWeights[d.subject]) || weights, gbOpts ? function (periods) {
+          periods.forEach(function (per, pi) {
+            var G = null;
+            try { G = gradebookFor(raw, d, t, pi + 1, gbOpts); } catch (e) { G = null; }
+            if (!G || G.empty || !G.examGraded || G.final.length !== per.total.length) return;
+            per.total = G.final.slice(); per.partial = per.total.map(function () { return false; });
+          });
+        } : null) };
         termsWithData.push(t); allTerms[t] = true;
       });
       // 全部學期合併時，測驗依「學期→登記順序」排列（之後才補登的舊學期項目也會排回正確位置）
@@ -1312,7 +1323,25 @@
     return { ok: true, rows: rows, stages: Math.min(ping.length, ding.length, 2) };
   }
 
+  // 用「系統裡存的資料」直接算某科、某學期、某階段的成績總表。態度（課堂／作業）、缺訂借用「態度成績_系統」表：
+  // 科目欄＝科目名（課堂態度）、「作業態度｜科目」、「缺訂｜科目」。成績總表頁、獎狀名單等都用這一個函式，數字才會一致
+  function gradebookFor(raw, d, term, stage, o) {
+    o = o || {};
+    var ext = isExternalSubject(d), rows = raw.attitude || [];
+    function nm(x) { return String(x == null ? '' : x).replace(/\s+/g, ''); }
+    function col(key) {
+      var map = {};
+      rows.forEach(function (a) { if (a.subject === key && a.term === term && Number(a.p) === stage) map[a.name] = a.score; });
+      return d.students.map(function (s) { var k = nm(s.name); return map.hasOwnProperty(k) ? map[k] : null; });
+    }
+    var W = (raw.subjectWeights && raw.subjectWeights[d.subject]) || raw.weights;
+    var cfg = (raw.gradebook && raw.gradebook[d.subject]) || {};
+    var miss = ext ? null : col('缺訂｜' + d.subject).map(function (v) { return v == null ? 0 : Number(v); });
+    return gradebook(d, term, stage, raw.kinds, W, cfg, o.dec, ext ? null : col(d.subject), o.blank, miss, o.missPen, ext ? null : col('作業態度｜' + d.subject));
+  }
+
   AX.stats = {
+    gradebookFor: gradebookFor,
     parseExternalPaste: parseExternalPaste,
     periodMap: periodMap, gradebook: gradebook, isExternalSubject: isExternalSubject, gbRound: gbRound, BLANK_DEFAULT: BLANK_DEFAULT,
     defaultDomainOf: defaultDomainOf, semesterByDomain: semesterByDomain, domainParsedFromSystem: domainParsedFromSystem, compareDomainScores: compareDomainScores,

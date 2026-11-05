@@ -183,7 +183,10 @@
   AX.load = function () {
     return AX.call('getAnalysisAll').then(function (raw) {
       AX.normalizeRaw(raw);
-      return { raw: raw, model: S.buildModel(raw, AX.getPass()) };   // 權重用各科目自己的設定（raw.subjectWeights）
+      // 定期考查總成績用成績總表的算法（設定：小數位數、暫定分數、缺訂扣分，跟成績總表頁同一份），各頁的分數才會跟成績總表一致
+      var gb = {}; try { gb = JSON.parse(AX.lsGet('AX_GRADEBOOK') || '{}') || {}; } catch (e) { gb = {}; }
+      var gbOpts = { dec: gb.dec === 1 ? 1 : 2, blank: gb.blank >= 0 && gb.blank <= 100 && gb.blank !== null ? Number(gb.blank) : S.BLANK_DEFAULT, missPen: gb.missPen >= 0 && gb.missPen <= 100 && gb.missPen !== null ? Number(gb.missPen) : 4 };
+      return { raw: raw, model: S.buildModel(raw, AX.getPass(), null, gbOpts) };   // 權重用各科目自己的設定（raw.subjectWeights）
     });
   };
 
