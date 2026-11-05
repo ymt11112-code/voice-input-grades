@@ -14,7 +14,7 @@
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
 
     /* 詳表 */
-    .gbWrap { overflow: auto; max-height: 76vh; border: 2px solid var(--ink); border-radius: 14px; background: #fff; }
+    .gbWrap { overflow: auto; max-height: 76vh; border: 2px solid var(--ink); border-radius: 14px; background: #fff; width: fit-content; max-width: 100%; margin: 0 auto; }
     table.gb { border-collapse: separate; border-spacing: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
     table.gb th, table.gb td { border-right: 1px solid #D9CFBD; border-bottom: 1px solid #D9CFBD; padding: 4px 6px; text-align: center; white-space: nowrap; min-width: 40px; background: #fff; }
     table.gb thead th { position: sticky; background: var(--yellow-soft); font-weight: 400; z-index: 2; line-height: 1.25; }
@@ -111,7 +111,7 @@
       table.gb input.attIn, table.gb input.missIn { border: none; background: transparent; width: 40px; font-size: 10.5px; padding: 0; -moz-appearance: textfield; appearance: textfield; }
       table.gb input.attIn::-webkit-inner-spin-button, table.gb input.attIn::-webkit-outer-spin-button, table.gb input.missIn::-webkit-inner-spin-button, table.gb input.missIn::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       table.gb td.mis { background: #fff; }
-      .gbWrap { overflow: visible; max-height: none; border: 1.5px solid #222; border-radius: 0; }
+      .gbWrap { overflow: visible; max-height: none; border: 1.5px solid #222; border-radius: 0; width: auto; max-width: none; margin: 0; }
       table.gb { font-size: 10.5px; width: 100%; }
       .gbWrap.sparse table.gb { font-size: 13.5px; }
       .gbWrap.sparse table.gb th, .gbWrap.sparse table.gb td { padding: var(--padv, 5px) 4px; }
