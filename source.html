@@ -202,6 +202,27 @@
 
     /* 項目清單：可直接編輯的表格、拖曳把手 */
     .tblWrap { overflow-x: auto; }
+    /* 項目管理：新增區（單一新增、批次新增）並排，欄位上方有小標題 */
+    .addGrid { display: grid; grid-template-columns: 1fr 1.35fr; gap: 12px; align-items: start; }
+    .addGrid .addBox { margin-top: 0; }
+    .addBox > b { display: block; margin-bottom: 2px; }
+    .addBox > .muted { margin: 2px 0 8px; }
+    .fieldRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+    .fld { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); min-width: 0; }
+    .fld select, .fld input { width: 100%; box-sizing: border-box; color: var(--ink, inherit); }
+    .fld { flex: 0 1 96px; }
+    .fld.grow { flex: 1 1 130px; }
+    .fld.sm { flex: 0 1 72px; }
+    .fieldRow > button { flex: 0 0 auto; }
+    details.foldBox > summary { cursor: pointer; font-weight: 700; list-style-position: inside; }
+    details.foldBox[open] > summary { margin-bottom: 6px; }
+    @media (max-width: 900px) { .addGrid { grid-template-columns: 1fr; } }
+    /* 項目清單：表格只佔 85% 寬，學期、類別欄收窄，把空間留給項目名稱 */
+    #itemList .tblWrap { width: 85%; }
+    #itemList table.itemTable select { min-width: 0; }
+    #itemList table.itemTable th.cTerm { width: 92px; }
+    #itemList table.itemTable th.cCat { width: 112px; }
+    @media (max-width: 900px) { #itemList .tblWrap { width: 100%; } }
     table.itemTable { width: 100%; border-collapse: collapse; margin-top: 6px; }
     table.itemTable th, table.itemTable td { border: 1px solid var(--line); padding: 4px 6px; font-size: 13px; text-align: left; background: #fff; }
     table.itemTable th { background: var(--mint-bg); }
@@ -490,34 +511,39 @@
         <span class="cardToggle" id="cardToggle-card-items">▾</span>
       </div>
       <div class="cardBody" id="card-items" hidden>
-        <h3>新增登記項目（例如：第一次段考、第3次作業）</h3>
-        <div class="row">
-          <select id="newItemTerm" title="項目所屬學期"></select>
-          <select id="newItemCategory"></select>
-          <input type="text" id="newItemName" placeholder="項目名稱，例如：第一次段考">
-          <input type="number" id="newItemMax" placeholder="滿分(選填)" style="width:90px">
-          <button onclick="onAddItem()">新增項目</button>
-        </div>
+        <div class="addGrid">
+          <div class="subpanel addBox">
+            <b>➕ 新增單一項目</b>
+            <p class="muted">例如：第一次段考、第 3 次作業。</p>
+            <div class="fieldRow">
+              <label class="fld">學期<select id="newItemTerm" title="項目所屬學期"></select></label>
+              <label class="fld">類別<select id="newItemCategory"></select></label>
+              <label class="fld grow">項目名稱<input type="text" id="newItemName" placeholder="例如：第一次段考"></label>
+              <label class="fld sm">滿分<input type="number" id="newItemMax" placeholder="選填"></label>
+              <button onclick="onAddItem()">新增項目</button>
+            </div>
+          </div>
 
-        <div class="subpanel">
-          <b>⚡ 批次產生一系列項目</b>
-          <p class="muted">例如類別選「作業」、前綴輸入「作業」、起始編號 1、數量輸入 6，會一次產生「作業1」～「作業6」；之後要接著產生「作業7」～「作業12」，起始編號改成 7 即可。</p>
-          <div class="row">
-            <select id="seriesTerm" title="項目所屬學期"></select>
-            <select id="seriesCategory"></select>
-            <input type="text" id="seriesBaseName" placeholder="名稱前綴，例如：作業">
-            <input type="number" id="seriesStart" placeholder="起始編號" value="1" style="width:90px">
-            <input type="number" id="seriesCount" placeholder="數量" style="width:80px">
-            <input type="number" id="seriesMax" placeholder="滿分(選填)" style="width:90px">
-            <button onclick="onAddItemSeries()">批次產生</button>
+          <div class="subpanel addBox">
+            <b>⚡ 批次產生一系列項目</b>
+            <p class="muted">例如前綴「作業」、起始 1、數量 6 → 作業1～作業6；要接著產生第 7～12 次，起始編號改成 7。</p>
+            <div class="fieldRow">
+              <label class="fld">學期<select id="seriesTerm" title="項目所屬學期"></select></label>
+              <label class="fld">類別<select id="seriesCategory"></select></label>
+              <label class="fld grow">名稱前綴<input type="text" id="seriesBaseName" placeholder="例如：作業"></label>
+              <label class="fld sm">起始編號<input type="number" id="seriesStart" placeholder="1" value="1"></label>
+              <label class="fld sm">數量<input type="number" id="seriesCount" placeholder="6"></label>
+              <label class="fld sm">滿分<input type="number" id="seriesMax" placeholder="選填"></label>
+              <button onclick="onAddItemSeries()">批次產生</button>
+            </div>
           </div>
         </div>
 
-        <div class="subpanel">
-          <b>🪄 依項目名稱自動分類（做出各簿本的小計平均）</b>
+        <details class="subpanel foldBox">
+          <summary>🪄 依項目名稱自動分類（做出各簿本的小計平均）　<span class="muted">進階，需要時再打開</span></summary>
           <p class="muted">例如「作業」類別裡有「數課U1～U5」和「數習U1～U5」，按下去會把它們分到「數課」「數習」兩個類別；「平時測驗」裡的「數重U1…」「數卷U1…」也一樣。分開以後，成績總表就會自動算出每個類別各自的小計平均（數課平均、數習平均…），簡表也能選擇要不要印。名稱要是「名稱＋編號」的格式，同一組至少 2 個項目才會分，只拆目前畫面上的學期。按下去會先列出要怎麼分，確認才會動；之後想改，可以在下面的清單勾選項目再改類別。</p>
           <div class="row"><button class="secondary" onclick="onAutoSplitCategories()">依名稱拆分類別</button></div>
-        </div>
+        </details>
 
         <h3>目前科目的項目清單</h3>
         <p class="muted">按住最左邊的 ⠿ 拖曳，就能調整順序（平板用手指按住拖也可以）。學期、類別、名稱、難度、滿分都可以直接修改，改完離開欄位就自動儲存。勾選多個項目，可以一次改學期、類別、難度，或一次刪除。</p>
@@ -2759,7 +2785,7 @@ function renderItemList() {
   var tb = document.createElement('table');
   tb.className = 'itemTable';
   tb.innerHTML = '<thead><tr><th class="narrow"></th><th class="narrow"><input type="checkbox" id="itemSelAll" title="全選／取消全選"></th>' +
-    '<th>學期</th><th>類別</th><th>項目名稱</th><th style="width:74px">難度</th><th style="width:138px">階段</th><th style="width:96px">滿分</th><th class="narrow"></th></tr></thead>';
+    '<th class="cTerm">學期</th><th class="cCat">類別</th><th>項目名稱</th><th style="width:74px">難度</th><th style="width:110px">階段</th><th style="width:84px">滿分</th><th class="narrow"></th></tr></thead>';
   var body = document.createElement('tbody');
   visible.forEach(function (it) { body.appendChild(itemRow_(it)); });
   tb.appendChild(body);
