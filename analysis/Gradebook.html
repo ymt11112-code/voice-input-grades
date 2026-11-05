@@ -442,6 +442,20 @@
     wireMissInputs(wrap, G);
   }
 
+  // Tab 鍵改成往下：1 號輸完按 Tab 跳到 2 號（同一欄）；這一欄最後一位再按 Tab，才換到右邊那一欄的第 1 位（Shift＋Tab 反過來）
+  function tabDown(e, inp) {
+    var all = Array.prototype.slice.call(document.querySelectorAll('table.gb input.attIn, table.gb input.missIn'));
+    function colOf(x) { return x.classList.contains('missIn') ? 'miss' : (x.dataset.k || 'cls'); }
+    var cols = [], byCol = {};
+    all.forEach(function (x) { var c = colOf(x); if (!byCol[c]) { byCol[c] = []; cols.push(c); } byCol[c].push(x); });
+    var c = colOf(inp), list = byCol[c], i = list.indexOf(inp), ci = cols.indexOf(c), nxt = null;
+    if (!e.shiftKey) nxt = list[i + 1] || (byCol[cols[ci + 1]] || [])[0];
+    else nxt = list[i - 1] || (byCol[cols[ci - 1]] || []).slice(-1)[0];
+    if (!nxt) return;   // 已經是第一個或最後一個，照瀏覽器原本的 Tab 走
+    e.preventDefault();
+    nxt.focus(); nxt.select();
+  }
+
   // ---- 態度輸入：離開欄位或按 Enter 就存；存完重算整張表，游標留在原本的位置 ----
   var attChain = Promise.resolve();
   function wireAttitudeInputs(wrap, G) {
@@ -452,6 +466,7 @@
     Array.prototype.forEach.call(inputs, function (inp) { (byK[inp.dataset.k] = byK[inp.dataset.k] || []).push(inp); });
     Array.prototype.forEach.call(inputs, function (inp) {
       inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Tab') { tabDown(e, inp); return; }
         if (e.key !== 'Enter') return;
         e.preventDefault();
         var list = byK[inp.dataset.k], k = list.indexOf(inp);
@@ -530,6 +545,7 @@
     if (!inputs.length) return;
     Array.prototype.forEach.call(inputs, function (inp, k) {
       inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Tab') { tabDown(e, inp); return; }
         if (e.key !== 'Enter') return;
         e.preventDefault();
         var nxt = inputs[e.shiftKey ? k - 1 : k + 1];
