@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="analysis-common.css?v=20261127">
+  <link rel="stylesheet" href="analysis-common.css?v=20261128">
   <style>
     .app { max-width: none; }
     .gbTitle { text-align: center; font-size: 22px; margin: 4px 0 10px; }
@@ -162,6 +162,7 @@
     </div>
     <div class="bar noprint" id="attBar" style="display:none">
       <span class="grp"><span class="lbl">🙂 態度分數一鍵設定（目前的學期、階段）</span>
+        <select id="attWhich"><option value="cls">課堂態度</option><option value="hw">作業態度</option><option value="both">兩項都設</option></select>
         <input type="number" id="attBulkVal" min="0" max="100" step="any" style="width:70px"><span class="lbl">分</span>
         <select id="attScope"><option value="one">只設這個科目</option><option value="all">全部科目（不含別位老師的科目）</option></select>
         <button class="primary" id="attFillAll" title="全班都改成這個分數，已經輸入的也會被蓋過">全班設為這個分數</button>
@@ -182,10 +183,10 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="analysis-stats.js?v=20261127"></script>
-<script src="analysis-demo.js?v=20261127"></script>
-<script src="analysis-art.js?v=20261127"></script>
-<script src="analysis-common.js?v=20261127"></script>
+<script src="analysis-stats.js?v=20261128"></script>
+<script src="analysis-demo.js?v=20261128"></script>
+<script src="analysis-art.js?v=20261128"></script>
+<script src="analysis-common.js?v=20261128"></script>
 <script>
 (function () {
   var S = AX.stats, el = AX.el;
@@ -235,9 +236,12 @@
   }
   function normName(n) { return String(n == null ? '' : n).replace(/\s+/g, ''); }
   // 這個科目、學期、階段的態度分數，依學生順序（沒輸入的是 null）
-  function attOf(subject, stage) {
-    var map = {};
-    (st.raw.attitude || []).forEach(function (a) { if (a.subject === subject && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
+  // 態度有兩項：課堂態度（k＝'cls'，沿用原本的態度資料，科目欄就是科目名稱）、作業態度（k＝'hw'，科目欄寫成「作業態度｜科目」，一樣不用更新 Apps Script）
+  var HW_KEY = '作業態度｜';
+  function attKey(k, subject) { return k === 'hw' ? HW_KEY + subject : subject; }
+  function attOf(subject, stage, k) {
+    var map = {}, key = attKey(k, subject);
+    (st.raw.attitude || []).forEach(function (a) { if (a.subject === key && a.term === st.term && Number(a.p) === stage) map[a.name] = a.score; });
     return dataOf(subject).students.map(function (s) { var k = normName(s.name); return map.hasOwnProperty(k) ? map[k] : null; });
   }
   // 缺訂（缺交訂正）次數：借用「態度成績_系統」工作表存，科目欄寫成「缺訂｜科目」，所以不用更新 Apps Script。沒登記＝0
@@ -249,7 +253,7 @@
   }
   function gbOf(subject, stage) {
     var ext = S.isExternalSubject(dataOf(subject));
-    return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, ext ? null : attOf(subject, stage), st.blank, ext ? null : missOf(subject, stage), st.missPen);
+    return S.gradebook(dataOf(subject), st.term, stage, st.raw.kinds, weightsOf(subject), cfgOf(subject), st.dec, ext ? null : attOf(subject, stage, 'cls'), st.blank, ext ? null : missOf(subject, stage), st.missPen, ext ? null : attOf(subject, stage, 'hw'));
   }
   function gbFor(stage) { return gbOf(st.subject, stage); }
   function hasGraded(G) {
@@ -326,8 +330,10 @@
           c.items.forEach(function (x) {
             cols.push({ head: esc(x.name), kind: 'item', item: x, values: x.scores, scaled: !!c.scale, gkind: g.kind });
           });
-          if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.raw : null, scaled: !!c.scale, input: !!c.input, pctVal: true });
+          if (g.cats.length > 1 || c.base > 0 || c.scale) cols.push({ head: esc(c.category) + '<span class="pct">' + (c.used ? pct(c.share) : (c.input ? '輸入' : '不計分')) + '</span>', cls: c.input ? 'cat att' : 'cat', values: c.avg, raw: c.input ? c.raw : null, scaled: !!c.scale, input: !!c.input, attK: c.attK, pctVal: true });
         });
+        // 缺訂放在態度這一大項裡，扣的是「態度」合計
+        if (g.kind === 'other' && G.miss && G.attInput) cols.push({ head: '缺訂<span class="pct">每次−' + nd(G.missPen, 1) + '</span>', cls: 'mis', values: G.miss, missIn: true });
       }
       cols.push({ head: esc(g.label) + '<span class="pct">' + (g.used ? pct(g.share) : '不計分') + '</span>', cls: 'grp', values: g.avg, pctVal: true, susKind: single ? g.kind : null, susName: single ? g.cats[0].items[0].name : '' });
       cols[start].first = true;
@@ -338,8 +344,9 @@
 
   function tailColumns(G) {
     var tail = [];
-    if (G.miss) tail.push({ head: '缺訂<span class="pct">每次−' + nd(G.missPen, 1) + '</span>', cls: 'mis', values: G.miss, missIn: true, first: true });
-    tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: !G.miss });
+    var missTail = G.miss && !G.attInput;   // 態度是登記項目時，缺訂沒有地方放進態度欄，才放在這裡
+    if (missTail) tail.push({ head: '缺訂<span class="pct">每次−' + nd(G.missPen, 1) + '</span>', cls: 'mis', values: G.miss, missIn: true, first: true });
+    tail.push({ head: '平時成績<span class="pct">' + pct(G.dailyShare) + '</span>', cls: 'dly', values: G.daily, pctVal: true, first: !missTail });
     if (G.examListed) tail.push({ head: STAGE_NAME[st.stage] + '<span class="pct">' + pct(G.examShare) + (G.examDefault ? '・未輸入暫' + G.blank : '') + '</span>', cls: 'dly', values: G.exam, pctVal: true, susKind: G.examDefault ? null : 'exam', susName: STAGE_NAME[st.stage] });
     tail.push({ head: '平均', cls: 'fin', values: G.final, pctVal: true, d2: true });
     return tail;
@@ -373,7 +380,7 @@
         if (c.first) cls.push('b-l');
         if (c.missIn) {
           if (v > 0) cls.push('hit');
-          h += '<td class="' + cls.join(' ') + '"><input type="number" class="missIn" min="0" max="100" step="1" data-i="' + i + '" value="' + (v || 0) + '" title="缺交訂正的次數（預設 0），每次從平時成績扣 ' + nd(G.missPen, 1) + ' 分；輸入後按 Enter 或 Tab 就會存到試算表"></td>';
+          h += '<td class="' + cls.join(' ') + '"><input type="number" class="missIn" min="0" max="100" step="1" data-i="' + i + '" value="' + (v || 0) + '" title="缺交訂正的次數（預設 0），每次從態度扣 ' + nd(G.missPen, 1) + ' 分；輸入後按 Enter 或 Tab 就會存到試算表"></td>';
           return;
         }
         var pctOfItem = c.kind === 'item' && v != null ? (c.scaled ? null : v / c.item.max * 100) : v;
@@ -391,7 +398,8 @@
         }
         if (c.input) {
           var rv = c.raw ? c.raw[i] : null;
-          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + st.blank + '" title="態度分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + st.blank + ' 分">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';
+          var isHw = c.attK === 'hw', nmAtt = isHw ? '作業態度' : '課堂態度';
+          h += '<td class="' + cls.join(' ') + '"><input type="number" class="attIn" min="0" max="100" step="any" data-i="' + i + '" data-k="' + (isHw ? 'hw' : 'cls') + '" value="' + (rv == null ? '' : rv) + '" placeholder="' + (isHw && !c.raw.some(function (x) { return x != null; }) ? '—' : st.blank) + '" title="' + nmAtt + '分數，輸入後按 Enter 或 Tab 就會存到試算表；還沒輸入先當作 ' + st.blank + ' 分' + (isHw ? '（全班都沒輸入時，這一項不計入態度）' : '') + '">' + (c.scaled && rv != null && v != null ? '<span class="attSc" title="換算後的分數">→' + n1(v) + '</span>' : '') + '</td>';
           return;
         }
         h += '<td' + susId + (cls.length ? ' class="' + cls.join(' ') + '"' : '') + title + '>' + (c.d2 ? n2(v) : n1(v)) + '</td>';
@@ -423,7 +431,7 @@
     built.tops.forEach(function (t) { if (t.single) solos[si++].innerHTML = cols[p].head; p += t.n; });
     card.appendChild(wrap);
     var over = wrap.querySelectorAll('.over').length;
-    card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「態度」、粉紅色格子的「缺訂」直接在表上輸入（Enter 到下一位）；缺訂每缺交訂正一次，從平時成績扣 ' + nd(G.missPen, 1) + ' 分（沒有缺訂就維持 0）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
+    card.appendChild(el('p', { 'class': 'legend' }, '紅字＝未達 ' + st.low + ' 分。黃色格子的「課堂態度」「作業態度」、粉紅色格子的「缺訂」直接在表上輸入（Enter 到下一位）；態度 ＝ 課堂態度與作業態度依比例合成（預設各占一半，可個別設定換算），再扣缺訂：每缺交訂正一次扣 ' + nd(G.missPen, 1) + ' 分（沒有缺訂就維持 0）。比例可以在下方「計分設定」修改。空白：作業類以 0 分計（缺交），測驗、態度不計入平均；測驗缺考請登記 0 分。' +
       (shareNote(G) ? ' ' + shareNote(G) : '') +
       (wrap.querySelectorAll('td.bad').length ? ' ⚠️ 有 ' + wrap.querySelectorAll('td.bad').length + ' 格超過滿分或超過 100 分（深紅色底），請檢查原始分數有沒有打錯。' : '')));
     if (susList.length) card.appendChild(susBox(susList, wrap));
@@ -437,11 +445,15 @@
   function wireAttitudeInputs(wrap, G) {
     var inputs = wrap.querySelectorAll('input.attIn');
     if (!inputs.length) return;
-    Array.prototype.forEach.call(inputs, function (inp, k) {
+    // 課堂態度、作業態度各一欄：Enter 往同一欄的下一位
+    var byK = {};
+    Array.prototype.forEach.call(inputs, function (inp) { (byK[inp.dataset.k] = byK[inp.dataset.k] || []).push(inp); });
+    Array.prototype.forEach.call(inputs, function (inp) {
       inp.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
         e.preventDefault();
-        var nxt = inputs[e.shiftKey ? k - 1 : k + 1];
+        var list = byK[inp.dataset.k], k = list.indexOf(inp);
+        var nxt = list[e.shiftKey ? k - 1 : k + 1];
         if (nxt) { nxt.focus(); nxt.select(); } else inp.blur();
       });
       inp.addEventListener('focus', function () { inp.select(); });
@@ -449,7 +461,8 @@
     });
   }
   function saveAttitude(G, i, text, inp) {
-    var stu = G.students[i], subject = st.subject, term = st.term, stage = st.stage;
+    var k = inp.dataset.k === 'hw' ? 'hw' : 'cls';
+    var stu = G.students[i], subject = attKey(k, st.subject), term = st.term, stage = st.stage;
     var v = String(text).trim() === '' ? '' : Number(text);
     if (v !== '' && (!isFinite(v) || v < 0 || v > 100)) { AX.toast('態度分數要在 0～100 之間', true); inp.value = ''; return; }
     // 先改畫面上的資料（立刻重算），再背景存到試算表
@@ -457,9 +470,9 @@
     st.raw.attitude = (st.raw.attitude || []).filter(function (a) { return !(a.subject === subject && a.term === term && Number(a.p) === stage && a.name === key); });
     if (v !== '') st.raw.attitude.push({ subject: subject, term: term, p: stage, name: key, score: v });
     setTimeout(function () {
-      var ae = document.activeElement, keep = ae && ae.classList && ae.classList.contains('attIn') ? ae.dataset.i : null;
+      var ae = document.activeElement, keepI = ae && ae.classList && ae.classList.contains('attIn') ? ae.dataset.i : null, keepK = ae && ae.dataset ? ae.dataset.k : null;
       render();
-      if (keep != null) { var again = document.querySelector('input.attIn[data-i="' + keep + '"]'); if (again) { again.focus(); again.select(); } }
+      if (keepI != null) { var again = document.querySelector('input.attIn[data-i="' + keepI + '"][data-k="' + keepK + '"]'); if (again) { again.focus(); again.select(); } }
     }, 0);
     attChain = attChain.then(function () { return AX.call('setAttitude', subject, term, stage, [{ name: stu.name, score: v }]); })
       .then(function () { setSaved('已儲存'); }, function (e) { AX.showError(e); });
@@ -530,22 +543,26 @@
     var subjects = scope === 'all' ? st.raw.subjects.map(function (d) { return d.subject; }) : [st.subject];
     subjects = subjects.filter(function (s) { var d = dataOf(s); return d && d.students.length && !S.isExternalSubject(d) && termsOf(d).indexOf(term) > -1; });
     if (!subjects.length) { AX.toast('沒有可以設定的科目', true); return; }
+    var which = AX.$('attWhich').value, ks = which === 'both' ? ['cls', 'hw'] : [which === 'hw' ? 'hw' : 'cls'];
+    var what = { cls: '課堂態度', hw: '作業態度', both: '課堂態度和作業態度' }[which] || '課堂態度';
     var plan = [], overwrite = 0, total = 0;
     subjects.forEach(function (s) {
-      var cur = attOf(s, stage), entries = [];
-      dataOf(s).students.forEach(function (stu, i) {
-        var has = cur[i] != null;
-        if (mode === 'blank' && has) return;
-        if (mode === 'clear' && !has) return;
-        if (mode === 'all' && has && Number(cur[i]) !== val) overwrite++;
-        entries.push({ name: stu.name, score: mode === 'clear' ? '' : val });
+      ks.forEach(function (k) {
+        var cur = attOf(s, stage, k), entries = [];
+        dataOf(s).students.forEach(function (stu, i) {
+          var has = cur[i] != null;
+          if (mode === 'blank' && has) return;
+          if (mode === 'clear' && !has) return;
+          if (mode === 'all' && has && Number(cur[i]) !== val) overwrite++;
+          entries.push({ name: stu.name, score: mode === 'clear' ? '' : val });
+        });
+        if (entries.length) { plan.push({ subject: attKey(k, s), entries: entries }); total += entries.length; }
       });
-      if (entries.length) { plan.push({ subject: s, entries: entries }); total += entries.length; }
     });
-    if (!plan.length) { AX.toast(mode === 'blank' ? '大家都已經輸入過態度了，沒有需要補的' : '沒有需要更動的資料'); return; }
+    if (!plan.length) { AX.toast(mode === 'blank' ? '大家都已經輸入過' + what + '了，沒有需要補的' : '沒有需要更動的資料'); return; }
     var where = scope === 'all' ? '「' + subjects.join('、') + '」' : '「' + st.subject + '」', when = fullTerm(term) + STAGE_NAME[stage];
-    var msg = mode === 'clear' ? '要清除' + where + when + '的態度分數嗎？（共 ' + total + ' 筆，清除後會回到「還沒輸入先當作 ' + st.blank + ' 分」）'
-      : '要把' + where + when + '的態度分數' + (mode === 'blank' ? '（只補還沒輸入的 ' + total + ' 位）' : '全部設為 ' + val + ' 分（共 ' + total + ' 位' + (overwrite ? '，其中 ' + overwrite + ' 位原本輸入的分數會被蓋過' : '') + '）') + (mode === 'blank' ? '設為 ' + val + ' 分' : '') + '嗎？';
+    var msg = mode === 'clear' ? '要清除' + where + when + '的' + what + '分數嗎？（共 ' + total + ' 筆，清除後會回到「還沒輸入先當作 ' + st.blank + ' 分」）'
+      : '要把' + where + when + '的' + what + '分數' + (mode === 'blank' ? '（只補還沒輸入的 ' + total + ' 筆）' : '全部設為 ' + val + ' 分（共 ' + total + ' 筆' + (overwrite ? '，其中 ' + overwrite + ' 筆原本輸入的分數會被蓋過' : '') + '）') + (mode === 'blank' ? '設為 ' + val + ' 分' : '') + '嗎？';
     if (!confirm(msg)) return;
     // 先改畫面上的資料（立刻重算），再背景存進試算表
     plan.forEach(function (p) {
@@ -578,7 +595,7 @@
     return '包含 ' + done.length + ' 項：' + done.join('、') + (wait.length ? '（尚未登記：' + wait.join('、') + '）' : '');
   }
   function groupTip(g) {
-    if (g.kind === 'other') return '老師在詳表輸入的態度分數；還沒輸入的先當 ' + st.blank + ' 分';
+    if (g.kind === 'other') return '課堂態度與作業態度依比例合成' + (st.G && st.G.miss ? '，再扣缺訂（每次 ' + nd(st.G.missPen, 1) + ' 分）' : '') + '；還沒輸入的先當 ' + st.blank + ' 分';
     var used = g.cats.filter(function (c) { return c.used; });
     if (used.length > 1) return '由 ' + used.map(function (c) { return c.category + ' ' + pct(c.share); }).join('、') + ' 合成';
     return used.length ? itemsTip(used[0]) : '';
@@ -592,7 +609,11 @@
       var side = { other: '上課態度', homework: '平時作業', quiz: '平時測驗' }[g.kind];
       var total = { other: '態度', homework: '作業平均', quiz: '紙筆測驗' }[g.kind];
       g.cats.forEach(function (c) {
-        if (c.input) return;
+        if (c.input) {   // 課堂態度、作業態度：預設不印，只印態度合計；要的話在勾選區打勾
+          var ik = 'c:' + c.category;
+          group.push({ key: ik, label: c.category, pick: c.category + '（項目）', tip: c.category + '（' + (c.scale ? '已換算成 ' + c.lo + '～' + c.hi + ' 分' : '原始分數') + '）', values: c.avg, on: on(ik, false), cls: 'att' });
+          return;
+        }
         var key = 'c:' + c.category, def = multi;   // 只有一個類別時，類別那列跟總列一樣，預設不重複印
         // 這一大項只有一個類別時，類別那列和合計一模一樣，不重複列出
         if (multi) group.push({ key: key, label: c.category + '平均', pick: c.category + '平均（類別）', tip: itemsTip(c), values: c.avg, on: on(key, def) });
@@ -602,13 +623,15 @@
           group.push({ key: sk, label: sb.label + '平均', pick: sb.label + '平均（細項）', sub: true, tip: '包含 ' + sb.names.length + ' 項：' + sb.names.join('、'), values: sb.avg, on: on(sk, false) });
         });
       });
+      // 缺訂扣的是態度合計，所以放在態度這一大項裡（預設只有真的有人缺訂才印）
+      if (g.kind === 'other' && G.miss && G.attInput) group.push({ key: 'miss', label: '缺訂次數（每次−' + nd(G.missPen, 1) + '）', pick: '缺訂次數', tip: '缺交訂正的次數，已從態度扣分', values: G.miss.map(function (v) { return v > 0 ? v : null; }), plain: true, on: on('miss', G.miss.some(function (v) { return v > 0; })) });
       var gk = 'g:' + g.kind;
       group.push({ key: gk, label: total + (g.used ? '（' + pct(g.share) + '）' : '（不計分）'), pick: total + '（合計）', tip: groupTip(g), values: g.avg, cls: g.kind === 'other' ? 'att' : 'tot', on: on(gk, true) });
       rows.push({ side: side, rows: group, cls: g.kind === 'other' ? 'att' : '' });
     });
     var fin = [{ key: 'daily', label: '平時成績（' + pct(G.dailyShare) + '）', tip: '由 ' + G.groups.filter(function (g) { return g.used; }).map(function (g) { return { other: '態度', homework: '平時作業', quiz: '平時測驗' }[g.kind] + ' ' + pct(g.share); }).join('、') + ' 合成', values: G.daily, cls: 'sum', on: on('daily', true) }];
     if (G.examListed) fin.push({ key: 'exam', label: STAGE_NAME[st.stage] + '（' + pct(G.examShare) + '）', tip: G.examDefault ? '還沒有成績，全班先當 ' + G.blank + ' 分' : '包含：' + G.examItems.filter(function (x) { return x.graded; }).map(function (x) { return x.name; }).join('、'), values: G.exam, cls: 'sum', on: on('exam', true) });
-    if (G.miss) fin.splice(1, 0, { key: 'miss', label: '缺訂次數（每次−' + nd(G.missPen, 1) + '）', pick: '缺訂次數', tip: '缺交訂正的次數，已從平時成績扣分', values: G.miss.map(function (v) { return v > 0 ? v : null; }), plain: true, on: on('miss', G.miss.some(function (v) { return v > 0; })) });
+    if (G.miss && !G.attInput) fin.splice(1, 0, { key: 'miss', label: '缺訂次數（每次−' + nd(G.missPen, 1) + '）', pick: '缺訂次數', tip: '缺交訂正的次數，已從態度扣分', values: G.miss.map(function (v) { return v > 0 ? v : null; }), plain: true, on: on('miss', G.miss.some(function (v) { return v > 0; })) });
     fin.push({ key: 'final', label: '平均', values: G.final, d2: true, cls: 'avg', on: on('final', true) });
     fin.push({ key: 'rank', label: '排名', values: G.ranks, rank: true, cls: 'rank', on: on('rank', true) });
     rows.push({ side: (st.stage === 2 ? '期末' : '期中') + '總成績', rows: fin });
@@ -645,12 +668,15 @@
   // 態度還沒輸入（或某一項沒資料）時，那一項不計分，其餘項目的比例會自動換算成合計 100%，所以才會看到 46.7%、53.3% 這種數字
   function shareNote(G) {
     var parts = [];
-    var attCat = null;
-    G.groups.forEach(function (g) { g.cats.forEach(function (c) { if (c.input) attCat = c; }); });
-    if (attCat && attCat.raw) {
-      var miss = attCat.raw.filter(function (v) { return v == null; }).length;
-      if (miss) parts.push('＊態度還沒輸入的 ' + miss + ' 位同學，先當作 ' + G.blank + ' 分計算（輸入後改用實際分數）。');
-    }
+    G.groups.forEach(function (g) {
+      g.cats.forEach(function (c) {
+        if (!c.input || !c.raw) return;
+        var miss = c.raw.filter(function (v) { return v == null; }).length;
+        if (!miss) return;
+        if (c.attK === 'hw' && miss === c.raw.length) { parts.push('＊作業態度全班都還沒輸入，所以態度暫時只算課堂態度；輸入任何一位後，其餘還沒輸入的同學先當作 ' + G.blank + ' 分。'); return; }
+        parts.push('＊' + c.category + '還沒輸入的 ' + miss + ' 位同學，先當作 ' + G.blank + ' 分計算（輸入後改用實際分數）。');
+      });
+    });
     if (G.examDefault) parts.push('＊' + STAGE_NAME[st.stage] + '還沒有成績，全班先當作 ' + G.blank + ' 分計算。如果已經登記了卻沒出現，請到下方「計分設定」確認那個類別「算在哪一項」是「' + STAGE_NAME[st.stage] + '」。');
     var s2 = shareNote2(G);
     if (s2) parts.push(s2);
@@ -719,7 +745,7 @@
   function renderConfig() {
     var body = AX.$('cfgBody'), d = dataOf(st.subject), cfg = cfgOf(st.subject), W = weightsOf(st.subject);
     AX.clear(body);
-    body.appendChild(el('p', { 'class': 'muted small' }, '比例分三層，跟「科目設定 → 學期成績權重」是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一層只看比例，不用剛好是 100。態度、期中／期末考還沒輸入時，先當作 ' + st.blank + ' 分計算，輸入後改用實際分數。'));
+    body.appendChild(el('p', { 'class': 'muted small' }, '比例分三層，跟「科目設定 → 學期成績權重」是同一份設定，改這裡，全班概況、家長報告也會跟著改。每一層只看比例，不用剛好是 100。態度、期中／期末考還沒輸入時，先當作 ' + st.blank + ' 分計算，輸入後改用實際分數。「態度」由課堂態度和作業態度合成（下表各自設定比例與換算），合成後再扣缺訂（每次扣 ' + nd(st.missPen, 1) + ' 分）。'));
     [
       ['① 平時成績 ＝', [['homework', '平時作業'], ['quiz', '平時測驗'], ['other', '態度']]],
       ['② 定期考查總成績（期中、期末各一次）＝', [['daily', '平時成績'], ['exam', st.stage === 2 ? '期末考' : '期中考']]],
@@ -781,20 +807,24 @@
         td.appendChild(lo);
         td.appendChild(document.createTextNode(' ～ '));
         td.appendChild(hi);
-        td.appendChild(el('div', { 'class': 'muted small' }, c === '態度' ? '用全班輸入的態度分數：最低分→' + (cur.lo || 0) + '，最高分→' + cur.hi + '，其他照比例' : '用班上現有的分數：最低分→' + (cur.lo || 0) + '，最高分→' + cur.hi + '，沒交算 ' + (cur.lo || 0)));
+        td.appendChild(el('div', { 'class': 'muted small' }, c === '態度' || c === '作業態度' ? '用全班輸入的' + (c === '態度' ? '課堂態度' : '作業態度') + '分數：最低分→' + (cur.lo || 0) + '，最高分→' + cur.hi + '，其他照比例' : '用班上現有的分數：最低分→' + (cur.lo || 0) + '，最高分→' + cur.hi + '，沒交算 ' + (cur.lo || 0)));
       }
       return td;
     }
     if (cats.indexOf('態度') === -1 && !S.isExternalSubject(dataOf(st.subject))) {
-      var atr = el('tr'), acur = cfg['態度'] || {};
-      atr.appendChild(el('td', null, '態度'));
-      atr.appendChild(el('td', { 'class': 'muted' }, '態度（在詳表直接輸入）'));
-      var aw = el('input', { type: 'number', min: '0', step: 'any', value: acur.weight == null ? 1 : acur.weight });
-      aw.onchange = function () { saveCfg('態度', 'weight', aw.value); };
-      var atd = el('td'); atd.appendChild(aw); atr.appendChild(atd);
-      atr.appendChild(el('td', { 'class': 'muted' }, '—'));
-      atr.appendChild(scaleCell('態度', acur, true));
-      tb.appendChild(atr);
+      // 態度＝課堂態度、作業態度兩項（在詳表直接輸入），各自可以換算；比例預設各占一半；缺訂另外從態度合計扣分
+      [['課堂態度', '態度'], ['作業態度', '作業態度']].forEach(function (x) {
+        var atr = el('tr'), acur = cfg[x[1]] || {};
+        atr.appendChild(el('td', null, x[0]));
+        atr.appendChild(el('td', { 'class': 'muted' }, '態度（在詳表直接輸入）'));
+        var aw = el('input', { type: 'number', min: '0', step: 'any', value: acur.weight == null ? 1 : acur.weight });
+        aw.title = '課堂態度、作業態度都填 1，就是各占一半';
+        aw.onchange = function () { saveCfg(x[1], 'weight', aw.value); };
+        var atd = el('td'); atd.appendChild(aw); atr.appendChild(atd);
+        atr.appendChild(el('td', { 'class': 'muted' }, '—'));
+        atr.appendChild(scaleCell(x[1], acur, true));
+        tb.appendChild(atr);
+      });
     }
     cats.forEach(function (c) {
       var tr = el('tr'), kind = st.raw.kinds[c] || S.defaultKind(c), cur = cfg[c] || {};

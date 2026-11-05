@@ -1133,8 +1133,9 @@
     return items.length > 0 && items.every(function (it) { return EXT_ITEMS.indexOf(String(it.name == null ? '' : it.name).trim()) > -1; });
   }
 
-  // miss：依學生順序的「缺訂（缺交訂正）次數」陣列（null＝這個科目不用缺訂，例如別位老師的科目）；每缺一次從平時成績扣 missPen 分（預設 4），最低扣到 0 分
-  function gradebook(d, term, stage, kinds, weights, cfg, dec, att, blank, miss, missPen) {
+  // miss：依學生順序的「缺訂（缺交訂正）次數」陣列（null＝這個科目不用缺訂，例如別位老師的科目）；每缺一次從態度合計扣 missPen 分（預設 4），最低扣到 0 分
+  // att／att2：依學生順序的課堂態度、作業態度原始分數陣列（null＝這個科目不用態度）
+  function gradebook(d, term, stage, kinds, weights, cfg, dec, att, blank, miss, missPen, att2) {
     // 還沒輸入的態度、還沒有成績的段考，先當作這個分數（預設 70；成績總表頁的「還沒輸入時先當作」可以改）
     var BLANK = blank !== undefined && blank !== null && blank !== '' && isFinite(Number(blank)) && Number(blank) >= 0 && Number(blank) <= 100 ? Number(blank) : BLANK_DEFAULT;
     kinds = kinds || {}; cfg = cfg || {};
@@ -1168,18 +1169,31 @@
     });
 
     // 態度：不是登記項目，而是成績總表頁用輸入框另外輸入的分數（att＝依學生順序的分數陣列，沒輸入的是 null），放在「態度」那一項
+    // 態度由兩個輸入項目合成：課堂態度（att，設定存在 cfg['態度']，沿用舊資料）、作業態度（att2，設定存在 cfg['作業態度']），比例預設各占一半；
+    // 缺訂（miss）每缺一次從「態度合計」扣 missPen 分。
     var attOn = !!att && !(byKind.other && byKind.other.catMap['態度']);
     if (attOn) {
-      var og = byKind.other || (byKind.other = { catMap: {}, cats: [] }), ac = cfg['態度'] || {};
-      var araw = att.map(function (v) { return v == null || v === '' || !isFinite(Number(v)) ? null : Number(v); });
-      // 態度也可以換算：用全班輸入的分數，最低分換成 lo、最高分換成 hi，中間照比例（沒輸入的人不算）
-      var alo = Number(ac.lo) || 0, ahi = Number(ac.hi) || 0, ascale = ahi > alo && ahi > 0;
-      var aok = araw.filter(function (v) { return v != null; }), amn = aok.length ? Math.min.apply(null, aok) : 0, amx = aok.length ? Math.max.apply(null, aok) : 0;
-      og.cats.unshift({
-        category: '態度', items: [], weight: ac.weight == null ? 1 : Number(ac.weight), base: 0, input: true, input_vals: araw, scale: ascale, lo: alo, hi: ahi,
-        // 還沒輸入的同學先當作 BLANK_DEFAULT（70）分，免得比例亂掉；輸入後就改用實際（換算後）的分數
-        input_avg: araw.map(function (v) { return v == null ? BLANK : (ascale ? gbRound(amx > amn ? alo + (v - amn) / (amx - amn) * (ahi - alo) : ahi, 1) : v); })
-      });
+      var og = byKind.other || (byKind.other = { catMap: {}, cats: [] });
+      // optional：作業態度全班都還沒輸入時，整項不計入（態度暫時只算課堂態度）；有輸入任何一位後，其餘沒輸入的才先當 BLANK 分
+      var inputCat = function (name, cfgKey, vals, optional, attK) {
+        var ac = cfg[cfgKey] || {};
+        var raw = vals.map(function (v) { return v == null || v === '' || !isFinite(Number(v)) ? null : Number(v); });
+        // 態度也可以換算：用全班輸入的分數，最低分換成 lo、最高分換成 hi，中間照比例（沒輸入的人不算）
+        var lo = Number(ac.lo) || 0, hi = Number(ac.hi) || 0, scale = hi > lo && hi > 0;
+        var ok = raw.filter(function (v) { return v != null; }), mn = ok.length ? Math.min.apply(null, ok) : 0, mx = ok.length ? Math.max.apply(null, ok) : 0;
+        return {
+          category: name, items: [], weight: ac.weight == null ? 1 : Number(ac.weight), base: 0, input: true, attK: attK, input_vals: raw, scale: scale, lo: lo, hi: hi,
+          // 還沒輸入的同學先當作 BLANK_DEFAULT（70）分，免得比例亂掉；輸入後就改用實際（換算後）的分數
+          input_avg: raw.map(function (v) {
+            if (v == null) return optional && !ok.length ? null : BLANK;
+            return scale ? gbRound(mx > mn ? lo + (v - mn) / (mx - mn) * (hi - lo) : hi, 1) : v;
+          })
+        };
+      };
+      og.cats.unshift(
+        inputCat('課堂態度', '態度', att, false, 'cls'),
+        inputCat('作業態度', '作業態度', att2 || att.map(function () { return null; }), true, 'hw')
+      );
     }
     var groups = [];
     DEFS.forEach(function (def) {
@@ -1234,14 +1248,18 @@
       });
     });
 
+    // 缺訂：每缺一次，從「態度合計」扣 PEN 分（最低扣到 0 分）；扣完才併進平時成績
+    var missOn = !!miss, PEN = missPen != null && missPen !== '' && isFinite(Number(missPen)) && Number(missPen) >= 0 ? Number(missPen) : 4;
+    var missN = each(function (i) { var m = missOn ? Number(miss[i]) : 0; return m > 0 ? Math.floor(m) : 0; });
+    if (missOn) groups.forEach(function (g) {
+      if (g.kind !== 'other') return;
+      g.avg = g.avg.map(function (v, i) { return v == null || !missN[i] ? v : gbRound(Math.max(0, v - PEN * missN[i]), 1); });
+    });
     var usedGroups = groups.filter(function (g) { return g.weight > 0 && hasData(g.avg); });
     var groupTotal = sum(usedGroups.map(function (g) { return g.weight; }));
     groups.forEach(function (g) { g.used = usedGroups.indexOf(g) > -1; g.share = g.used ? g.weight / groupTotal * 100 : 0; });
 
     var daily = each(function (i) { return W.daily > 0 ? gbRound(wavg(usedGroups.map(function (g) { return [g.weight, g.avg[i]]; })).v, 1) : null; });
-    var missOn = !!miss, PEN = missPen != null && missPen !== '' && isFinite(Number(missPen)) && Number(missPen) >= 0 ? Number(missPen) : 4;
-    var missN = each(function (i) { var m = missOn ? Number(miss[i]) : 0; return m > 0 ? Math.floor(m) : 0; });
-    if (missOn) daily = daily.map(function (v, i) { return v == null || !missN[i] ? v : gbRound(Math.max(0, v - PEN * missN[i]), 1); });
     var gradedExam = examItems.filter(function (x) { return x.graded; });
     var exam = each(function (i) {
       var ps = [];
